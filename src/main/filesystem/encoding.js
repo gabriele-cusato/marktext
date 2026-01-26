@@ -94,7 +94,7 @@ export const guessEncoding = async (buffer, autoGuessEncoding) => {
         if (CED_ICONV_ENCODINGS[encoding]) {
           encoding = CED_ICONV_ENCODINGS[encoding]
         } else {
-          encoding = encoding.toLowerCase().replace(/-_/g, '')
+          encoding = encoding.toLowerCase().replace(/[-_]/g, '')
         }
       } catch (error) {
         console.warn('Failed to detect encoding using ced:', error.message)
