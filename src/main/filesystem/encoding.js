@@ -8,7 +8,7 @@ async function getCed() {
   if (cedLoadAttempted) {
     return ced
   }
-  
+
   cedLoadAttempted = true
   try {
     const cedModule = await import('ced')
@@ -18,7 +18,7 @@ async function getCed() {
     console.warn('Will default to UTF-8 encoding when autoGuessEncoding is enabled')
     ced = null
   }
-  
+
   return ced
 }
 
