@@ -1,4 +1,26 @@
-import ced from 'ced'
+// Lazy-loaded ced module for character encoding detection.
+// This is optional - if it fails to load (e.g., due to native module issues on Windows),
+// we'll fall back to UTF-8 encoding.
+let ced = null
+let cedLoadAttempted = false
+
+async function getCed() {
+  if (cedLoadAttempted) {
+    return ced
+  }
+
+  cedLoadAttempted = true
+  try {
+    const cedModule = await import('ced')
+    ced = cedModule.default
+  } catch (error) {
+    console.warn('Failed to load ced module for encoding detection:', error.message)
+    console.warn('Will default to UTF-8 encoding when autoGuessEncoding is enabled')
+    ced = null
+  }
+
+  return ced
+}
 
 const CED_ICONV_ENCODINGS = {
   'BIG5-CP950': 'big5',
@@ -37,9 +59,9 @@ const checkSequence = (buffer, sequence) => {
  *
  * @param {Buffer} buffer
  * @param {boolean} autoGuessEncoding
- * @returns {Encoding}
+ * @returns {Promise<Encoding>}
  */
-export const guessEncoding = (buffer, autoGuessEncoding) => {
+export const guessEncoding = async (buffer, autoGuessEncoding) => {
   let isBom = false
   let encoding = 'utf8'
 
@@ -65,11 +87,20 @@ export const guessEncoding = (buffer, autoGuessEncoding) => {
 
   // Auto guess encoding, otherwise use UTF8.
   if (autoGuessEncoding) {
-    encoding = ced(buffer)
-    if (CED_ICONV_ENCODINGS[encoding]) {
-      encoding = CED_ICONV_ENCODINGS[encoding]
-    } else {
-      encoding = encoding.toLowerCase().replace(/-_/g, '')
+    const cedModule = await getCed()
+    if (cedModule) {
+      try {
+        encoding = cedModule(buffer)
+        if (CED_ICONV_ENCODINGS[encoding]) {
+          encoding = CED_ICONV_ENCODINGS[encoding]
+        } else {
+          encoding = encoding.toLowerCase().replace(/-_/g, '')
+        }
+      } catch (error) {
+        console.warn('Failed to detect encoding using ced:', error.message)
+        // Fall back to UTF-8
+        encoding = 'utf8'
+      }
     }
   }
   return { encoding, isBom }

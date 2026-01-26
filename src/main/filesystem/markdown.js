@@ -87,7 +87,7 @@ export const loadMarkdownFile = async (
 
   let buffer = await fsPromises.readFile(path.resolve(pathname))
 
-  const encoding = guessEncoding(buffer, autoGuessEncoding)
+  const encoding = await guessEncoding(buffer, autoGuessEncoding)
   const supported = iconv.encodingExists(encoding.encoding)
   if (!supported) {
     throw new Error(`"${encoding.encoding}" encoding is not supported.`)
