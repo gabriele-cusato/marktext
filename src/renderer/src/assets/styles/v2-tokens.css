@@ -1,0 +1,236 @@
+/* ============================================================
+   v2 Design Tokens — affiancati al sistema esistente.
+   Riferimento: DESIGN/marktext/project/Markdown Editor v2.html
+   ============================================================ */
+
+:root {
+  /* Colori base */
+  --v2-bg: #f4f4f5;
+  --v2-surface: #ffffff;
+  --v2-surface2: #f0f0f2;
+  --v2-surface3: #e8e8ec;
+  --v2-border: #e4e4e7;
+  --v2-border2: #d1d1d6;
+  --v2-text: #18181b;
+  --v2-text2: #52525b;
+  --v2-text3: #a1a1aa;
+  --v2-accent: #6366f1;
+  --v2-accent-dim: #eef2ff;
+  --v2-success: #10b981;
+  --v2-unsaved: #f59e0b;
+
+  /* Ombre */
+  --v2-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.07), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --v2-shadow-md: 0 4px 20px rgba(0, 0, 0, 0.1), 0 2px 6px rgba(0, 0, 0, 0.05);
+  --v2-shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.13), 0 6px 20px rgba(0, 0, 0, 0.07);
+
+  /* Tipografia */
+  --v2-font-size: 16px;
+  --v2-line-height: 1.65;
+  --v2-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  --v2-sans: 'Inter', system-ui, sans-serif;
+
+  /* Dimensioni layout */
+  --v2-tab-h: 40px;
+  --v2-sb-h: 24px;
+
+  /* Timing/easing */
+  --v2-ease-std: cubic-bezier(0.4, 0, 0.2, 1);
+  --v2-ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --v2-ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --v2-t-fast: 220ms;
+  --v2-t-mid: 320ms;
+  --v2-t-slow: 420ms;
+}
+
+/* Tema scuro v2: applicato via data-v2-theme="dark" su <html> */
+html[data-v2-theme='dark'] {
+  --v2-bg: #1a1a1d;
+  --v2-surface: #27272a;
+  --v2-surface2: #333337;
+  --v2-surface3: #3e3e44;
+  --v2-border: #3a3a40;
+  --v2-border2: #52525b;
+  --v2-text: #f4f4f5;
+  --v2-text2: #a1a1aa;
+  --v2-text3: #71717a;
+  --v2-accent: #818cf8;
+  --v2-accent-dim: #1e1b4b;
+  --v2-success: #34d399;
+  --v2-unsaved: #fbbf24;
+  --v2-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35);
+  --v2-shadow-md: 0 4px 20px rgba(0, 0, 0, 0.45);
+  --v2-shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+/* ============================================================
+   Keyframes condivisi v2
+   ============================================================ */
+
+@keyframes v2scaleIn {
+  from {
+    transform: scale(0.94);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes v2dropIn {
+  from {
+    transform: translateY(-10px) scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes v2fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes v2fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes v2exitAnim {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+/* Classe utility per chiusura overlay con animazione */
+.v2-closing {
+  animation: v2exitAnim var(--v2-t-mid) var(--v2-ease-std) forwards !important;
+  pointer-events: none;
+}
+
+/* ============================================================
+   Override leggeri sull'app esistente per integrare v2
+   ============================================================ */
+
+/* Nasconde la titleBar legacy (sostituita dalla tab bar v2) */
+.title-bar,
+.title-bar-editor-bg {
+  display: none !important;
+}
+
+/* Nasconde la sidebar legacy (v2 design non la prevede) */
+.side-bar {
+  display: none !important;
+}
+
+/* Quando titleBar è nascosta, lasciamo l'area editor allineata a top */
+.editor-middle {
+  padding-top: 0 !important;
+}
+
+/* Body usa font v2 di default per UI */
+body {
+  font-family: var(--v2-sans);
+}
+
+/* Scrollbar slim v2 (override leggero su quello esistente) */
+.v2-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.v2-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--v2-border);
+  border-radius: 5px;
+}
+
+/* iOS Toggle Switch - usato per override Element Plus el-switch */
+.v2-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 40px;
+  height: 22px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.v2-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.v2-toggle-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 11px;
+  background: var(--v2-border2);
+  transition: background var(--v2-t-mid) ease-in-out;
+}
+.v2-toggle input:checked + .v2-toggle-track {
+  background: var(--v2-accent);
+}
+.v2-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.22);
+  transition: transform var(--v2-t-mid) var(--v2-ease-spring);
+  pointer-events: none;
+}
+.v2-toggle input:checked ~ .v2-toggle-thumb {
+  transform: translateX(18px);
+}
+
+/* ============================================================
+   Override globale Element Plus el-switch a stile iOS v2
+   (usato dai prefComponents/common/bool)
+   ============================================================ */
+
+.el-switch .el-switch__core {
+  width: 40px !important;
+  height: 22px !important;
+  border-radius: 11px !important;
+  background: var(--v2-border2) !important;
+  border: none !important;
+  transition: background var(--v2-t-mid) ease-in-out !important;
+}
+
+.el-switch.is-checked .el-switch__core {
+  background: var(--v2-accent) !important;
+  border-color: var(--v2-accent) !important;
+}
+
+.el-switch .el-switch__core::after {
+  top: 2px !important;
+  left: 2px !important;
+  width: 18px !important;
+  height: 18px !important;
+  background: #fff !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.22) !important;
+  transition: transform var(--v2-t-mid) var(--v2-ease-spring) !important;
+}
+
+.el-switch.is-checked .el-switch__core::after {
+  left: 100% !important;
+  margin-left: -20px !important;
+}

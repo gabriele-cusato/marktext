@@ -197,6 +197,14 @@ const handleImageAction = ({ id, result, alt }) => {
 const listenChange = () => {
   editor.value.on('cursorActivity', (cm) => {
     const { cursor, markdown: newMarkdown } = getMarkdownAndCursor(cm)
+    // v2: emette posizione cursor per status bar (Ln/Col)
+    const cmCursor = cm.getCursor()
+    if (cmCursor && typeof cmCursor.line === 'number') {
+      bus.emit('statusbar::cursor-change', {
+        line: cmCursor.line + 1,
+        col: cmCursor.ch + 1
+      })
+    }
     // Attention: the cursor may be `{focus: null, anchor: null}` when press `backspace`
     const wordCount = getWordCount(newMarkdown)
     if (commitTimer.value) clearTimeout(commitTimer.value)
@@ -237,7 +245,8 @@ onMounted(() => {
     value: markdown,
     lineNumbers: true,
     autofocus: true,
-    lineWrapping: true,
+    // v2: lineWrapping pilotato da preferences.wordWrap (default true)
+    lineWrapping: preferencesStore.wordWrap !== false,
     styleActiveLine: true,
     direction: textDirection,
     viewportMargin: Infinity,
@@ -261,6 +270,12 @@ onMounted(() => {
   bus.on('file-changed', handleFileChange)
   bus.on('selectAll', handleSelectAll)
   bus.on('image-action', handleImageAction)
+  // v2: toggle word wrap dalla status bar
+  bus.on('mt::wordwrap-change', (value) => {
+    if (editor.value) {
+      editor.value.setOption('lineWrapping', value)
+    }
+  })
 
   // For some reason, code mirror does not seem to play well with Vue's refs if we reference editor.value directly.
   // See https://github.com/codemirror/codemirror5/issues/6886 - hence, we need to use a local variable first.

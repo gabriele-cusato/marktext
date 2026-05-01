@@ -3,7 +3,8 @@
     class="editor-with-tabs"
     :style="{ 'max-width': showSideBar ? `calc(100vw - ${sideBarWidth}px` : '100vw' }"
   >
-    <tabs v-show="showTabBar" />
+    <!-- v2: tab bar sempre visibile (forzata, ignora showTabBar) -->
+    <tabs />
     <div class="container">
       <editor
         :markdown="markdown"

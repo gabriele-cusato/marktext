@@ -5,16 +5,21 @@
     <title>MarkText</title>
     <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
     <!-- CSP relaxed for development - Vite requires unsafe-eval and ws: for HMR -->
+    <!-- v2: aggiunto fonts.googleapis.com (style) + fonts.gstatic.com (font) per Inter/JetBrains Mono -->
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self' ws: wss:;
                   script-src 'self' 'unsafe-inline' 'unsafe-eval';
-                  style-src 'self' 'unsafe-inline';
+                  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
                   img-src * data: file: blob:;
-                  font-src 'self' data:;
+                  font-src 'self' data: https://fonts.gstatic.com;
                   connect-src 'self' ws: wss: http: https:;
                   "
     />
+    <!-- Font v2: Inter (UI) + JetBrains Mono (code/status) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   </head>
 
   <body>

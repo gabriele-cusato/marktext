@@ -354,17 +354,22 @@ const noop = () => {}
 </script>
 
 <style scoped>
+/* v2: pannello find/replace docked top-right v2 styling */
 .search-bar {
   position: absolute;
-  width: 400px;
-  padding: 0;
-  top: 0;
-  right: 20px;
-  border-radius: 3px;
-  box-shadow: var(--floatShadow);
-  background: var(--floatBgColor);
+  width: 408px;
+  padding: 4px 6px;
+  top: 8px;
+  right: 16px;
+  border-radius: 10px;
+  box-shadow: var(--v2-shadow-lg);
+  background: var(--v2-surface);
+  border: 1px solid var(--v2-border);
   display: flex;
   flex-direction: row;
+  z-index: 1500;
+  font-family: var(--v2-sans);
+  animation: v2dropIn var(--v2-t-mid) var(--v2-ease-spring);
 }
 .search-bar .left-arrow {
   width: 20px;
@@ -428,10 +433,15 @@ const noop = () => {}
   display: flex;
   flex: 1;
   position: relative;
-  border: 1px solid var(--inputBgColor);
-  background: var(--inputBgColor);
-  border-radius: 3px;
+  border: 1px solid var(--v2-border);
+  background: var(--v2-surface2);
+  border-radius: 6px;
   overflow: visible;
+  height: 28px;
+  transition: border-color var(--v2-t-fast) ease-in-out;
+}
+.input-wrapper:focus-within {
+  border-color: var(--v2-accent);
 }
 .input-wrapper.error {
   border: 1px solid var(--notificationErrorBg);
@@ -490,14 +500,17 @@ const noop = () => {}
 
 .input-wrapper input {
   flex: 1;
-  padding: 0 8px;
+  padding: 0 10px;
   height: 26px;
   outline: none;
   border: none;
   box-sizing: border-box;
-  font-size: 14px;
-  color: var(--editorColor);
-  padding: 0 8px;
+  font-size: 13px;
+  color: var(--v2-text);
   background: transparent;
+  font-family: var(--v2-sans);
+}
+.input-wrapper input::placeholder {
+  color: var(--v2-text3);
 }
 </style>

@@ -1,80 +1,105 @@
 <template>
-  <div class="editor-tabs">
+  <div class="v2-tabbar">
+    <!-- Tabs pill multi-row con hover-expand -->
     <div
       ref="tabContainer"
-      class="scrollable-tabs"
+      class="v2-tabbar-scroll"
     >
       <ul
         ref="tabDropContainer"
-        class="tabs-container"
+        class="v2-tabs"
       >
         <li
           v-for="file of tabs"
           :key="file.id"
-          :title="file.pathname"
-          :class="{ active: currentFile.id === file.id, unsaved: !file.isSaved }"
+          :title="file.pathname || file.filename"
+          :class="['v2-tab', { 'v2-tab-active': currentFile.id === file.id }]"
           :data-id="file.id"
           @click.stop="selectFile(file)"
           @click.middle="closeTab(file.id)"
           @contextmenu.prevent="handleContextMenu($event, file)"
         >
-          <span>{{ file.filename }}</span>
-          <svg
-            class="close-icon icon"
-            aria-hidden="true"
+          <!-- Dot unsaved -->
+          <span
+            v-if="!file.isSaved"
+            class="v2-tab-dot"
+          />
+          <span class="v2-tab-name">{{ file.filename }}</span>
+          <button
+            class="v2-tab-x"
             @click.stop="removeFileInTab(file)"
-          >
-            <circle
-              id="unsaved-circle-icon"
-              cx="6"
-              cy="6"
-              r="3"
-            />
-            <use
-              id="default-close-icon"
-              xlink:href="#icon-close-small"
-            />
-          </svg>
+          >×</button>
         </li>
       </ul>
     </div>
-    <div
-      class="new-file"
+
+    <!-- New tab button -->
+    <button
+      class="v2-tab-new"
+      title="New Tab (Ctrl+T)"
       @click.stop="newFile()"
-    >
-      <svg
-        class="icon"
-        aria-hidden="true"
-      >
-        <use xlink:href="#icon-plus" />
-      </svg>
+    >+</button>
+
+    <!-- Top-right controls (Command palette / Settings / Theme toggle) -->
+    <div class="v2-topright">
+      <button
+        class="v2-tr-btn"
+        title="Command Palette (Ctrl+K)"
+        @click="openCommandPalette"
+      >⌘</button>
+      <button
+        class="v2-tr-btn"
+        title="Settings"
+        @click="openSettings"
+      >⚙</button>
+      <button
+        class="v2-tr-btn"
+        :title="`Toggle theme (current: ${currentTheme})`"
+        @click="toggleTheme"
+      >{{ currentTheme === 'dark' ? '◐' : '◑' }}</button>
     </div>
+
+    <!-- Context menu custom Vue (sostituisce nativo Electron) -->
+    <TabContextMenu
+      v-if="ctxOpen"
+      :x="ctxPos.x"
+      :y="ctxPos.y"
+      :tab="ctxTab"
+      @close="ctxOpen = false"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import { useLayoutStore } from '@/store/layout'
+import { usePreferencesStore } from '@/store/preferences'
 import { storeToRefs } from 'pinia'
 import autoScroll from 'dom-autoscroller'
 import dragula from 'dragula'
-import { showContextMenu } from '../../contextMenu/tabs'
 import bus from '../../bus'
+import TabContextMenu from '../contextMenu/TabContextMenu.vue'
 
 const editorStore = useEditorStore()
 const layoutStore = useLayoutStore()
+const preferencesStore = usePreferencesStore()
 
 const { currentFile, tabs } = storeToRefs(editorStore)
+const { theme } = storeToRefs(preferencesStore)
 
 const tabContainer = ref(null)
 const tabDropContainer = ref(null)
 let autoScroller = null
 let drake = null
 
-// Computed properties
+// Context menu state (custom Vue, sostituisce Electron nativo)
+const ctxOpen = ref(false)
+const ctxPos = ref({ x: 0, y: 0 })
+const ctxTab = ref(null)
 
-// Methods incorporated from tabsMixins
+const currentTheme = computed(() => theme.value)
+
 const selectFile = (file) => {
   if (file.id !== currentFile.value.id) {
     editorStore.UPDATE_CURRENT_FILE(file)
@@ -82,52 +107,38 @@ const selectFile = (file) => {
 }
 
 const removeFileInTab = (file) => {
-  const { isSaved } = file
-  if (isSaved) {
+  if (file.isSaved) {
     editorStore.FORCE_CLOSE_TAB(file)
   } else {
     editorStore.CLOSE_UNSAVED_TAB(file)
   }
 }
 
-// Original methods
 const newFile = () => {
   editorStore.NEW_UNTITLED_TAB({})
 }
 
+// Scroll handler quando barra collassata (su row singola)
 const handleTabScroll = (event) => {
-  // Use mouse wheel value first but prioritize X value more (e.g. touchpad input).
   let delta = event.deltaY
-  if (event.deltaX !== 0) {
-    delta = event.deltaX
-  }
-
-  const tabs = tabContainer.value
-  const newLeft = Math.max(0, Math.min(tabs.scrollLeft + delta, tabs.scrollWidth))
-  tabs.scrollLeft = newLeft
+  if (event.deltaX !== 0) delta = event.deltaX
+  const el = tabContainer.value
+  if (!el) return
+  el.scrollLeft = Math.max(0, Math.min(el.scrollLeft + delta, el.scrollWidth))
 }
 
 const closeTab = (tabId) => {
   const tab = tabs.value.find((f) => f.id === tabId)
-  if (tab) {
-    editorStore.CLOSE_TAB(tab)
-  }
+  if (tab) editorStore.CLOSE_TAB(tab)
 }
 
 const closeOthers = (tabId) => {
   const tab = tabs.value.find((f) => f.id === tabId)
-  if (tab) {
-    editorStore.CLOSE_OTHER_TABS(tab)
-  }
+  if (tab) editorStore.CLOSE_OTHER_TABS(tab)
 }
 
-const closeSaved = () => {
-  editorStore.CLOSE_SAVED_TABS()
-}
-
-const closeAll = () => {
-  editorStore.CLOSE_ALL_TABS()
-}
+const closeSaved = () => editorStore.CLOSE_SAVED_TABS()
+const closeAll = () => editorStore.CLOSE_ALL_TABS()
 
 const changeMaxWidth = (width) => {
   layoutStore.CHANGE_SIDE_BAR_WIDTH(width)
@@ -135,32 +146,43 @@ const changeMaxWidth = (width) => {
 
 const rename = (tabId) => {
   const tab = tabs.value.find((f) => f.id === tabId)
-  if (tab && tab.pathname) {
-    editorStore.RENAME_FILE(tab)
-  }
+  if (tab && tab.pathname) editorStore.RENAME_FILE(tab)
 }
 
 const copyPath = (tabId) => {
   const tab = tabs.value.find((f) => f.id === tabId)
-  if (tab && tab.pathname) {
-    window.electron.clipboard.writeText(tab.pathname)
-  }
+  if (tab && tab.pathname) window.electron.clipboard.writeText(tab.pathname)
 }
 
 const showInFolder = (tabId) => {
   const tab = tabs.value.find((f) => f.id === tabId)
-  if (tab && tab.pathname) {
-    window.electron.shell.showItemInFolder(tab.pathname)
-  }
+  if (tab && tab.pathname) window.electron.shell.showItemInFolder(tab.pathname)
 }
 
+// Apre context menu Vue custom (al posto Electron nativo)
 const handleContextMenu = (event, tab) => {
-  if (tab.id) {
-    showContextMenu(event, tab)
-  }
+  if (!tab.id) return
+  ctxPos.value = { x: event.clientX, y: event.clientY }
+  ctxTab.value = tab
+  ctxOpen.value = true
+}
+
+// Top-right controls
+const openCommandPalette = () => {
+  bus.emit('show-command-palette')
+}
+
+const openSettings = () => {
+  bus.emit('show-settings-modal')
+}
+
+const toggleTheme = () => {
+  const next = theme.value === 'dark' ? 'light' : 'dark'
+  preferencesStore.SET_SINGLE_PREFERENCE({ type: 'theme', value: next })
 }
 
 onMounted(() => {
+  // Bus listener per context menu legacy (mantenuti per compatibilità)
   bus.on('TABS::close-this', closeTab)
   bus.on('TABS::close-others', closeOthers)
   bus.on('TABS::close-saved', closeSaved)
@@ -170,61 +192,43 @@ onMounted(() => {
   bus.on('TABS::show-in-folder', showInFolder)
   bus.on('EDITOR_TABS::change-max-width', changeMaxWidth)
 
-  const tabs = tabContainer.value
+  const el = tabContainer.value
+  if (el) el.addEventListener('wheel', handleTabScroll)
 
-  // Allow to scroll through the tabs by mouse wheel or touchpad.
-  tabs.addEventListener('wheel', handleTabScroll)
-
-  // Allow tab drag and drop to reorder tabs.
+  // Drag and drop ordering
   drake = dragula([tabDropContainer.value], {
     direction: 'horizontal',
     revertOnSpill: true,
     mirrorContainer: tabDropContainer.value,
     ignoreInputTextSelection: false
   }).on('drop', (el, target, source, sibling) => {
-    // Current tab that was dropped and need to be reordered.
     const droppedId = el.getAttribute('data-id')
-    // This should be the next tab (tab | ... | el | sibling | tab | ...) but may be
-    // the mirror image or null (tab | ... | el | sibling or null) if last tab.
     const nextTabId = sibling && sibling.getAttribute('data-id')
     const isLastTab = !sibling || sibling.classList.contains('gu-mirror')
     if (!droppedId || (sibling && !nextTabId)) {
       console.error('Tab reorder error: invalid tab IDs')
       return
     }
-
     editorStore.EXCHANGE_TABS_BY_ID({
       fromId: droppedId,
       toId: isLastTab ? null : nextTabId
     })
   })
 
-  // Scroll when dragging a tab to the beginning or end of the tab container.
-  autoScroller = autoScroll([tabs], {
+  autoScroller = autoScroll([el], {
     margin: 20,
     maxSpeed: 6,
     scrollWhenOutside: false,
-    autoScroll: () => {
-      return autoScroller.down && drake.dragging
-    }
+    autoScroll: () => autoScroller.down && drake.dragging
   })
 })
 
 onBeforeUnmount(() => {
-  const tabs = tabContainer.value
-  if (tabs) {
-    tabs.removeEventListener('wheel', handleTabScroll)
-  }
+  const el = tabContainer.value
+  if (el) el.removeEventListener('wheel', handleTabScroll)
+  if (autoScroller) autoScroller.destroy(true)
+  if (drake) drake.destroy()
 
-  if (autoScroller) {
-    // Force destroy
-    autoScroller.destroy(true)
-  }
-  if (drake) {
-    drake.destroy()
-  }
-
-  // Remove event listeners
   bus.off('TABS::close-this', closeTab)
   bus.off('TABS::close-others', closeOthers)
   bus.off('TABS::close-saved', closeSaved)
@@ -237,144 +241,202 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-svg.close-icon #unsaved-circle-icon {
-  transition: all 0.15s ease-in-out;
-  fill: var(--themeColor);
-}
-
-svg.close-icon:hover {
-  cursor: pointer;
-  fill: var(--focusColor);
-}
-
-.editor-tabs {
+/* Tab bar v2 — multi-row hover-expand container */
+.v2-tabbar {
   position: relative;
+  flex-shrink: 0;
+  z-index: 10;
+  background: var(--v2-bg);
+  border-bottom: 1px solid var(--v2-border);
+  overflow: hidden;
+  max-height: var(--v2-tab-h);
+  transition:
+    max-height var(--v2-t-slow) ease-in-out,
+    box-shadow var(--v2-t-mid) ease-in-out;
   display: flex;
-  flex-direction: row;
-  height: 35px;
+  align-items: flex-start;
+  padding-right: 110px; /* spazio per top-right controls */
   user-select: none;
-  box-shadow: 0px 0px 9px 2px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-  &:hover > .new-file {
-    opacity: 1 !important;
-  }
 }
-.scrollable-tabs {
-  flex: 0 1 auto;
-  height: 35px;
-  overflow: hidden;
+
+/* Hover sull'intera tabbar = espande multi-row */
+.v2-tabbar:hover {
+  max-height: 260px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.07);
 }
-.tabs-container {
-  min-width: min-content;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  height: 35px;
-  position: relative;
+
+.v2-tabbar-scroll {
+  flex: 1;
+  overflow: hidden;
+  min-height: var(--v2-tab-h);
+}
+
+.v2-tabs {
   display: flex;
-  flex-direction: row;
-  overflow-y: hidden;
-  z-index: 2;
-  &::-webkit-scrollbar:horizontal {
-    display: none;
-  }
-  & > li {
-    transition: all 0.15s ease-in-out;
-    position: relative;
-    padding: 0 8px;
-    color: var(--editorColor50);
-    font-size: 12px;
-    line-height: 35px;
-    height: 35px;
-    max-width: 280px;
-    border-top-right-radius: 15px;
-    border-top-left-radius: 15px;
-    display: flex;
-    align-items: center;
-    &[aria-grabbed='true'] {
-      color: var(--editorColor30) !important;
-    }
-    & > svg {
-      opacity: 0;
-    }
-    &:focus {
-      outline: none;
-    }
-    &:hover {
-      background: var(--floatBgColor) !important;
-    }
-    &:hover > svg {
-      opacity: 1;
-    }
-    &:hover > svg.close-icon #default-close-icon {
-      display: block !important;
-    }
-    &:hover > svg.close-icon #unsaved-circle-icon {
-      display: none !important;
-    }
-    & > span {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      margin-right: 3px;
-    }
-  }
-  & > li.unsaved:not(.active) {
-    & > svg.close-icon {
-      opacity: 1;
-    }
-    & > svg.close-icon #unsaved-circle-icon {
-      display: block;
-    }
-    & > svg.close-icon #default-close-icon {
-      display: none;
-    }
-  }
-  & > li.active {
-    background: var(--itemBgColor);
-    z-index: 3;
-    &:after {
-      content: '';
-      position: absolute;
-      left: 0;
-      bottom: 0;
-      right: 0;
-      height: 2px;
-      background: var(--themeColor);
-    }
-    & > svg {
-      opacity: 1;
-    }
-    & > svg.close-icon #unsaved-circle-icon {
-      display: none;
-    }
-  }
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  padding: 5px 6px;
+  min-height: var(--v2-tab-h);
+  margin: 0;
+  list-style: none;
 }
-.editor-tabs > .new-file {
-  flex: 0 0 35px;
-  width: 35px;
-  height: 35px;
-  border-right: none;
-  background: transparent;
+
+/* Pill tab */
+.v2-tab {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-around;
-  cursor: pointer;
-  color: var(--editorColor50);
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px 0 12px;
+  border-radius: 100px;
+  font-size: 12.5px;
+  color: var(--v2-text3);
+  cursor: default;
+  flex-shrink: 0;
+  min-width: 88px;
+  max-width: 172px;
+  white-space: nowrap;
+  overflow: hidden;
+  background: transparent;
+  transition:
+    background var(--v2-t-fast) ease-in-out,
+    color var(--v2-t-fast) ease-in-out,
+    box-shadow var(--v2-t-fast) ease-in-out;
+}
+
+.v2-tab:hover:not(.v2-tab-active) {
+  background: var(--v2-surface2);
+  color: var(--v2-text2);
+}
+
+/* Tab attivo: filled + accent stripe */
+.v2-tab-active {
+  background: var(--v2-surface);
+  color: var(--v2-text);
+  font-weight: 500;
+  box-shadow: var(--v2-shadow-sm);
+}
+
+.v2-tab-active::before {
+  content: '';
+  position: absolute;
+  top: 5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--v2-accent);
+  opacity: 0.75;
+}
+
+/* Dot unsaved (amber) */
+.v2-tab-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--v2-unsaved);
+  flex-shrink: 0;
+}
+
+.v2-tab-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Close button (× circolare) */
+.v2-tab-x {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  font-size: 13px;
+  color: var(--v2-text3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   opacity: 0;
-  &.always-visible {
-    opacity: 1;
-  }
+  transition: all var(--v2-t-fast) ease-in-out;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
 }
 
-.editor-tabs > .new-file:hover {
-  transition: all 0.15s ease-in-out;
-  & > svg {
-    fill: var(--focusColor);
-  }
+.v2-tab:hover .v2-tab-x,
+.v2-tab-active .v2-tab-x {
+  opacity: 1;
 }
 
-/* dragula effects */
+.v2-tab-x:hover {
+  background: var(--v2-border);
+  color: var(--v2-text);
+}
+
+/* + new tab button */
+.v2-tab-new {
+  height: 26px;
+  min-width: 26px;
+  font-size: 17px;
+  color: var(--v2-text3);
+  border-radius: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all var(--v2-t-fast) ease-in-out;
+  padding: 0 8px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  margin-top: 6px;
+  margin-right: 4px;
+}
+
+.v2-tab-new:hover {
+  background: var(--v2-surface2);
+  color: var(--v2-text);
+}
+
+/* Top-right controls (sovrapposti tab bar) */
+.v2-topright {
+  position: absolute;
+  top: 0;
+  right: 10px;
+  height: var(--v2-tab-h);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  z-index: 20;
+}
+
+.v2-tr-btn {
+  height: 26px;
+  width: 28px;
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--v2-text3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--v2-t-fast) ease-in-out;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.v2-tr-btn:hover {
+  background: var(--v2-surface2);
+  color: var(--v2-text);
+}
+
+</style>
+
+<!-- Stili dragula globali (non scoped) per drag-and-drop tab -->
+<style>
 .gu-mirror {
   position: fixed !important;
   margin: 0 !important;

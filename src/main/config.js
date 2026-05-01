@@ -20,6 +20,9 @@ export const editorWinOptions = Object.freeze({
   show: true,
   frame: false,
   titleBarStyle: 'hiddenInset',
+  // v2: nasconde menu bar nativa quando frame=true (Windows native titlebar).
+  // Tasto Alt mostra/nasconde dinamicamente.
+  autoHideMenuBar: true,
   zoomFactor: 1.0
 })
 

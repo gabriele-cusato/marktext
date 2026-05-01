@@ -1,66 +1,71 @@
 <template>
-  <div class="command-palette">
-    <el-dialog
-      v-model="showCommandPalette"
-      :show-close="false"
-      :modal="true"
-      custom-class="ag-dialog-table"
-      width="500px"
-      @close="handleDialogClose"
+  <Teleport to="body">
+    <div
+      v-if="showCommandPalette"
+      :class="['v2-cmd-backdrop', { 'v2-closing': closing }]"
+      @mousedown.self="close"
     >
-      <template #title>
-        <div class="search-wrapper">
-          <div class="input-wrapper">
-            <input
-              ref="searchInput"
-              v-model="query"
-              type="text"
-              class="search"
-              :placeholder="placeholderText"
-              @keydown="handleBeforeInput"
-              @keyup="handleInput"
-            >
-          </div>
-          <loading v-if="searcherBusy" />
-          <transition
-            v-else
-            name="fade"
+      <div
+        :class="['v2-cmd', { 'v2-closing': closing }]"
+        @mousedown.stop
+      >
+        <div class="v2-cmd-search">
+          <span class="v2-cmd-icon">⌘</span>
+          <input
+            ref="searchInput"
+            v-model="query"
+            class="v2-cmd-input"
+            type="text"
+            :placeholder="placeholderText"
+            @keydown="handleBeforeInput"
+            @keyup="handleInput"
           >
-            <ul
-              v-if="availableCommands.length"
-              class="commands"
-            >
-              <li
-                v-for="(item, index) of availableCommands"
-                :key="index"
-                :ref="
-                  (el) => {
-                    if (el) commandItems[index] = el
-                  }
-                "
-                :class="{ active: index === selectedCommandIndex }"
-                @click="search(item.id)"
-              >
-                <span
-                  class="title"
-                  :title="item.title"
-                >{{ item.description }}</span>
-                <span class="shortcut">
-                  <span
-                    v-for="(accelerator, shortcutIndex) of item.shortcut"
-                    :key="shortcutIndex"
-                    class="shortcut"
-                  >
-                    <kbd>{{ accelerator }}</kbd>
-                  </span>
-                </span>
-              </li>
-            </ul>
-          </transition>
+          <button
+            v-if="query"
+            class="v2-cmd-clear"
+            @click="query = ''"
+          >✕</button>
         </div>
-      </template>
-    </el-dialog>
-  </div>
+
+        <loading v-if="searcherBusy" />
+
+        <div
+          v-else-if="availableCommands.length"
+          class="v2-cmd-list"
+        >
+          <div
+            v-for="(item, index) of availableCommands"
+            :key="index"
+            :ref="(el) => { if (el) commandItems[index] = el }"
+            :class="['v2-cmd-item', { 'v2-cmd-sel': index === selectedCommandIndex }]"
+            :title="item.title"
+            @mouseenter="selectedCommandIndex = index"
+            @mousedown="search(item.id)"
+          >
+            <span class="v2-cmd-item-icon">⌘</span>
+            <span class="v2-cmd-item-label">{{ item.description }}</span>
+            <span
+              v-if="item.shortcut && item.shortcut.length"
+              class="v2-cmd-shortcut"
+            >
+              <kbd
+                v-for="(accel, i) of item.shortcut"
+                :key="i"
+              >{{ accel }}</kbd>
+            </span>
+          </div>
+        </div>
+
+        <div class="v2-cmd-footer">
+          <span>↑↓ navigate</span>
+          <span>·</span>
+          <span>↵ run</span>
+          <span>·</span>
+          <span>esc close</span>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup>
@@ -70,8 +75,10 @@ import log from 'electron-log'
 import bus from '../../bus'
 import loading from '../loading'
 import { useI18n } from 'vue-i18n'
+
 const searchInput = ref(null)
 let commandItems = []
+let closeTimer = null
 
 const { t } = useI18n()
 const currentCommand = ref(null)
@@ -85,6 +92,7 @@ const defaultPlaceholderText = computed(() => {
 })
 
 const showCommandPalette = ref(false)
+const closing = ref(false)
 const placeholderText = ref('')
 const query = ref('')
 const selectedCommandIndex = ref(-1)
@@ -106,10 +114,10 @@ const handleShow = (command) => {
       selectedCommandIndex.value = currentCommand.value.subcommandSelectedIndex
       placeholderText.value = currentCommand.value.placeholder || defaultPlaceholderText.value
       query.value = ''
+      closing.value = false
       showCommandPalette.value = true
       bus.emit('editor-blur')
       nextTick(() => {
-        // Scroll selected entry into view.
         const items = commandItems
         const selIndex = selectedCommandIndex.value
         if (items && items.length > 0 && selIndex >= 0 && items[selIndex]) {
@@ -117,26 +125,31 @@ const handleShow = (command) => {
         }
 
         if (searchInput.value) {
-          setTimeout(() => {
-            searchInput.value.focus()
-          }, 50)
+          setTimeout(() => searchInput.value.focus(), 50)
         }
       })
     })
     .catch((error) => {
-      // Allow to throw new Error(null) to indicate an invalid state.
       if (error && error.message) {
         log.error('Unable to initialize command:', error)
       }
     })
 }
 
-const handleDialogClose = () => {
-  // Reset all settings
+const close = () => {
+  closing.value = true
+  closeTimer = setTimeout(() => {
+    handleClose()
+    showCommandPalette.value = false
+    closing.value = false
+  }, 270)
+}
+
+const handleClose = () => {
   selectedCommandIndex.value = -1
   query.value = ''
   availableCommands.value = []
-  if (currentCommand.value.unload) {
+  if (currentCommand.value && currentCommand.value.unload) {
     currentCommand.value.unload()
   }
   currentCommand.value = null
@@ -145,6 +158,11 @@ const handleDialogClose = () => {
 const handleBeforeInput = (event) => {
   const items = commandItems
   switch (event.key) {
+    case 'Escape': {
+      event.preventDefault()
+      close()
+      break
+    }
     case 'ArrowUp': {
       event.preventDefault()
       event.stopPropagation()
@@ -153,7 +171,6 @@ const handleBeforeInput = (event) => {
       } else {
         selectedCommandIndex.value--
       }
-
       if (items && items.length > 0 && items[selectedCommandIndex.value]) {
         items[selectedCommandIndex.value].scrollIntoView({ block: 'end' })
       }
@@ -167,7 +184,6 @@ const handleBeforeInput = (event) => {
       } else {
         selectedCommandIndex.value++
       }
-
       if (items && items.length > 0 && items[selectedCommandIndex.value]) {
         items[selectedCommandIndex.value].scrollIntoView({ block: 'end' })
       }
@@ -177,10 +193,7 @@ const handleBeforeInput = (event) => {
 }
 
 const handleInput = (event) => {
-  if (event.isComposing) {
-    return
-  }
-  // NOTE: We're using keyup to catch "enter" key but `ctrlKey` etc doesn't work here.
+  if (event.isComposing) return
   switch (event.key) {
     case 'Control':
     case 'Alt':
@@ -192,43 +205,33 @@ const handleInput = (event) => {
     case 'ArrowUp':
     case 'ArrowDown':
     case 'ArrowLeft':
-    case 'ArrowRight': {
-      // No-op
+    case 'ArrowRight':
       break
-    }
-    case 'Enter': {
+    case 'Enter':
       search()
       break
-    }
-    default: {
+    default:
       updateCommands()
       break
-    }
   }
 }
 
 const search = (commandId = null) => {
   if (commandId) {
-    // Command selected from dropdown.
     executeCommand(commandId)
     return
   } else if (
     selectedCommandIndex.value >= 0 &&
     selectedCommandIndex.value < availableCommands.value.length
   ) {
-    // Pressed enter on selected command.
     executeCommand(availableCommands.value[selectedCommandIndex.value].id)
     return
   }
-
-  // Otherwise update list
   updateCommands()
 }
 
 const updateCommands = () => {
   const queryString = query.value.trim()
-
-  // Allow to handle search result by command (e.g. quick search).
   if (currentCommand.value.search) {
     searcherBusy.value = true
     currentCommand.value
@@ -239,7 +242,6 @@ const updateCommands = () => {
         selectedCommandIndex.value = availableCommands.value.length ? 0 : -1
       })
       .catch((error) => {
-        // The query was cancel or restarted if `message` is null.
         if (error && error.message) {
           searcherBusy.value = false
           availableCommands.value = []
@@ -250,7 +252,6 @@ const updateCommands = () => {
     return
   }
 
-  // Default handler
   if (!queryString) {
     availableCommands.value = currentCommand.value.subcommands
   } else {
@@ -270,28 +271,23 @@ const executeCommand = (commandId) => {
 
   const { executeSubcommand } = currentCommand.value
   if (executeSubcommand) {
-    showCommandPalette.value = false
-    executeSubcommand(commandId, command.value)
+    close()
+    setTimeout(() => executeSubcommand(commandId, command.value), 250)
   } else {
     const { execute, subcommands, run } = command
-
-    // Allow to load static commands without reloading command palette.
     if (execute === undefined && run === undefined && subcommands) {
-      // Load subcommands
       currentCommand.value = command
-      // NOTE: selected index is always -1 by static state loaded this way.
       selectedCommandIndex.value = -1
       query.value = ''
       updateCommands()
     } else {
-      showCommandPalette.value = false
-      execute()
+      close()
+      setTimeout(() => execute(), 250)
     }
   }
 }
 
 const handleLanguageChanged = () => {
-  // 如果命令面板当前是打开状态，重新加载命令
   if (showCommandPalette.value && currentCommand.value) {
     currentCommand.value.run().then(() => {
       availableCommands.value = currentCommand.value.subcommands
@@ -302,141 +298,177 @@ const handleLanguageChanged = () => {
 
 onMounted(() => {
   bus.on('show-command-palette', handleShow)
-
-  // 监听语言变化事件，重新获取命令列表
   bus.on('language-changed', handleLanguageChanged)
 })
 
 onBeforeUnmount(() => {
   bus.off('show-command-palette', handleShow)
   bus.off('language-changed', handleLanguageChanged)
+  if (closeTimer) clearTimeout(closeTimer)
 })
 </script>
 
 <style scoped>
-/* Hide scrollbar for this dialog */
-::-webkit-scrollbar {
-  display: none;
+/* ── v2 Command palette ──────────────────────────────────────── */
+.v2-cmd-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  background: rgba(0, 0, 0, 0.28);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 11vh;
+  animation: v2fadeIn var(--v2-t-mid) ease-in-out;
+  font-family: var(--v2-sans);
 }
 
-.search-wrapper {
-  position: absolute;
+.v2-cmd {
+  width: 560px;
+  max-width: 92vw;
+  max-height: 62vh;
   display: flex;
   flex-direction: column;
+  background: var(--v2-surface);
+  border: 1px solid var(--v2-border);
+  border-radius: 14px;
+  box-shadow: var(--v2-shadow-lg);
+  overflow: hidden;
+  animation: v2dropIn var(--v2-t-slow) var(--v2-ease-spring);
+}
+
+.v2-cmd-search {
+  display: flex;
   align-items: center;
-  width: 500px;
-  height: auto;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 8px;
-  margin: 0 auto;
-  margin-top: 8px;
-  box-sizing: border-box;
-  color: var(--editorColor);
-  background: var(--floatBgColor);
-  border: 1px solid var(--floatBorderColor);
-  border-radius: 4px;
-  box-shadow: 0 3px 8px 3px var(--floatShadow);
-  z-index: 10000;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--v2-border);
 }
-.input-wrapper {
-  display: block;
-  width: 100%;
-  border: 1px solid var(--inputBgColor);
-  background: var(--inputBgColor);
-  border-radius: 3px;
+
+.v2-cmd-icon {
+  font-size: 18px;
+  color: var(--v2-accent);
 }
-input.search {
-  width: 100%;
-  height: 30px;
-  margin: 0 10px;
-  font-size: 14px;
-  color: var(--editorColor);
+
+.v2-cmd-input {
+  flex: 1;
+  font-size: 15px;
+  color: var(--v2-text);
   background: transparent;
-  outline: none;
   border: none;
+  outline: none;
+  font-family: inherit;
 }
-.cpt-loading {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  height: 50px;
-  padding: 0;
-  margin: 8px 0 0 0;
-  box-sizing: border-box;
+
+.v2-cmd-input::placeholder {
+  color: var(--v2-text3);
 }
-ul.commands {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  max-height: 300px;
-  padding: 0;
-  margin: 8px 0 0 0;
-  box-sizing: border-box;
-  list-style: none;
-  overflow: hidden;
-  overflow-y: scroll;
-}
-ul.commands li {
-  position: relative;
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-  max-width: 100%;
-  height: 35px;
-  padding: 0 8px;
-  font-size: 14px;
-  line-height: 35px;
-  text-overflow: ellipsis;
-  cursor: pointer;
-}
-ul.commands li:hover {
-  background: var(--floatHoverColor);
-  opacity: 0.9;
-}
-ul.commands li.active {
-  background: var(--floatHoverColor);
-}
-ul.commands li span {
-  text-overflow: ellipsis;
-  overflow: hidden;
-  white-space: nowrap;
-}
-ul.commands li span.shortcut {
+
+.v2-cmd-clear {
   font-size: 12px;
-  line-height: 20px;
-}
-ul.commands li span.shortcut > kbd {
-  margin-left: 2px;
-}
-
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s;
-}
-.fade-enter, .fade-leave-to /* .fade-leave-active below version 2.1.8 */ {
-  opacity: 0;
-}
-</style>
-<style>
-.command-palette .cpt-loading .loader {
-  margin-top: 20px;
+  color: var(--v2-text3);
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  cursor: pointer;
+  transition: all var(--v2-t-fast) ease-in-out;
 }
 
-.command-palette .el-dialog,
-.command-palette .el-dialog.ag-dialog-table {
-  box-shadow: none !important;
-  border: none !important;
-  background: none !important;
+.v2-cmd-clear:hover {
+  background: var(--v2-surface2);
 }
-.command-palette .el-dialog__header {
-  margin-bottom: 20px;
-  padding: 0 !important;
+
+.v2-cmd-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px;
 }
-.command-palette .el-dialog__body {
-  display: none !important;
+
+.v2-cmd-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.v2-cmd-list::-webkit-scrollbar-thumb {
+  background: var(--v2-border);
+  border-radius: 5px;
+}
+
+.v2-cmd-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 7px;
+  cursor: default;
+  transition: background var(--v2-t-fast) ease-in-out;
+  color: var(--v2-text);
+}
+
+.v2-cmd-item:hover,
+.v2-cmd-sel {
+  background: var(--v2-accent-dim);
+}
+
+.v2-cmd-sel .v2-cmd-item-label {
+  color: var(--v2-accent);
+}
+
+.v2-cmd-item-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  background: var(--v2-surface2);
+  border: 1px solid var(--v2-border);
+  font-size: 11px;
+  font-family: var(--v2-mono);
+  color: var(--v2-text2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.v2-cmd-item-label {
+  flex: 1;
+  font-size: 13.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.v2-cmd-shortcut {
+  display: flex;
+  gap: 2px;
+  font-family: var(--v2-mono);
+  font-size: 11px;
+  color: var(--v2-text3);
+  flex-shrink: 0;
+}
+
+.v2-cmd-shortcut kbd {
+  font-family: var(--v2-mono);
+  font-size: 10.5px;
+  background: var(--v2-surface2);
+  border: 1px solid var(--v2-border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--v2-text2);
+}
+
+.v2-cmd-footer {
+  padding: 8px 18px;
+  border-top: 1px solid var(--v2-border);
+  background: var(--v2-surface2);
+  font-size: 11px;
+  color: var(--v2-text3);
+  display: flex;
+  gap: 12px;
+  flex-shrink: 0;
+  font-family: var(--v2-sans);
 }
 </style>

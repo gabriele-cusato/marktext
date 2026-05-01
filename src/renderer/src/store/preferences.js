@@ -32,6 +32,8 @@ export const usePreferencesStore = defineStore('preferences', {
     autoPairMarkdownSyntax: true,
     autoPairQuote: true,
     surroundSelection: true,
+    // v2: word wrap toggle (status bar chip). Default true (CodeMirror già wrappa).
+    wordWrap: true,
     endOfLine: 'default',
     defaultEncoding: 'utf8',
     autoGuessEncoding: true,

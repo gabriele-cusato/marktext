@@ -1,8 +1,13 @@
 <template>
-  <div class="editor-container">
+  <div
+    class="editor-container"
+    @contextmenu="handleEditorContextMenu"
+  >
     <side-bar v-if="init" />
 
     <div class="editor-middle">
+      <!-- v2: title-bar legacy nascosta via CSS in v2-tokens.css.
+           Rimane montata per non rompere refs/eventi esistenti. -->
       <title-bar
         :project="projectTree"
         :pathname="pathname"
@@ -29,12 +34,26 @@
         :text-direction="textDirection"
         :platform="platform"
       />
+      <!-- v2: Status bar in fondo -->
+      <status-bar v-if="init" />
+
       <command-palette />
       <about-dialog />
       <export-setting-dialog />
       <rename />
       <tweet />
       <import-modal />
+
+      <!-- v2: Settings modal (wrapping prefComponents esistenti) -->
+      <settings-modal />
+
+      <!-- v2: Editor context menu Vue custom (sostituisce Electron nativo) -->
+      <editor-context-menu
+        v-if="ctxOpen"
+        :x="ctxPos.x"
+        :y="ctxPos.y"
+        @close="ctxOpen = false"
+      />
     </div>
   </div>
 </template>
@@ -54,6 +73,10 @@ import ExportSettingDialog from '@/components/exportSettings'
 import Rename from '@/components/rename'
 import Tweet from '@/components/tweet'
 import ImportModal from '@/components/import'
+// v2: nuovi componenti
+import StatusBar from '@/components/statusBar/index.vue'
+import SettingsModal from '@/components/settingsModal/index.vue'
+import EditorContextMenu from '@/components/contextMenu/EditorContextMenu.vue'
 import bus from '@/bus'
 import { DEFAULT_STYLE } from '@/config'
 import { useTweetStore } from '@/store/tweet'
@@ -79,6 +102,35 @@ const notificationStore = useNotificationStore()
 
 const timer = ref(null)
 
+// v2: state context menu editor (sostituisce nativo Electron)
+const ctxOpen = ref(false)
+const ctxPos = ref({ x: 0, y: 0 })
+
+// Handler context menu globale: mostra Vue custom solo per editor area.
+// Esclude tab bar (ha proprio menu), settings/dialog/sidebar (richiedono comportamento default o no menu).
+const handleEditorContextMenu = (e) => {
+  // Se evento già gestito da componente figlio (preventDefault chiamato)
+  if (e.defaultPrevented) return
+
+  const target = e.target
+  // Se siamo dentro tab bar / sidebar / dialog → ignora (usano altro menu o nessuno)
+  if (target.closest('.v2-tabbar') || target.closest('.side-bar') ||
+      target.closest('.el-dialog') || target.closest('.v2-cmd-backdrop') ||
+      target.closest('.v2-settings-backdrop')) {
+    return
+  }
+
+  // Mostra solo se siamo nell'area editor
+  if (!target.closest('.editor-component') && !target.closest('.editor-wrapper') &&
+      !target.closest('.CodeMirror')) {
+    return
+  }
+
+  e.preventDefault()
+  ctxPos.value = { x: e.clientX, y: e.clientY }
+  ctxOpen.value = true
+}
+
 // States from Pini
 const { windowActive, platform, init } = storeToRefs(mainStore)
 const { showTabBar } = storeToRefs(layoutStore)
@@ -98,10 +150,20 @@ const hasCurrentFile = computed(() => {
   return markdown.value !== undefined
 })
 
+// v2: applica data-v2-theme su <html> per attivare i token v2 dark.
+// Considera dark se il tema esistente è uno dei dark theme.
+const applyV2ThemeAttr = (themeName) => {
+  const darkThemes = ['dark', 'material-dark', 'one-dark', 'graphite']
+  const isDark = darkThemes.includes(themeName)
+  document.documentElement.setAttribute('data-v2-theme', isDark ? 'dark' : 'light')
+}
+applyV2ThemeAttr(theme.value)
+
 // Watchers
 watch(theme, (value, oldValue) => {
   if (value !== oldValue) {
     addThemeStyle(value)
+    applyV2ThemeAttr(value)
   }
 })
 

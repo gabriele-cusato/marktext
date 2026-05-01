@@ -64,8 +64,16 @@ ipcMain.on('mt::check-for-update', (e) => {
 
 // --------------------------------------------------------
 
+// v2: la voce "Preferences" ora apre il settings modal in-app invece della finestra separata.
+// Inviamo IPC al renderer del focused window che mostrerà il modal v2 via bus.
 export const userSetting = () => {
-  ipcMain.emit('app-create-settings-window')
+  const focused = BrowserWindow.getFocusedWindow()
+  if (focused) {
+    focused.webContents.send('mt::show-settings-modal')
+  } else {
+    // fallback alla finestra legacy
+    ipcMain.emit('app-create-settings-window')
+  }
 }
 
 export const checkUpdates = (browserWindow) => {

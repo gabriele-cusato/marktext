@@ -20,6 +20,8 @@ import Main from './Main.vue'
 
 import './assets/styles/index.css'
 import './assets/styles/printService.css'
+// v2 design tokens (affiancati a quelli esistenti)
+import './assets/styles/v2-tokens.css'
 
 // -----------------------------------------------
 

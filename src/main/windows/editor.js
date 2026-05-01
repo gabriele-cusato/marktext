@@ -78,6 +78,13 @@ class EditorWindow extends BaseWindow {
 
     let win = (this.browserWindow = new BrowserWindow(winOptions))
 
+    // v2: nasconde menu bar nativa anche quando frame=true (titlebar nativa Windows).
+    // Tasto Alt la mostra/nasconde dinamicamente.
+    if (!isOsx) {
+      win.setMenuBarVisibility(false)
+      win.setAutoHideMenuBar(true)
+    }
+
     remoteEnable(win.webContents)
     this.id = win.id
 
@@ -92,8 +99,13 @@ class EditorWindow extends BaseWindow {
     // Create a menu for the current window
     appMenu.addEditorMenu(win, { sourceCodeModeEnabled })
 
+    // v2: context menu nativo disabilitato. Il renderer mostra menu Vue custom (EditorContextMenu).
+    // Manteniamo la voce solo per spellchecker (right-click su parole con errore).
     win.webContents.on('context-menu', (event, params) => {
-      showEditorContextMenu(win, event, params, preferences.getItem('spellcheckerEnabled'))
+      if (params.misspelledWord && preferences.getItem('spellcheckerEnabled')) {
+        showEditorContextMenu(win, event, params, true)
+      }
+      // Altrimenti: nessun menu nativo, gestisce Vue.
     })
 
     win.webContents.once('did-finish-load', () => {
