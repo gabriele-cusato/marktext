@@ -406,6 +406,11 @@ export const useEditorStore = defineStore('editor', {
           }
 
           pendingSavedMarkdown.delete(id)
+
+          // B13: dopo Save As, riapplica sourceCode mode in base alla nuova estensione
+          if (tab.id === this.currentFile.id) {
+            this._applySourceCodeForFile(tab)
+          }
         }
         // Clear the saving spinner with minimum display time
         this._clearSavingSpinner()
@@ -645,6 +650,30 @@ export const useEditorStore = defineStore('editor', {
         this.tabs.push(currentFile)
       }
       this.UPDATE_LINE_ENDING_MENU()
+      // B13: forza sourceCode per file con estensione non-markdown
+      this._applySourceCodeForFile(currentFile)
+    },
+
+    // B13: helper - imposta sourceCode mode in base all'estensione del file.
+    // File .md/.markdown/.mdown/.mkd o senza estensione → WYSIWYG (Muya).
+    // Tutti gli altri (.js, .txt, ecc.) → CodeMirror con line numbers.
+    _applySourceCodeForFile(file) {
+      if (!file) return
+      const preferencesStore = usePreferencesStore()
+      const pathname = file.pathname || ''
+      // Senza pathname (file untitled/nuovo) → markdown di default
+      if (!pathname) {
+        if (preferencesStore.sourceCode) {
+          preferencesStore.SET_MODE({ type: 'sourceCode', checked: false })
+        }
+        return
+      }
+      const ext = (window.path.extname(pathname) || '').toLowerCase()
+      const isMd = ext === '' || ['.md', '.markdown', '.mdown', '.mkd', '.mkdn', '.mdwn'].includes(ext)
+      const wantSource = !isMd
+      if (preferencesStore.sourceCode !== wantSource) {
+        preferencesStore.SET_MODE({ type: 'sourceCode', checked: wantSource })
+      }
     },
 
     // This events are only used during window creation.
@@ -1301,11 +1330,14 @@ export const useEditorStore = defineStore('editor', {
     },
 
     LINTEN_FOR_SET_ENCODING() {
-      bus.on('mt::set-file-encoding', (encodingName) => {
-        const { encoding } = this.currentFile.encoding
-        if (encoding !== encodingName) {
+      // Accetta sia stringa (legacy) sia oggetto {encoding, isBom} per supporto BOM
+      bus.on('mt::set-file-encoding', (payload) => {
+        const encodingName = typeof payload === 'string' ? payload : payload.encoding
+        const bomFlag = typeof payload === 'string' ? false : !!payload.isBom
+        const cur = this.currentFile.encoding
+        if (cur.encoding !== encodingName || cur.isBom !== bomFlag) {
           this.currentFile.encoding.encoding = encodingName
-          this.currentFile.encoding.isBom = false
+          this.currentFile.encoding.isBom = bomFlag
           this.currentFile.isSaved = true
         }
       })

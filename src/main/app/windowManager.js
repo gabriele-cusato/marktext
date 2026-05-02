@@ -361,6 +361,23 @@ class WindowManager extends EventEmitter {
       this.forceClose(win)
     })
 
+    // F7: minimize finestra (richiesto da bottoni v2 in tabs.vue)
+    ipcMain.on('mt::minimize-window', (e) => {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      if (win) win.minimize()
+    })
+
+    // F7: toggle massimizza/ripristina finestra
+    ipcMain.on('mt::maximize-window', (e) => {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      if (!win) return
+      if (win.isMaximized()) {
+        win.unmaximize()
+      } else {
+        win.maximize()
+      }
+    })
+
     ipcMain.on('mt::open-file', (e, filePath, options) => {
       const win = BrowserWindow.fromWebContents(e.sender)
       const editor = this.get(win.id)

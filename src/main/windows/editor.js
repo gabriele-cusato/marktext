@@ -83,6 +83,26 @@ class EditorWindow extends BaseWindow {
     if (!isOsx) {
       win.setMenuBarVisibility(false)
       win.setAutoHideMenuBar(true)
+
+      // B8: gestione tasto Alt da solo per toggle menu bar (frame=false impedisce
+      // il comportamento nativo). Usa before-input-event nel main: riceve eventi solo
+      // a finestra in focus, nessuna dipendenza dal renderer.
+      let altDown = false
+      win.webContents.on('before-input-event', (event, input) => {
+        if (input.key === 'Alt') {
+          if (input.type === 'keyDown') {
+            altDown = true
+          } else if (input.type === 'keyUp' && altDown) {
+            altDown = false
+            win.setMenuBarVisibility(!win.isMenuBarVisible())
+          }
+        } else {
+          // Alt + altro tasto → annulla tracking
+          altDown = false
+        }
+      })
+      // Reset stato quando finestra perde focus (es. Alt+Tab)
+      win.on('blur', () => { altDown = false })
     }
 
     remoteEnable(win.webContents)

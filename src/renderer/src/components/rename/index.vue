@@ -55,7 +55,7 @@ const handleRename = () => {
 }
 
 const confirm = () => {
-  editorStore.rename(tempName.value)
+  editorStore.RENAME(tempName.value)
   showRename.value = false
 }
 

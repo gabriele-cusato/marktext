@@ -1,9 +1,25 @@
 <template>
+  <!-- F2: backdrop solo in modalità floating -->
+  <div
+    v-if="showSearch && mode === 'floating'"
+    class="v2-search-backdrop"
+    @click="dockOrClose"
+  />
+
   <div
     v-show="showSearch"
-    class="search-bar"
+    :class="['search-bar', mode === 'floating' ? 'v2-search-floating' : 'v2-search-docked']"
     @click.stop="noop"
   >
+    <!-- F2: Header solo in floating mode con titolo + hint -->
+    <div
+      v-if="mode === 'floating'"
+      class="v2-search-hdr"
+    >
+      <span class="v2-search-title">Find &amp; Replace</span>
+      <span class="v2-search-hint">↵ to dock</span>
+    </div>
+
     <div
       class="left-arrow"
       @click="toggleSearchType"
@@ -28,6 +44,7 @@
             type="text"
             :placeholder="t('search.searchPlaceholder')"
             @keyup="debouncedSearchFn($event)"
+            @keydown.enter.prevent="dockOrClose"
           >
           <div class="controls">
             <span class="search-result">{{ highlightIndex + 1 }} /
@@ -173,6 +190,16 @@ const replaceValue = ref('')
 const searchErrorMsg = ref('')
 const search = ref(null)
 
+// F2: stato floating/docked. Apertura → floating (centrato con backdrop).
+// Enter o click backdrop → docked (top-right).
+const mode = ref('floating')
+
+const dockOrClose = () => {
+  if (mode.value === 'floating') {
+    mode.value = 'docked'
+  }
+}
+
 const { currentFile } = storeToRefs(editorStore)
 const searchMatches = computed(() => currentFile.value?.searchMatches)
 
@@ -238,6 +265,8 @@ const toggleCtrl = (ctrl) => {
 const listenFind = () => {
   showSearch.value = true
   type.value = 'search'
+  // F2: apri sempre in modalità floating
+  mode.value = 'floating'
   nextTick(() => {
     search.value.focus()
     if (searchValue.value) {
@@ -249,6 +278,7 @@ const listenFind = () => {
 const listenReplace = () => {
   showSearch.value = true
   type.value = 'replace'
+  mode.value = 'floating'
 }
 
 const listenFindNext = () => {
@@ -354,22 +384,71 @@ const noop = () => {}
 </script>
 
 <style scoped>
-/* v2: pannello find/replace docked top-right v2 styling */
+/* F2: backdrop solo in modalità floating */
+.v2-search-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.18);
+  z-index: 1490;
+  animation: v2fadeIn var(--v2-t-mid) ease-in-out;
+}
+
+/* v2: pannello find/replace - base */
 .search-bar {
-  position: absolute;
   width: 408px;
   padding: 4px 6px;
-  top: 8px;
-  right: 16px;
-  border-radius: 10px;
+  border-radius: 14px;
   box-shadow: var(--v2-shadow-lg);
   background: var(--v2-surface);
   border: 1px solid var(--v2-border);
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
   z-index: 1500;
   font-family: var(--v2-sans);
+}
+
+/* F2: docked top-right (modalità "lavoro continuo") */
+.v2-search-docked {
+  position: absolute;
+  top: 8px;
+  right: 16px;
+  border-radius: 10px;
   animation: v2dropIn var(--v2-t-mid) var(--v2-ease-spring);
+}
+
+/* F2: floating centrato con backdrop (modalità "apertura") */
+.v2-search-floating {
+  position: fixed;
+  top: 22vh;
+  left: 50%;
+  transform: translateX(-50%);
+  border-radius: 14px;
+  padding: 0 6px 4px;
+  animation: v2dropIn var(--v2-t-mid) var(--v2-ease-spring);
+}
+
+/* F2: Header (solo floating) con titolo + hint */
+.v2-search-hdr {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 8px;
+  border-bottom: 1px solid var(--v2-border);
+  margin-bottom: 6px;
+}
+
+.v2-search-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--v2-text);
+}
+
+.v2-search-hint {
+  font-size: 11px;
+  color: var(--v2-text3);
+  font-family: var(--v2-mono);
 }
 .search-bar .left-arrow {
   width: 20px;

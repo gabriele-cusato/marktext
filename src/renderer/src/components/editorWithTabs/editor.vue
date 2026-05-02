@@ -1173,6 +1173,42 @@ onMounted(() => {
 
     selectionChange.value = changes
     editorStore.SELECTION_CHANGE(changes)
+
+    // F1: emette posizione Ln/Col anche in modalità WYSIWYG (Muya).
+    // Muya identifica i blocchi via attributo id=<block.key>. Ricavo la riga
+    // contando l'ordine del blocco attivo nell'editor (DOM tree-walk).
+    try {
+      const startKey = changes.start && changes.start.key
+      if (startKey) {
+        const target = document.getElementById(startKey)
+        let line = 1
+        if (target) {
+          // Conta tutti gli elementi con id che precedono quello attivo nel DOM
+          const root = container.querySelector('#ag-editor-id') || container
+          const all = root.querySelectorAll('[id]')
+          let idx = 0
+          for (let i = 0; i < all.length; i++) {
+            if (all[i] === target) { line = idx + 1; break }
+            // Conta solo i blocchi top-level (figli diretti di root o paragrafi)
+            if (all[i].parentElement && all[i].parentElement.contains(target) && all[i].parentElement === root) {
+              idx++
+            } else if (all[i].parentElement === root) {
+              idx++
+            }
+          }
+          // Fallback semplice se il count non trova: usa indice tra fratelli del root
+          if (line === 1 && target.parentElement) {
+            const siblings = Array.from(target.parentElement.children)
+            const pos = siblings.indexOf(target)
+            if (pos >= 0) line = pos + 1
+          }
+        }
+        const col = (changes.start.offset || 0) + 1
+        bus.emit('statusbar::cursor-change', { line, col })
+      }
+    } catch (e) {
+      // failsafe: ignora errori DOM
+    }
   })
 
   editor.value.on('selectionFormats', (formats) => {

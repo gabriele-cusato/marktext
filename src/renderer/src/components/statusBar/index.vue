@@ -6,8 +6,20 @@
       <span class="v2-si">{{ positionLabel }}</span>
     </div>
 
-    <!-- Destra: Wrap / Zoom / EOL / Encoding -->
+    <!-- Destra: Settings/Theme / Wrap / Zoom / EOL / Encoding -->
     <div class="v2-status-r">
+      <!-- F5: Settings + Theme spostati qui dalla tab bar, prima di Wrap -->
+      <button
+        class="v2-sb-icon"
+        title="Settings"
+        @click="openSettings"
+      >⚙</button>
+      <button
+        class="v2-sb-icon"
+        :title="`Toggle theme (current: ${themeValue})`"
+        @click="toggleTheme"
+      >{{ themeValue === 'dark' ? '◐' : '◑' }}</button>
+
       <button
         :class="['v2-chip', { 'v2-chip-on': wordWrap }]"
         :title="t('statusBar.toggleWrap', 'Toggle Word Wrap')"
@@ -28,6 +40,7 @@
         <div
           v-if="eolOpen"
           class="v2-chip-drop"
+          @mousedown.stop
         >
           <div
             v-for="opt of EOL_OPTIONS"
@@ -41,7 +54,7 @@
         </div>
       </div>
 
-      <!-- Encoding chip + dropdown -->
+      <!-- Encoding chip + dropdown a due livelli -->
       <div class="v2-chip-wrap">
         <button
           class="v2-chip"
@@ -50,15 +63,52 @@
         <div
           v-if="encOpen"
           class="v2-chip-drop v2-chip-drop-wide"
+          @mousedown.stop
         >
+          <!-- Voci top-level -->
           <div
-            v-for="opt of ENC_OPTIONS"
-            :key="opt.value"
-            :class="['v2-drop-i', { 'v2-drop-on': encodingValue === opt.value }]"
-            @click.stop="changeEnc(opt.value)"
+            v-for="item of TOP_ENC"
+            :key="item.label"
+            :class="['v2-drop-i', { 'v2-drop-on': isEncSelected(item) }]"
+            @click.stop="changeEnc(item)"
           >
-            <span>{{ opt.label }}</span>
-            <span v-if="encodingValue === opt.value">✓</span>
+            <span>{{ item.label }}</span>
+            <span v-if="isEncSelected(item)">✓</span>
+          </div>
+
+          <!-- Separator -->
+          <div class="v2-drop-sep" />
+
+          <!-- Voce espandibile "Altri set di caratteri" -->
+          <div
+            class="v2-drop-i v2-drop-submenu"
+            @click.stop="encGroupsOpen = !encGroupsOpen"
+          >
+            <span>Altri set di caratteri</span>
+            <span class="v2-drop-arrow">{{ encGroupsOpen ? '▾' : '▸' }}</span>
+          </div>
+
+          <!-- Sottomenu categorie -->
+          <div
+            v-if="encGroupsOpen"
+            class="v2-drop-groups"
+          >
+            <div
+              v-for="group of ENC_GROUPS"
+              :key="group.label"
+              class="v2-drop-group"
+            >
+              <div class="v2-drop-group-label">{{ group.label }}</div>
+              <div
+                v-for="item of group.items"
+                :key="item.encoding"
+                :class="['v2-drop-i', 'v2-drop-i-nested', { 'v2-drop-on': isEncSelected(item) }]"
+                @click.stop="changeEnc(item)"
+              >
+                <span>{{ item.label }}</span>
+                <span v-if="isEncSelected(item)">✓</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -78,7 +128,14 @@ import bus from '@/bus'
 const editorStore = useEditorStore()
 const preferencesStore = usePreferencesStore()
 const { currentFile } = storeToRefs(editorStore)
-const { zoom, sourceCode } = storeToRefs(preferencesStore)
+const { zoom, sourceCode, theme: themeValue } = storeToRefs(preferencesStore)
+
+// F5: handler settings + theme spostati dalla tab bar
+const openSettings = () => bus.emit('show-settings-modal')
+const toggleTheme = () => {
+  const next = themeValue.value === 'dark' ? 'light' : 'dark'
+  preferencesStore.SET_SINGLE_PREFERENCE({ type: 'theme', value: next })
+}
 
 // i18n con fallback su default string
 const i18n = useI18n()
@@ -125,12 +182,9 @@ const isSaved = computed(() => {
   return currentFile.value?.isSaved !== false
 })
 
-// Position label — '—' in WYSIWYG mode (Muya non espone Ln/Col)
+// Position label — F1: ora aggiornato anche in WYSIWYG (linea = ordine blocco)
 const positionLabel = computed(() => {
-  if (sourceCode.value) {
-    return `Ln ${line.value}, Col ${col.value}`
-  }
-  return 'Ln —, Col —'
+  return `Ln ${line.value}, Col ${col.value}`
 })
 
 // EOL
@@ -155,22 +209,103 @@ const changeEol = (value) => {
 
 // Encoding
 const encodingValue = computed(() => currentFile.value?.encoding?.encoding || 'utf8')
+const encodingBom = computed(() => !!currentFile.value?.encoding?.isBom)
 const encodingDisplay = computed(() => {
   const v = encodingValue.value
+  const bom = encodingBom.value
+  // Display speciale per voci top con BOM
+  if (v === 'utf8' && bom) return 'UTF-8 BOM'
+  if (v === 'utf16be' && bom) return 'UTF-16 BE BOM'
+  if (v === 'utf16le' && bom) return 'UTF-16 LE BOM'
   return ENCODING_NAME_MAP[v] || v.toUpperCase()
 })
 const encOpen = ref(false)
+const encGroupsOpen = ref(false)
 
-const ENC_OPTIONS = Object.entries(ENCODING_NAME_MAP).map(([value, label]) => ({ value, label }))
+// Voci top-level visibili sempre
+const TOP_ENC = [
+  { label: 'ANSI', encoding: 'cp1252', isBom: false },
+  { label: 'UTF-8', encoding: 'utf8', isBom: false },
+  { label: 'UTF-8 BOM', encoding: 'utf8', isBom: true },
+  { label: 'UTF-16 BE BOM', encoding: 'utf16be', isBom: true },
+  { label: 'UTF-16 LE BOM', encoding: 'utf16le', isBom: true }
+]
+
+// Sottomenu "Altri set di caratteri" - categorie con relative chiavi
+const ENC_GROUPS = [
+  { label: 'Arabo', items: [
+    { label: ENCODING_NAME_MAP.arabic, encoding: 'arabic', isBom: false },
+    { label: ENCODING_NAME_MAP.cp1256, encoding: 'cp1256', isBom: false }
+  ]},
+  { label: 'Baltico', items: [
+    { label: ENCODING_NAME_MAP.latin4, encoding: 'latin4', isBom: false },
+    { label: ENCODING_NAME_MAP.cp1257, encoding: 'cp1257', isBom: false }
+  ]},
+  { label: 'Cirillico', items: [
+    { label: ENCODING_NAME_MAP.cp866, encoding: 'cp866', isBom: false },
+    { label: ENCODING_NAME_MAP.iso88595, encoding: 'iso88595', isBom: false },
+    { label: ENCODING_NAME_MAP.koi8r, encoding: 'koi8r', isBom: false },
+    { label: ENCODING_NAME_MAP.koi8u, encoding: 'koi8u', isBom: false },
+    { label: ENCODING_NAME_MAP.cp1251, encoding: 'cp1251', isBom: false }
+  ]},
+  { label: 'Europa Centrale', items: [
+    { label: ENCODING_NAME_MAP.iso88592, encoding: 'iso88592', isBom: false },
+    { label: ENCODING_NAME_MAP.windows1250, encoding: 'windows1250', isBom: false }
+  ]},
+  { label: 'Cinese', items: [
+    { label: ENCODING_NAME_MAP.gb2312, encoding: 'gb2312', isBom: false },
+    { label: ENCODING_NAME_MAP.gb18030, encoding: 'gb18030', isBom: false },
+    { label: ENCODING_NAME_MAP.gbk, encoding: 'gbk', isBom: false },
+    { label: ENCODING_NAME_MAP.big5, encoding: 'big5', isBom: false },
+    { label: ENCODING_NAME_MAP.big5hkscs, encoding: 'big5hkscs', isBom: false }
+  ]},
+  { label: 'Europa Orientale', items: [
+    { label: ENCODING_NAME_MAP.iso885913, encoding: 'iso885913', isBom: false }
+  ]},
+  { label: 'Greco', items: [
+    { label: ENCODING_NAME_MAP.greek, encoding: 'greek', isBom: false },
+    { label: ENCODING_NAME_MAP.cp1253, encoding: 'cp1253', isBom: false }
+  ]},
+  { label: 'Ebraico', items: [
+    { label: ENCODING_NAME_MAP.hebrew, encoding: 'hebrew', isBom: false },
+    { label: ENCODING_NAME_MAP.cp1255, encoding: 'cp1255', isBom: false }
+  ]},
+  { label: 'Giapponese', items: [
+    { label: ENCODING_NAME_MAP.shiftjis, encoding: 'shiftjis', isBom: false },
+    { label: ENCODING_NAME_MAP.eucjp, encoding: 'eucjp', isBom: false }
+  ]},
+  { label: 'Coreano', items: [
+    { label: ENCODING_NAME_MAP.euckr, encoding: 'euckr', isBom: false }
+  ]},
+  { label: 'Europa del Nord', items: [
+    { label: ENCODING_NAME_MAP.latin6, encoding: 'latin6', isBom: false }
+  ]},
+  { label: 'Turco', items: [
+    { label: ENCODING_NAME_MAP.latin5, encoding: 'latin5', isBom: false },
+    { label: ENCODING_NAME_MAP.cp1254, encoding: 'cp1254', isBom: false }
+  ]},
+  { label: 'Europa Occidentale', items: [
+    { label: ENCODING_NAME_MAP.ascii, encoding: 'ascii', isBom: false },
+    { label: ENCODING_NAME_MAP.latin3, encoding: 'latin3', isBom: false },
+    { label: ENCODING_NAME_MAP.iso885915, encoding: 'iso885915', isBom: false }
+  ]}
+]
 
 const toggleEncMenu = () => {
   encOpen.value = !encOpen.value
   eolOpen.value = false
+  encGroupsOpen.value = false
 }
 
-const changeEnc = (value) => {
-  bus.emit('mt::set-file-encoding', value)
+// Match voce attiva (encoding + isBom)
+const isEncSelected = (item) => {
+  return encodingValue.value === item.encoding && encodingBom.value === item.isBom
+}
+
+const changeEnc = (item) => {
+  bus.emit('mt::set-file-encoding', { encoding: item.encoding, isBom: item.isBom })
   encOpen.value = false
+  encGroupsOpen.value = false
 }
 
 // Click outside chiude dropdown
@@ -228,6 +363,28 @@ onBeforeUnmount(() => {
 
 .v2-si {
   margin-right: 4px;
+}
+
+/* F5: icone settings/theme nel footer (prima dei chip) */
+.v2-sb-icon {
+  width: 22px;
+  height: 18px;
+  font-size: 12px;
+  color: var(--v2-text3);
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 2px;
+  transition: all var(--v2-t-fast) ease-in-out;
+}
+
+.v2-sb-icon:hover {
+  background: var(--v2-surface2);
+  color: var(--v2-text);
 }
 
 .v2-chip {
@@ -295,5 +452,47 @@ onBeforeUnmount(() => {
 .v2-drop-on {
   color: var(--v2-accent);
   font-weight: 600;
+}
+
+/* Separator nel dropdown */
+.v2-drop-sep {
+  height: 1px;
+  background: var(--v2-border);
+  margin: 4px 8px;
+}
+
+/* Voce con sottomenu (freccia espansione) */
+.v2-drop-submenu {
+  font-weight: 500;
+}
+
+.v2-drop-arrow {
+  color: var(--v2-text3);
+  font-size: 10px;
+}
+
+/* Container categorie sottomenu */
+.v2-drop-groups {
+  border-top: 1px solid var(--v2-border);
+  margin-top: 2px;
+  padding-top: 4px;
+}
+
+.v2-drop-group {
+  margin-bottom: 4px;
+}
+
+.v2-drop-group-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--v2-text3);
+  padding: 4px 12px 2px;
+  font-weight: 600;
+}
+
+.v2-drop-i-nested {
+  padding-left: 20px;
+  font-size: 11.5px;
 }
 </style>

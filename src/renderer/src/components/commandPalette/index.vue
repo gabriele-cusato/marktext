@@ -314,13 +314,21 @@ onBeforeUnmount(() => {
   position: fixed;
   inset: 0;
   z-index: 3000;
-  background: rgba(0, 0, 0, 0.28);
+  /* B9: opacità ridotta per fade-out più discreto */
+  background: rgba(0, 0, 0, 0.15);
   display: flex;
   align-items: flex-start;
   justify-content: center;
   padding-top: 11vh;
   animation: v2fadeIn var(--v2-t-mid) ease-in-out;
   font-family: var(--v2-sans);
+  transition: opacity 220ms ease-in-out;
+}
+
+/* B9: fade-out backdrop sincrono con modal */
+.v2-cmd-backdrop.v2-closing {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .v2-cmd {

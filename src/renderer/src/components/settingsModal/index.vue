@@ -9,17 +9,27 @@
         :class="['v2-settings-modal', { 'v2-closing': closing }]"
         @mousedown.stop
       >
-        <!-- Header sticky -->
+        <!-- Header sticky (F4: titolo grosso + icona settings a sinistra) -->
         <div class="v2-settings-hdr">
           <button
             v-if="activeSection !== 'menu'"
             class="v2-settings-back"
-            @click="activeSection = 'menu'"
+            @click="goBackToMenu"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="m15 18-6-6 6-6" />
             </svg>
           </button>
+          <span
+            v-if="activeSection === 'menu'"
+            class="v2-settings-title-icon"
+          >
+            <!-- Icona settings (gear) -->
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          </span>
           <span class="v2-settings-title">{{ activeTitle }}</span>
           <button
             class="v2-settings-close"
@@ -32,80 +42,94 @@
           </button>
         </div>
 
-        <!-- Body scrollabile -->
+        <!-- Body scrollabile (F3: transizione tra menu e sezioni) -->
         <div class="v2-settings-body">
-          <!-- Menu principale: lista sezioni -->
-          <div v-if="activeSection === 'menu'">
-            <button
-              v-for="s of SECTIONS"
-              :key="s.id"
-              class="v2-settings-row"
-              @click="activeSection = s.id"
+          <Transition :name="navDirection" mode="out-in">
+            <!-- Menu principale: lista sezioni -->
+            <div
+              v-if="activeSection === 'menu'"
+              key="menu"
+              class="v2-settings-pane"
             >
-              <span class="v2-settings-row-label">{{ s.label }}</span>
-              <span class="v2-settings-row-arrow">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="m9 18 6-6-6-6" />
-                </svg>
-              </span>
-            </button>
-          </div>
+              <button
+                v-for="s of SECTIONS"
+                :key="s.id"
+                class="v2-settings-row"
+                @click="goToSection(s.id)"
+              >
+                <span class="v2-settings-row-icon" v-html="s.icon" />
+                <span class="v2-settings-row-label">{{ s.label }}</span>
+                <span class="v2-settings-row-arrow">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="m9 18 6-6-6-6" />
+                  </svg>
+                </span>
+              </button>
+            </div>
 
-          <!-- Sezione: General -->
-          <div
-            v-else-if="activeSection === 'general'"
-            class="v2-pref-wrap"
-          >
-            <General />
-          </div>
+            <!-- Sezione: General -->
+            <div
+              v-else-if="activeSection === 'general'"
+              key="general"
+              class="v2-pref-wrap v2-settings-pane"
+            >
+              <General />
+            </div>
 
-          <!-- Sezione: Editor -->
-          <div
-            v-else-if="activeSection === 'editor'"
-            class="v2-pref-wrap"
-          >
-            <Editor />
-          </div>
+            <!-- Sezione: Editor -->
+            <div
+              v-else-if="activeSection === 'editor'"
+              key="editor"
+              class="v2-pref-wrap v2-settings-pane"
+            >
+              <Editor />
+            </div>
 
-          <!-- Sezione: Theme -->
-          <div
-            v-else-if="activeSection === 'theme'"
-            class="v2-pref-wrap"
-          >
-            <Theme />
-          </div>
+            <!-- Sezione: Theme -->
+            <div
+              v-else-if="activeSection === 'theme'"
+              key="theme"
+              class="v2-pref-wrap v2-settings-pane"
+            >
+              <Theme />
+            </div>
 
-          <!-- Sezione: Markdown -->
-          <div
-            v-else-if="activeSection === 'markdown'"
-            class="v2-pref-wrap"
-          >
-            <Markdown />
-          </div>
+            <!-- Sezione: Markdown -->
+            <div
+              v-else-if="activeSection === 'markdown'"
+              key="markdown"
+              class="v2-pref-wrap v2-settings-pane"
+            >
+              <Markdown />
+            </div>
 
-          <!-- Sezione: Spellchecker -->
-          <div
-            v-else-if="activeSection === 'spellchecker'"
-            class="v2-pref-wrap"
-          >
-            <Spellchecker />
-          </div>
+            <!-- Sezione: Spellchecker -->
+            <div
+              v-else-if="activeSection === 'spellchecker'"
+              key="spellchecker"
+              class="v2-pref-wrap v2-settings-pane"
+            >
+              <Spellchecker />
+            </div>
 
-          <!-- Sezione: Keybindings -->
-          <div
-            v-else-if="activeSection === 'keybindings'"
-            class="v2-pref-wrap"
-          >
-            <Keybindings />
-          </div>
+            <!-- Sezione: Keybindings -->
+            <div
+              v-else-if="activeSection === 'keybindings'"
+              key="keybindings"
+              class="v2-pref-wrap v2-settings-pane"
+            >
+              <Keybindings />
+            </div>
 
-          <!-- Sezione: Image -->
-          <div
-            v-else-if="activeSection === 'image'"
-            class="v2-pref-wrap"
-          >
-            <Image />
-          </div>
+            <!-- Sezione: Image -->
+            <div
+              v-else-if="activeSection === 'image'"
+              key="image"
+              class="v2-pref-wrap v2-settings-pane"
+            >
+              <Image />
+            </div>
+          </Transition>
         </div>
       </div>
     </div>
@@ -129,17 +153,38 @@ const { t } = useI18n()
 const open = ref(false)
 const closing = ref(false)
 const activeSection = ref('menu')
+const navDirection = ref('v2-slide-fwd') // F3: direzione transizione (avanti/indietro)
 let closeTimer = null
 
+// SVG icons (Lucide-style) inline per voci sottomenu (F4)
+const ICON_GENERAL = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>'
+const ICON_EDITOR = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>'
+const ICON_THEME = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>'
+const ICON_MD = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13v-1h6v1"/><path d="M11 18h2"/><path d="M12 12v6"/></svg>'
+const ICON_SPELL = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 16 6-12 6 12"/><path d="M8 12h8"/><path d="m16 20 2 2 4-4"/></svg>'
+const ICON_KEY = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10"/></svg>'
+const ICON_IMG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>'
+
 const SECTIONS = computed(() => [
-  { id: 'general', label: tFallback('preferences.general.title', 'General') },
-  { id: 'editor', label: tFallback('preferences.editor.title', 'Editor') },
-  { id: 'theme', label: tFallback('preferences.theme.title', 'Theme') },
-  { id: 'markdown', label: tFallback('preferences.markdown.title', 'Markdown') },
-  { id: 'spellchecker', label: tFallback('preferences.spellchecker.title', 'Spell Checker') },
-  { id: 'keybindings', label: tFallback('preferences.keybindings.title', 'Key Bindings') },
-  { id: 'image', label: tFallback('preferences.image.title', 'Image') }
+  { id: 'general', label: tFallback('preferences.general.title', 'General'), icon: ICON_GENERAL },
+  { id: 'editor', label: tFallback('preferences.editor.title', 'Editor'), icon: ICON_EDITOR },
+  { id: 'theme', label: tFallback('preferences.theme.title', 'Theme'), icon: ICON_THEME },
+  { id: 'markdown', label: tFallback('preferences.markdown.title', 'Markdown'), icon: ICON_MD },
+  { id: 'spellchecker', label: tFallback('preferences.spellchecker.title', 'Spell Checker'), icon: ICON_SPELL },
+  { id: 'keybindings', label: tFallback('preferences.keybindings.title', 'Key Bindings'), icon: ICON_KEY },
+  { id: 'image', label: tFallback('preferences.image.title', 'Image'), icon: ICON_IMG }
 ])
+
+// F3: navigazione con direzione (per scegliere transizione slide)
+const goToSection = (id) => {
+  navDirection.value = 'v2-slide-fwd'
+  activeSection.value = id
+}
+
+const goBackToMenu = () => {
+  navDirection.value = 'v2-slide-bwd'
+  activeSection.value = 'menu'
+}
 
 const activeTitle = computed(() => {
   if (activeSection.value === 'menu') return tFallback('preferences.title', 'Settings')
@@ -200,12 +245,20 @@ onBeforeUnmount(() => {
   position: fixed;
   inset: 0;
   z-index: 3500;
-  background: rgba(0, 0, 0, 0.32);
+  /* B9: opacità ridotta per ridurre visibilità durante fade-out */
+  background: rgba(0, 0, 0, 0.18);
   display: flex;
   align-items: center;
   justify-content: center;
   animation: v2fadeIn var(--v2-t-mid) ease-in-out;
   font-family: var(--v2-sans);
+  transition: opacity 220ms ease-in-out;
+}
+
+/* B9: fade-out del backdrop sincrono con quello del modal */
+.v2-settings-backdrop.v2-closing {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .v2-settings-modal {
@@ -224,13 +277,23 @@ onBeforeUnmount(() => {
 .v2-settings-hdr {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 14px 18px;
+  gap: 12px;
+  /* F4: header più alto con titolo evidente */
+  padding: 22px 22px 18px;
   border-bottom: 1px solid var(--v2-border);
   background: var(--v2-surface);
   position: sticky;
   top: 0;
   z-index: 10;
+  flex-shrink: 0;
+}
+
+/* F4: icona settings a sinistra del titolo (solo nel menu principale) */
+.v2-settings-title-icon {
+  color: var(--v2-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
 }
 
@@ -258,15 +321,50 @@ onBeforeUnmount(() => {
 
 .v2-settings-title {
   flex: 1;
-  font-size: 15px;
-  font-weight: 600;
+  /* F4: titolo più grande ed evidente */
+  font-size: 20px;
+  font-weight: 700;
   color: var(--v2-text);
+  letter-spacing: -0.01em;
 }
 
 .v2-settings-body {
   overflow-y: auto;
-  padding: 12px 0;
+  /* F4: distanziato dal titolo */
+  padding: 18px 0 12px;
   flex: 1;
+  /* F3: contenitore stabile per transizioni */
+  position: relative;
+}
+
+/* F3: transizioni slide tra menu e sezioni */
+.v2-settings-pane {
+  /* base per transizioni */
+}
+
+.v2-slide-fwd-enter-active,
+.v2-slide-fwd-leave-active,
+.v2-slide-bwd-enter-active,
+.v2-slide-bwd-leave-active {
+  transition: opacity 220ms ease-in-out, transform 260ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.v2-slide-fwd-enter-from {
+  opacity: 0;
+  transform: translateX(20px);
+}
+.v2-slide-fwd-leave-to {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+.v2-slide-bwd-enter-from {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+.v2-slide-bwd-leave-to {
+  opacity: 0;
+  transform: translateX(20px);
 }
 
 .v2-settings-body::-webkit-scrollbar {
@@ -278,12 +376,12 @@ onBeforeUnmount(() => {
   border-radius: 5px;
 }
 
-/* Lista voci menu principale */
+/* Lista voci menu principale (F4: con icone a sinistra) */
 .v2-settings-row {
   width: 100%;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 14px;
   padding: 14px 22px;
   border: none;
   background: none;
@@ -293,6 +391,21 @@ onBeforeUnmount(() => {
   color: var(--v2-text);
   transition: background var(--v2-t-fast) ease-in-out;
   border-bottom: 1px solid var(--v2-border);
+}
+
+/* F4: icona a sinistra di ogni voce sottomenu */
+.v2-settings-row-icon {
+  color: var(--v2-text2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+}
+
+.v2-settings-row:hover .v2-settings-row-icon {
+  color: var(--v2-accent);
 }
 
 .v2-settings-row:last-child {

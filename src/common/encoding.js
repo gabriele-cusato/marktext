@@ -7,7 +7,7 @@ export const ENCODING_NAME_MAP = Object.freeze({
   ascii: 'Western (ISO 8859-1)',
   latin3: 'Western (ISO 8859-3)',
   iso885915: 'Western (ISO 8859-15)',
-  cp1252: 'Western (Windows 1252)',
+  cp1252: 'ANSI',
   arabic: 'Arabic (ISO 8859-6)',
   cp1256: 'Arabic (Windows 1256)',
   latin4: 'Baltic (ISO 8859-4)',
