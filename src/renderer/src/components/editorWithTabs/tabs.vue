@@ -9,19 +9,25 @@
         ref="tabDropContainer"
         class="v2-tabs"
       >
-        <!-- B5: clone "pinned" della tab attiva su riga 2+ (mostrato come ultima
-             tab in riga 1 con sfondo diverso). Inserito prima delle tab reali
-             così appare a destra di prima riga ma prima del wrap. -->
-        <li
-          v-if="pinnedTab && !plusAbsolute"
-          :key="`pinned-${pinnedTab.id}`"
-          :class="['v2-tab', 'v2-tab-active', 'v2-tab-pinned']"
-          :title="pinnedTab.pathname || pinnedTab.filename"
-          @click.stop="selectFile(pinnedTab)"
-        >
-          <span v-if="!pinnedTab.isSaved" class="v2-tab-dot" />
-          <span class="v2-tab-name">{{ pinnedTab.filename }}</span>
-        </li>
+        <!-- NB6: clone "pinned" della tab attiva su riga 2+ (mostrato come ultima
+             tab in riga 1 con sfondo diverso). Visibile solo a tab bar collassata
+             (CSS hover lo nasconde). Non trascinabile. -->
+        <Transition name="pinned-fade">
+          <li
+            v-if="pinnedTab"
+            :key="`pinned-${pinnedTab.id}`"
+            :class="['v2-tab', 'v2-tab-active', 'v2-tab-pinned']"
+            :title="pinnedTab.pathname || pinnedTab.filename"
+            draggable="false"
+            @dragstart.prevent
+            @click.stop="selectFile(pinnedTab)"
+            @contextmenu.prevent="handleContextMenu($event, pinnedTab)"
+          >
+            <span v-if="!pinnedTab.isSaved" class="v2-tab-dot" />
+            <span class="v2-tab-name">{{ pinnedTab.filename }}</span>
+            <span class="v2-tab-pinned-badge">↑</span>
+          </li>
+        </Transition>
 
         <li
           v-for="file of tabs"
@@ -75,22 +81,45 @@
         class="v2-tr-btn"
         title="Apri file (Ctrl+O)"
         @click="openFileDialog"
-      >📂</button>
+      >
+        <!-- NB4: SVG cartella aperta minimal, monocromatica -->
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
+          <path d="M1.5 4.5h4.5l1.5 1.5H14.5v7.5H1.5V4.5z" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <!-- NB14: icone finestra in stile VS Code (SVG inline) -->
       <button
         class="v2-tr-btn v2-tr-btn-win"
         title="Riduci a icona"
         @click="winMinimize"
-      >−</button>
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10">
+          <line x1="0" y1="5" x2="10" y2="5" stroke="currentColor" stroke-width="1.2"/>
+        </svg>
+      </button>
       <button
         class="v2-tr-btn v2-tr-btn-win"
         :title="isMaximized ? 'Ripristina' : 'Massimizza'"
         @click="winMaximize"
-      >{{ isMaximized ? '❐' : '☐' }}</button>
+      >
+        <svg v-if="!isMaximized" width="10" height="10" viewBox="0 0 10 10">
+          <rect x="0.6" y="0.6" width="8.8" height="8.8" stroke="currentColor" stroke-width="1.2" fill="none"/>
+        </svg>
+        <svg v-else width="10" height="10" viewBox="0 0 10 10">
+          <rect x="2" y="0.6" width="7.4" height="7.4" stroke="currentColor" stroke-width="1.2" fill="none"/>
+          <rect x="0.6" y="2" width="7.4" height="7.4" stroke="currentColor" stroke-width="1.2" fill="var(--v2-bg)"/>
+        </svg>
+      </button>
       <button
         class="v2-tr-btn v2-tr-btn-win v2-tr-btn-close"
         title="Chiudi"
         @click="winClose"
-      >×</button>
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10">
+          <line x1="0" y1="0" x2="10" y2="10" stroke="currentColor" stroke-width="1.2"/>
+          <line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" stroke-width="1.2"/>
+        </svg>
+      </button>
     </div>
 
     <!-- Context menu custom Vue (sostituisce nativo Electron) -->
@@ -246,10 +275,12 @@ const onWinUnmaximize = () => { isMaximized.value = false }
 
 // B3 + B4: calcola se le tab sono su più righe e posiziona "+" alla fine
 // della prima riga quando multi-row.
+// NB3: escludere il clone pinned dal calcolo — la sua presenza/assenza
+// non deve far saltare la posizione del "+".
 const updateTabRowsLayout = () => {
   const ul = tabDropContainer.value
   if (!ul) return
-  const items = Array.from(ul.querySelectorAll('li.v2-tab'))
+  const items = Array.from(ul.querySelectorAll('li.v2-tab:not(.v2-tab-pinned)'))
   if (items.length === 0) {
     plusAbsolute.value = false
     hasMultiRow.value = false
@@ -274,10 +305,16 @@ const updateTabRowsLayout = () => {
   nextTick(() => {
     const rect = lastInFirstRow.getBoundingClientRect()
     const ulRect = ul.getBoundingClientRect()
+    // NB2: clamp left max per non sovrapporsi al gruppo topright
+    // (160px riservati = 5 buttons * ~30px + margine sicurezza)
+    const PLUS_W = 30
+    const TOPRIGHT_RESERVED = 160
+    const desiredLeft = rect.right - ulRect.left + 4
+    const maxLeft = ulRect.width - TOPRIGHT_RESERVED - PLUS_W
     plusStyle.value = {
       position: 'absolute',
       top: `${lastInFirstRow.offsetTop + 1}px`,
-      left: `${rect.right - ulRect.left + 4}px`
+      left: `${Math.min(desiredLeft, maxLeft)}px`
     }
   })
 }
@@ -414,7 +451,8 @@ watch(() => currentFile.value && currentFile.value.id, () => {
     box-shadow var(--v2-t-mid) ease-in-out;
   display: flex;
   align-items: flex-start;
-  padding-right: 110px; /* spazio per top-right controls */
+  /* NB2: 160px riservati per topright (5 buttons: ⌘ 📂 min max close) */
+  padding-right: 160px;
   /* B2: padding-bottom default per non far attaccare le tabs alla barra di separazione */
   padding-bottom: 4px;
   user-select: none;
@@ -433,13 +471,10 @@ watch(() => currentFile.value && currentFile.value.id, () => {
   min-height: var(--v2-tab-h);
 }
 
-/* B7: a tab bar collassata, forza altezza singola riga sull'ul interno
-   (impedisce a tab attive di righe inferiori di "trapelare" visivamente).
-   Si applica solo quando ci sono effettivamente più righe (B4). */
-.v2-tabbar.has-multirow:not(:hover) .v2-tabs {
-  max-height: var(--v2-tab-h);
-  overflow: hidden;
-}
+/* NB5: rimossa regola .v2-tabbar.has-multirow:not(:hover) .v2-tabs
+   max-height — causava doppio movimento durante chiusura (snap istantaneo
+   sull'ul + transition lenta sull'outer). L'outer .v2-tabbar ha già
+   overflow: hidden + max-height transition, sufficiente per clippare. */
 
 .v2-tabs {
   display: flex;
@@ -491,17 +526,47 @@ watch(() => currentFile.value && currentFile.value.id, () => {
   padding-top: 3px;
 }
 
-/* B5: tab pinned (clone tab attiva da righe 2+ mostrato in riga 1).
+/* NB6: tab pinned (clone tab attiva da righe 2+ mostrato in riga 1).
    Sfondo distintivo per indicare che è una tab "pinnata" temporanea. */
 .v2-tab-pinned {
   background: var(--v2-accent-dim, var(--v2-surface2)) !important;
   border: 1px dashed var(--v2-accent);
   box-shadow: none !important;
+  /* NB6: transition opacity per fade in hover tab bar */
+  transition:
+    background var(--v2-t-fast) ease-in-out,
+    color var(--v2-t-fast) ease-in-out,
+    opacity 0.15s ease;
 }
 
 .v2-tab-pinned::before {
   background: var(--v2-accent) !important;
   opacity: 1 !important;
+}
+
+/* NB6: badge ↑ per indicare "tab attiva su riga inferiore" */
+.v2-tab-pinned-badge {
+  font-size: 10px;
+  color: var(--v2-accent);
+  margin-left: 2px;
+  flex-shrink: 0;
+  font-weight: bold;
+}
+
+/* NB6: clone scompare quando tab bar è espansa in hover */
+.v2-tabbar:hover .v2-tab-pinned {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* NB6: fade-in/out al cambio di pinnedTab (Vue Transition) */
+.pinned-fade-enter-active,
+.pinned-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.pinned-fade-enter-from,
+.pinned-fade-leave-to {
+  opacity: 0;
 }
 
 .v2-tab-active::before {

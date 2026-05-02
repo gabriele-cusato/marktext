@@ -570,14 +570,9 @@ export const printDocument = (win) => {
 }
 
 export const openFile = async (win) => {
+  // NB13: nessun filters → dialog mostra tutti i file
   const { filePaths } = await dialog.showOpenDialog(win, {
-    properties: ['openFile', 'multiSelections'],
-    filters: [
-      {
-        name: 'Markdown document',
-        extensions: MARKDOWN_EXTENSIONS
-      }
-    ]
+    properties: ['openFile', 'multiSelections']
   })
 
   if (Array.isArray(filePaths) && filePaths.length > 0) {

@@ -183,8 +183,10 @@ const isSaved = computed(() => {
 })
 
 // Position label — F1: ora aggiornato anche in WYSIWYG (linea = ordine blocco)
+// N1: Prg (paragrafo) in modalità markdown/Muya, Ln in modalità CodeMirror
 const positionLabel = computed(() => {
-  return `Ln ${line.value}, Col ${col.value}`
+  const lineLabel = sourceCode.value ? 'Ln' : 'Prg'
+  return `${lineLabel} ${line.value}, Col ${col.value}`
 })
 
 // EOL

@@ -110,7 +110,19 @@ const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop }) => {
 
   if (cursor) {
     const { anchor, focus } = cursor
-    editor.value.setSelection(anchor, focus, { scroll: true }) // Scroll the focus into view.
+    try {
+      // NB11: clamp coordinate cursore prima di setSelection.
+      // Causa crash chunkSize: cursore in formato Muya (no campo ch) o
+      // cursore da file precedente con più righe di quello appena caricato.
+      const lineCount = editor.value.lineCount()
+      const clampLine = (l) => Math.max(0, Math.min(typeof l === 'number' ? l : 0, lineCount - 1))
+      const safeAnchor = { line: clampLine(anchor?.line), ch: anchor?.ch ?? 0 }
+      const safeFocus = { line: clampLine(focus?.line), ch: focus?.ch ?? 0 }
+      editor.value.setSelection(safeAnchor, safeFocus, { scroll: true })
+    } catch {
+      // Fallback: errore residuo (cursore formato incompatibile) → inizio file
+      setCursorAtFirstLine(editor.value)
+    }
   } else {
     setCursorAtFirstLine(editor.value)
   }
@@ -249,14 +261,7 @@ onMounted(() => {
     lineWrapping: preferencesStore.wordWrap !== false,
     styleActiveLine: true,
     direction: textDirection,
-    viewportMargin: Infinity,
-    lineNumberFormatter(line) {
-      if (line % 10 === 0 || line === 1) {
-        return line
-      } else {
-        return ''
-      }
-    }
+    viewportMargin: Infinity
   }
 
   if (railscastsThemes.includes(theme.value)) {
@@ -274,6 +279,9 @@ onMounted(() => {
   bus.on('mt::wordwrap-change', (value) => {
     if (editor.value) {
       editor.value.setOption('lineWrapping', value)
+      // NB10: forza CodeMirror a rimisurare dopo cambio wrap
+      // (previene crash prepareMeasureForLine al click successivo)
+      editor.value.refresh()
     }
   })
 
@@ -335,13 +343,14 @@ const handleScroll = debounce(() => {
 }
 .source-code .CodeMirror {
   height: auto;
-  margin: 50px auto;
-  max-width: var(--editorAreaWidth);
+  /* NB8: editor allineato a sinistra, no margin/max-width */
+  margin: 0;
   background: transparent;
 }
 .source-code .CodeMirror-gutters {
-  border-right: none;
-  background-color: transparent;
+  /* NB8: gutter visibile (sfondo distinto + bordo destro) */
+  border-right: 1px solid var(--v2-border);
+  background-color: var(--v2-surface2);
 }
 .source-code .CodeMirror-activeline-background,
 .source-code .CodeMirror-activeline-gutter {

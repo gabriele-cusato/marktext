@@ -314,8 +314,8 @@ onBeforeUnmount(() => {
   position: fixed;
   inset: 0;
   z-index: 3000;
-  /* B9: opacità ridotta per fade-out più discreto */
-  background: rgba(0, 0, 0, 0.15);
+  /* NB7: backdrop trasparente — nessuno scurimento dello sfondo */
+  background: transparent;
   display: flex;
   align-items: flex-start;
   justify-content: center;

@@ -1174,16 +1174,24 @@ export const useEditorStore = defineStore('editor', {
       }
 
       if (markdown !== oldMarkdown) {
-        this.currentFile.isSaved = false
-        if (pathname && autoSave) {
-          const options = getOptionsFromState(this.currentFile)
-          this.HANDLE_AUTO_SAVE({
-            id: currentId,
-            filename,
-            pathname,
-            markdown,
-            options
-          })
+        // NB12: guardia contro false-dirty all'apertura file.
+        // Se il contenuto corrente è identico a quello caricato da disco,
+        // non marcare come "non salvato" (originalMarkdown è null per file nuovi).
+        const isUnchangedFromDisk =
+          this.currentFile.originalMarkdown !== null &&
+          markdown === this.currentFile.originalMarkdown
+        if (!isUnchangedFromDisk) {
+          this.currentFile.isSaved = false
+          if (pathname && autoSave) {
+            const options = getOptionsFromState(this.currentFile)
+            this.HANDLE_AUTO_SAVE({
+              id: currentId,
+              filename,
+              pathname,
+              markdown,
+              options
+            })
+          }
         }
       }
     },
