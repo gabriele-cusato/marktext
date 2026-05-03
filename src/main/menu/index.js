@@ -442,7 +442,6 @@ class AppMenu {
       }
       if (prefs.language) {
         // Update main process language and rebuild menu
-        const { setLanguage } = await import('../i18n.js')
         setLanguage(prefs.language)
         this.updateAppMenu()
       }

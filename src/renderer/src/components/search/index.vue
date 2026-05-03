@@ -416,7 +416,10 @@ const noop = () => {}
 }
 
 /* v2: pannello find/replace - base */
+/* N2+N3: position fixed unificato su entrambe le classi; transizione su top+right
+   per animazione smooth floating→docked senza scatto. */
 .search-bar {
+  position: fixed;
   width: 408px;
   padding: 4px 6px;
   border-radius: 14px;
@@ -428,16 +431,19 @@ const noop = () => {}
   flex-wrap: wrap;
   z-index: 1500;
   font-family: var(--v2-sans);
+  transition:
+    top 0.35s cubic-bezier(0.22, 0.61, 0.36, 1),
+    right 0.35s cubic-bezier(0.22, 0.61, 0.36, 1),
+    border-radius 0.2s ease,
+    padding 0.2s ease;
 }
 
 /* F2: docked top-right (modalità "lavoro continuo") */
+/* N2+N3: rimossa animation v2dropIn (conflitto), usato right numerico per transizione */
 .v2-search-docked {
-  position: absolute;
-  top: 8px;
+  top: 48px;
   right: 16px;
   border-radius: 10px;
-  animation: v2dropIn var(--v2-t-mid) var(--v2-ease-spring);
-  /* B13: position relative per il close button assoluto */
   padding-right: 28px;
 }
 
@@ -462,14 +468,13 @@ const noop = () => {}
 }
 
 /* F2: floating centrato con backdrop (modalità "apertura") */
+/* N2: usa right=calc(50%-204px) invece di left+transform — evita conflitto con v2dropIn
+   che sovrascriveva translateX(-50%) causando scatto visivo al mount. */
 .v2-search-floating {
-  position: fixed;
   top: 22vh;
-  left: 50%;
-  transform: translateX(-50%);
+  right: calc(50% - 204px);
   border-radius: 14px;
   padding: 0 6px 4px;
-  animation: v2dropIn var(--v2-t-mid) var(--v2-ease-spring);
 }
 
 /* F2: Header (solo floating) con titolo + hint */

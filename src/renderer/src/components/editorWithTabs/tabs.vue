@@ -49,10 +49,12 @@
     <!-- B1: zona topright si espande verso sinistra quando multi-row,
          clone tab + "+" appaiono SOLO dopo che l'espansione è completata. -->
     <div :class="['v2-topright', { 'topright-expanded': hasMultiRow }]">
-      <!-- B1: clone tab attiva (su riga 2+) nel topright, fade-in con delay = durata espansione -->
-      <Transition name="topright-clone-fade">
+      <!-- N4: wrapper animato max-width+opacity per espansione visibile verso sinistra.
+           Sempre in DOM (no v-if) così CSS può fare transizione 0→max-width. -->
+      <div class="v2-topright-dynamic">
+        <!-- B1: clone tab attiva (su riga 2+) nel topright -->
         <div
-          v-if="hasMultiRow && pinnedTab"
+          v-if="pinnedTab"
           class="v2-topright-clone"
           :title="pinnedTab.pathname || pinnedTab.filename"
           @click.stop="selectFile(pinnedTab)"
@@ -62,20 +64,17 @@
           <span class="v2-tab-name">{{ pinnedTab.filename }}</span>
           <span class="v2-tab-pinned-badge">↑</span>
         </div>
-      </Transition>
 
-      <!-- B1: "+" nel topright, solo multi-row -->
-      <Transition name="topright-plus-fade">
+        <!-- B1: "+" nel topright -->
         <button
-          v-if="hasMultiRow"
           class="v2-tr-plus"
           title="New Tab (Ctrl+T)"
           @click.stop="newFile()"
         >+</button>
-      </Transition>
 
-      <!-- B1: separatore tra elementi tab (clone, +) e icone app (⌘, 📂) -->
-      <div v-if="hasMultiRow" class="v2-tr-sep" />
+        <!-- B1: separatore tra elementi tab (clone, +) e icone app (⌘, 📂) -->
+        <div class="v2-tr-sep" />
+      </div>
 
       <button
         class="v2-tr-btn"
@@ -317,6 +316,11 @@ const updateTabRowsLayout = () => {
   for (const it of items) {
     if (it.offsetTop > firstTop) { multiRow = true; break }
   }
+  // N5: tab ancora in riga 1 ma "+" inline straripa → anticipa switch a multi-row
+  if (!multiRow) {
+    const plusEl = ul.querySelector('.v2-tab-new-li')
+    if (plusEl && plusEl.offsetTop > firstTop) multiRow = true
+  }
   hasMultiRow.value = multiRow
 }
 
@@ -489,8 +493,13 @@ watch(hasMultiRow, (newVal) => {
 
 /* B1: in multi-row il topright ospita anche clone tab + "+" + separator,
    serve più spazio. ~120 (clone) + 28 (+) + 9 (sep) + 160 (icone) = 320px */
+/* N4: durata aumentata da 0.3s a 0.5s per sincronizzarsi con v2-topright-dynamic */
 .v2-tabbar.has-multirow {
   padding-right: 320px;
+  transition:
+    max-height 0.5s ease-in-out,
+    box-shadow var(--v2-t-mid) ease-in-out,
+    padding-right 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* B1: hover-expand attivato SOLO da hover su area tab (classe `tabs-hovered`).
@@ -653,8 +662,8 @@ watch(hasMultiRow, (newVal) => {
 
 /* B1: "+" inline single-row resta tondo. In multi-row si usa .v2-tr-plus dentro topright. */
 
-/* Top-right controls (sovrapposti tab bar)
-   B1: padding-left animato. In multi-row si crea spazio per clone + "+" + separatore. */
+/* Top-right controls (sovrapposti tab bar) */
+/* N4: rimosso padding-left animato (sostituito da v2-topright-dynamic max-width) */
 .v2-topright {
   position: absolute;
   top: 0;
@@ -664,12 +673,26 @@ watch(hasMultiRow, (newVal) => {
   align-items: center;
   gap: 2px;
   z-index: 20;
-  padding-left: 0;
-  transition: padding-left 0.3s ease;
 }
 
-.v2-topright.topright-expanded {
-  padding-left: 8px;
+/* N4: wrapper animato per clone + "+" + sep. Sempre in DOM.
+   max-width: 0→180px crea espansione visibile verso sinistra. */
+.v2-topright-dynamic {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  max-width: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    max-width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.3s ease 0.2s;
+}
+
+.v2-topright.topright-expanded .v2-topright-dynamic {
+  max-width: 180px;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 /* B1: clone della tab attiva (riga 2+) nel topright. Pill compatta. */
@@ -690,6 +713,8 @@ watch(hasMultiRow, (newVal) => {
   overflow: hidden;
   flex-shrink: 0;
   user-select: none;
+  /* N7: spazio tra clone e "+" */
+  margin-right: 6px;
 }
 
 .v2-topright-clone .v2-tab-name {
@@ -723,22 +748,15 @@ watch(hasMultiRow, (newVal) => {
   transform: scale(1.05);
 }
 
-/* B1: clone fade. Delay 0.3s = durata espansione del topright (entrano DOPO l'espansione). */
-.topright-clone-fade-enter-active {
-  transition: opacity 0.2s ease 0.3s;
-}
+/* N4: clone/plus fade obsoleti (ora animati dal wrapper v2-topright-dynamic).
+   Leave-active rimangono per eventuali v-if interni al wrapper. */
 .topright-clone-fade-leave-active {
   transition: opacity 0.15s ease;
 }
-.topright-clone-fade-enter-from,
 .topright-clone-fade-leave-to {
   opacity: 0;
 }
 
-/* B1: "+" fade leggermente prima del clone */
-.topright-plus-fade-enter-active {
-  transition: opacity 0.2s ease 0.25s;
-}
 .topright-plus-fade-leave-active {
   transition: opacity 0.15s ease;
 }
@@ -800,14 +818,14 @@ watch(hasMultiRow, (newVal) => {
 .v2-tab-active-hidden::before {
   display: none;
 }
-.v2-tabbar:hover .v2-tab-active-hidden,
+/* N6: rimosso .v2-tabbar:hover — si attivava anche su hover del topright (clone).
+   Solo tabs-hovered (set da onTabsEnter, non dal topright) deve riattivare lo stile. */
 .v2-tabbar.tabs-hovered .v2-tab-active-hidden {
   background: var(--v2-surface) !important;
   box-shadow: var(--v2-shadow-sm) !important;
   font-weight: 500 !important;
   color: var(--v2-text) !important;
 }
-.v2-tabbar:hover .v2-tab-active-hidden::before,
 .v2-tabbar.tabs-hovered .v2-tab-active-hidden::before {
   display: block;
 }

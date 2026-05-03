@@ -174,9 +174,10 @@ class ContentState {
         if (this.historyTimer) clearTimeout(this.historyTimer)
         this.history.pushPending(getHistoryState())
 
+        // N11: ridotto da 2000 a 800ms — checkpoint più frequenti per undo word-by-word
         this.historyTimer = setTimeout(() => {
           this.history.commitPending()
-        }, 2000)
+        }, 800)
       }
     }
   }

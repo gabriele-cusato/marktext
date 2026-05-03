@@ -16,6 +16,7 @@ import {
   TrailingNewlineCommand
 } from '../commands'
 import { defineStore } from 'pinia'
+import { nextTick } from 'vue'
 import { usePreferencesStore } from './preferences'
 import { useProjectStore } from './project'
 import { useLayoutStore } from './layout'
@@ -640,14 +641,18 @@ export const useEditorStore = defineStore('editor', {
         const { id, markdown, cursor, history, pathname, scrollTop, blocks } = currentFile
         window.DIRNAME = pathname ? window.path.dirname(pathname) : ''
         this.currentFile = currentFile
-        bus.emit('file-changed', {
-          id,
-          markdown,
-          cursor,
-          renderCursor: true,
-          history,
-          scrollTop,
-          blocks
+        // N8: nextTick garantisce che sourceCode.vue sia montato prima di file-changed.
+        // Senza nextTick, l'evento arriva mentre il componente non è ancora nel DOM.
+        nextTick(() => {
+          bus.emit('file-changed', {
+            id,
+            markdown,
+            cursor,
+            renderCursor: true,
+            history,
+            scrollTop,
+            blocks
+          })
         })
       }
 
@@ -1343,7 +1348,7 @@ export const useEditorStore = defineStore('editor', {
       if (lineEnding !== oldLineEnding) {
         this.currentFile.lineEnding = lineEnding
         this.currentFile.adjustLineEndingOnSave = lineEnding !== 'lf'
-        this.currentFile.isSaved = true
+        this.currentFile.isSaved = false  // N14: cambio EOL = modifica non salvata
         this.UPDATE_LINE_ENDING_MENU()
       }
     },
@@ -1366,7 +1371,7 @@ export const useEditorStore = defineStore('editor', {
         if (cur.encoding !== encodingName || cur.isBom !== bomFlag) {
           this.currentFile.encoding.encoding = encodingName
           this.currentFile.encoding.isBom = bomFlag
-          this.currentFile.isSaved = true
+          this.currentFile.isSaved = false  // N14: cambio encoding = modifica non salvata
         }
       })
     },

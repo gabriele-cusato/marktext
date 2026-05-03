@@ -6,7 +6,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import { usePreferencesStore } from '@/store/preferences'
 import { storeToRefs } from 'pinia'
@@ -107,6 +107,8 @@ const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop }) => {
 
   if (typeof newMarkdown === 'string') {
     editor.value.setValue(newMarkdown)
+    // N9: forza rimisura dopo setValue — previene crash prepareMeasureForLine al click
+    editor.value.refresh()
   }
 
   // t('editor.sourceCode.cursorNullComment')
@@ -220,6 +222,15 @@ const listenChange = () => {
         col: cmCursor.ch + 1
       })
     }
+
+    // N12: check immediato isSaved (no debounce) per feedback bollino istantaneo dopo Ctrl+Z.
+    // Non passa da LISTEN_FOR_CONTENT_CHANGE (pesante, 1s di debounce).
+    if (currentTab.value && currentTab.value.originalMarkdown !== null) {
+      if (newMarkdown === currentTab.value.originalMarkdown && !currentTab.value.isSaved) {
+        currentTab.value.isSaved = true
+      }
+    }
+
     // Attention: the cursor may be `{focus: null, anchor: null}` when press `backspace`
     const wordCount = getWordCount(newMarkdown)
     if (commitTimer.value) clearTimeout(commitTimer.value)
@@ -309,6 +320,9 @@ onMounted(() => {
   editor.value = codeMirrorInstance
   tabId.value = id
 
+  // N9: rimisura iniziale — viewportMargin: Infinity può lasciare cache stale al primo mount
+  nextTick(() => editor.value.refresh())
+
   listenChange()
 })
 
@@ -354,6 +368,10 @@ const handleScroll = debounce(() => {
   /* NB8: gutter visibile (sfondo distinto + bordo destro) */
   border-right: 1px solid var(--v2-border);
   background-color: var(--v2-surface2);
+}
+/* N10: rimuove padding sotto ultima riga → gutter non si estende oltre il contenuto */
+.source-code .CodeMirror-scroll {
+  padding-bottom: 0 !important;
 }
 .source-code .CodeMirror-activeline-background,
 .source-code .CodeMirror-activeline-gutter {

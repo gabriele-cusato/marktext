@@ -106,7 +106,8 @@ export const getBlankFileState = (
     adjustLineEndingOnSave: lineEnding.toLowerCase() === 'crlf',
     id,
     filename: `Untitled-${++untitleId}`,
-    markdown
+    markdown,
+    originalMarkdown: markdown  // N1: Untitled parte da '' → Ctrl+Z a vuoto rimuove bollino
   })
 }
 

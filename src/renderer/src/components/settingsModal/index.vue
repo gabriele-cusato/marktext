@@ -264,7 +264,8 @@ onBeforeUnmount(() => {
 .v2-settings-modal {
   width: 600px;
   max-width: 92vw;
-  max-height: 80vh;
+  /* N13: altezza fissa — elimina scatto tra sezioni di altezza diversa */
+  height: 78vh;
   display: flex;
   flex-direction: column;
   background: var(--v2-surface);
