@@ -74,7 +74,9 @@ export const EXTENSION_HASN = Object.freeze({
 })
 
 export const TITLE_BAR_HEIGHT = isOsx ? 21 : 32
-export const LINE_ENDING_REG = /(?:\r\n|\n)/g
+// B14: estesa a CR puro (Mac OS pre-OSX). Usata da convertLineEndings per
+// trasformare line endings al salvataggio. LF/CRLF detection regex restano invariate.
+export const LINE_ENDING_REG = /(?:\r\n|\r|\n)/g
 export const LF_LINE_ENDING_REG = /(?:[^\r]\n)|(?:^\n$)/
 export const CRLF_LINE_ENDING_REG = /\r\n/
 

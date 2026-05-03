@@ -20,6 +20,19 @@
       <span class="v2-search-hint">↵ to dock</span>
     </div>
 
+    <!-- B13: X chiude in docked mode (sostituisce comportamento click-fuori) -->
+    <div
+      v-if="mode === 'docked'"
+      class="v2-search-docked-close"
+      title="Chiudi (Esc)"
+      @click.stop="emptySearch(true)"
+    >
+      <svg width="10" height="10" viewBox="0 0 10 10">
+        <line x1="0" y1="0" x2="10" y2="10" stroke="currentColor" stroke-width="1.5"/>
+        <line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" stroke-width="1.5"/>
+      </svg>
+    </div>
+
     <div
       class="left-arrow"
       @click="toggleSearchType"
@@ -263,6 +276,11 @@ const toggleCtrl = (ctrl) => {
 }
 
 const listenFind = () => {
+  // B13: Ctrl+F mentre già docked → chiude. Altrimenti apri/torna a floating.
+  if (showSearch.value && mode.value === 'docked') {
+    emptySearch(true)
+    return
+  }
   showSearch.value = true
   type.value = 'search'
   // F2: apri sempre in modalità floating
@@ -295,9 +313,13 @@ const docKeyup = (event) => {
   }
 }
 
+// B13: click fuori dal box. In floating → dock invece di chiudere.
+// In docked → non fa nulla (chiude solo via X o Ctrl+F).
 const docClick = () => {
   if (!showSearch.value) return
-  emptySearch(true)
+  if (mode.value === 'floating') {
+    mode.value = 'docked'
+  }
 }
 
 const blurSearch = () => {
@@ -415,6 +437,28 @@ const noop = () => {}
   right: 16px;
   border-radius: 10px;
   animation: v2dropIn var(--v2-t-mid) var(--v2-ease-spring);
+  /* B13: position relative per il close button assoluto */
+  padding-right: 28px;
+}
+
+/* B13: X close button visibile solo in docked mode */
+.v2-search-docked-close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--v2-text3);
+  z-index: 2;
+}
+.v2-search-docked-close:hover {
+  background: var(--v2-surface2);
+  color: var(--v2-text);
 }
 
 /* F2: floating centrato con backdrop (modalità "apertura") */

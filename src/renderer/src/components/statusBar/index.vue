@@ -196,7 +196,9 @@ const eolOpen = ref(false)
 
 const EOL_OPTIONS = [
   { value: 'lf', label: 'LF' },
-  { value: 'crlf', label: 'CRLF' }
+  { value: 'crlf', label: 'CRLF' },
+  // B14: CR puro (Mac OS pre-OSX) - parità con Notepad++
+  { value: 'cr', label: 'CR' }
 ]
 
 const toggleEolMenu = () => {

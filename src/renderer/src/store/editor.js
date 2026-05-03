@@ -632,6 +632,11 @@ export const useEditorStore = defineStore('editor', {
     UPDATE_CURRENT_FILE(currentFile) {
       const oldCurrentFile = this.currentFile
       if (!oldCurrentFile.id || oldCurrentFile.id !== currentFile.id) {
+        // B6: imposta sourceCode mode PRIMA di emettere file-changed.
+        // Altrimenti Muya riceve l'evento mentre sourceCode è ancora false e
+        // tenta di renderizzare contenuto non-markdown → eccezione → crash UI.
+        this._applySourceCodeForFile(currentFile)
+
         const { id, markdown, cursor, history, pathname, scrollTop, blocks } = currentFile
         window.DIRNAME = pathname ? window.path.dirname(pathname) : ''
         this.currentFile = currentFile
@@ -650,8 +655,6 @@ export const useEditorStore = defineStore('editor', {
         this.tabs.push(currentFile)
       }
       this.UPDATE_LINE_ENDING_MENU()
-      // B13: forza sourceCode per file con estensione non-markdown
-      this._applySourceCodeForFile(currentFile)
     },
 
     // B13: helper - imposta sourceCode mode in base all'estensione del file.
@@ -1081,6 +1084,10 @@ export const useEditorStore = defineStore('editor', {
 
       const { markdown, isMixedLineEndings } = markdownDocument
       const docState = createDocumentState(Object.assign(markdownDocument, options))
+      // B8: flag "appena caricato da disco". Serve a LISTEN_FOR_CONTENT_CHANGE per
+      // distinguere la prima normalizzazione di Muya (che modifica il markdown)
+      // dalle modifiche reali dell'utente. true solo per file con pathname.
+      docState.justLoaded = !!docState.pathname
       const { id, cursor } = docState
 
       if (selected) {
@@ -1174,23 +1181,36 @@ export const useEditorStore = defineStore('editor', {
       }
 
       if (markdown !== oldMarkdown) {
-        // NB12: guardia contro false-dirty all'apertura file.
-        // Se il contenuto corrente è identico a quello caricato da disco,
-        // non marcare come "non salvato" (originalMarkdown è null per file nuovi).
-        const isUnchangedFromDisk =
-          this.currentFile.originalMarkdown !== null &&
-          markdown === this.currentFile.originalMarkdown
-        if (!isUnchangedFromDisk) {
-          this.currentFile.isSaved = false
-          if (pathname && autoSave) {
-            const options = getOptionsFromState(this.currentFile)
-            this.HANDLE_AUTO_SAVE({
-              id: currentId,
-              filename,
-              pathname,
-              markdown,
-              options
-            })
+        // B8: prima normalizzazione Muya dopo caricamento file → aggiorna baseline
+        // a contenuto normalizzato senza marcare come non salvato. Muya può
+        // riformattare il markdown (newline, spazi), e oldMarkdown ≠ originalMarkdown
+        // non significa modifica utente in questo caso.
+        if (this.currentFile.justLoaded) {
+          this.currentFile.originalMarkdown = markdown
+          this.currentFile.justLoaded = false
+          // isSaved resta true
+        } else {
+          // NB12: guardia contro false-dirty all'apertura file.
+          // Se il contenuto corrente è identico a quello caricato da disco,
+          // non marcare come "non salvato" (originalMarkdown è null per file nuovi).
+          const isUnchangedFromDisk =
+            this.currentFile.originalMarkdown !== null &&
+            markdown === this.currentFile.originalMarkdown
+          if (!isUnchangedFromDisk) {
+            this.currentFile.isSaved = false
+            if (pathname && autoSave) {
+              const options = getOptionsFromState(this.currentFile)
+              this.HANDLE_AUTO_SAVE({
+                id: currentId,
+                filename,
+                pathname,
+                markdown,
+                options
+              })
+            }
+          } else {
+            // B9: contenuto torna identico al disco (es. Ctrl+Z) → ripristina salvato.
+            this.currentFile.isSaved = true
           }
         }
       }

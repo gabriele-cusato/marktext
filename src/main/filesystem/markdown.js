@@ -13,10 +13,13 @@ const getLineEnding = (lineEnding) => {
     return '\n'
   } else if (lineEnding === 'crlf') {
     return '\r\n'
+  } else if (lineEnding === 'cr') {
+    // B14: CR puro (Mac OS pre-OSX), come supportato da Notepad++
+    return '\r'
   }
 
   // This should not happend but use fallback value.
-  log.error(`Invalid end of line character: expected "lf" or "crlf" but got "${lineEnding}".`)
+  log.error(`Invalid end of line character: expected "lf", "crlf" or "cr" but got "${lineEnding}".`)
   return '\n'
 }
 
@@ -98,10 +101,14 @@ export const loadMarkdownFile = async (
   // Detect line ending
   const isLf = LF_LINE_ENDING_REG.test(markdown)
   const isCrlf = CRLF_LINE_ENDING_REG.test(markdown)
-  const isMixedLineEndings = isLf && isCrlf
-  const isUnknownEnding = !isLf && !isCrlf
+  // B14: CR puro = nessun LF, nessun CRLF, ma presenza di \r
+  const isCr = !isLf && !isCrlf && /\r/.test(markdown)
+  const isMixedLineEndings = (isLf && isCrlf) || (isCr && (isLf || isCrlf))
+  const isUnknownEnding = !isLf && !isCrlf && !isCr
   let lineEnding = preferredEol
-  if (isLf && !isCrlf) {
+  if (isCr && !isLf && !isCrlf) {
+    lineEnding = 'cr'
+  } else if (isLf && !isCrlf) {
     lineEnding = 'lf'
   } else if (isCrlf && !isLf) {
     lineEnding = 'crlf'

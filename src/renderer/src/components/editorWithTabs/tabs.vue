@@ -1,39 +1,25 @@
 <template>
-  <div :class="['v2-tabbar', { 'has-multirow': hasMultiRow }]">
-    <!-- Tabs pill multi-row con hover-expand -->
+  <div :class="['v2-tabbar', { 'has-multirow': hasMultiRow, 'tabs-hovered': tabsAreaHovered }]">
+    <!-- B1: Tabs pill multi-row con hover-expand. Hover SOLO su quest'area:
+         passare il mouse su .v2-topright NON espande la tab bar. -->
     <div
       ref="tabContainer"
       class="v2-tabbar-scroll"
+      @mouseenter="onTabsEnter"
+      @mouseleave="onTabsLeave"
     >
       <ul
         ref="tabDropContainer"
         class="v2-tabs"
       >
-        <!-- NB6: clone "pinned" della tab attiva su riga 2+ (mostrato come ultima
-             tab in riga 1 con sfondo diverso). Visibile solo a tab bar collassata
-             (CSS hover lo nasconde). Non trascinabile. -->
-        <Transition name="pinned-fade">
-          <li
-            v-if="pinnedTab"
-            :key="`pinned-${pinnedTab.id}`"
-            :class="['v2-tab', 'v2-tab-active', 'v2-tab-pinned']"
-            :title="pinnedTab.pathname || pinnedTab.filename"
-            draggable="false"
-            @dragstart.prevent
-            @click.stop="selectFile(pinnedTab)"
-            @contextmenu.prevent="handleContextMenu($event, pinnedTab)"
-          >
-            <span v-if="!pinnedTab.isSaved" class="v2-tab-dot" />
-            <span class="v2-tab-name">{{ pinnedTab.filename }}</span>
-            <span class="v2-tab-pinned-badge">↑</span>
-          </li>
-        </Transition>
-
         <li
           v-for="file of tabs"
           :key="file.id"
           :title="file.pathname || file.filename"
-          :class="['v2-tab', { 'v2-tab-active': currentFile.id === file.id }]"
+          :class="['v2-tab', {
+            'v2-tab-active': currentFile.id === file.id,
+            'v2-tab-active-hidden': currentFile.id === file.id && pinnedTab && pinnedTab.id === file.id
+          }]"
           :data-id="file.id"
           @click.stop="selectFile(file)"
           @click.middle="closeTab(file.id)"
@@ -50,9 +36,9 @@
             @click.stop="removeFileInTab(file)"
           >×</button>
         </li>
-        <!-- B3: "+" inline come ultimo li, segue le tab nel flusso flex -->
+        <!-- B1: "+" inline solo in single-row. In multi-row si sposta nel topright. -->
         <li
-          v-if="!plusAbsolute"
+          v-if="!hasMultiRow"
           class="v2-tab-new-li"
           @click.stop="newFile()"
           title="New Tab (Ctrl+T)"
@@ -60,18 +46,37 @@
       </ul>
     </div>
 
-    <!-- B3: "+" assoluto quando tabs su più righe (resta a fine prima riga) -->
-    <button
-      v-if="plusAbsolute"
-      ref="plusBtnRef"
-      class="v2-tab-new v2-tab-new-abs"
-      title="New Tab (Ctrl+T)"
-      :style="plusStyle"
-      @click.stop="newFile()"
-    >+</button>
+    <!-- B1: zona topright si espande verso sinistra quando multi-row,
+         clone tab + "+" appaiono SOLO dopo che l'espansione è completata. -->
+    <div :class="['v2-topright', { 'topright-expanded': hasMultiRow }]">
+      <!-- B1: clone tab attiva (su riga 2+) nel topright, fade-in con delay = durata espansione -->
+      <Transition name="topright-clone-fade">
+        <div
+          v-if="hasMultiRow && pinnedTab"
+          class="v2-topright-clone"
+          :title="pinnedTab.pathname || pinnedTab.filename"
+          @click.stop="selectFile(pinnedTab)"
+          @contextmenu.prevent="handleContextMenu($event, pinnedTab)"
+        >
+          <span v-if="!pinnedTab.isSaved" class="v2-tab-dot" />
+          <span class="v2-tab-name">{{ pinnedTab.filename }}</span>
+          <span class="v2-tab-pinned-badge">↑</span>
+        </div>
+      </Transition>
 
-    <!-- Top-right controls -->
-    <div class="v2-topright">
+      <!-- B1: "+" nel topright, solo multi-row -->
+      <Transition name="topright-plus-fade">
+        <button
+          v-if="hasMultiRow"
+          class="v2-tr-plus"
+          title="New Tab (Ctrl+T)"
+          @click.stop="newFile()"
+        >+</button>
+      </Transition>
+
+      <!-- B1: separatore tra elementi tab (clone, +) e icone app (⌘, 📂) -->
+      <div v-if="hasMultiRow" class="v2-tr-sep" />
+
       <button
         class="v2-tr-btn"
         title="Command Palette (Ctrl+K)"
@@ -87,6 +92,8 @@
           <path d="M1.5 4.5h4.5l1.5 1.5H14.5v7.5H1.5V4.5z" stroke-linejoin="round"/>
         </svg>
       </button>
+      <!-- B12: separatore visivo tra icone app (⌘, 📂) e icone finestra (−, □, ×) -->
+      <div class="v2-tr-sep" />
       <!-- NB14: icone finestra in stile VS Code (SVG inline) -->
       <button
         class="v2-tr-btn v2-tr-btn-win"
@@ -153,18 +160,16 @@ const { theme } = storeToRefs(preferencesStore)
 
 const tabContainer = ref(null)
 const tabDropContainer = ref(null)
-const plusBtnRef = ref(null)
 let autoScroller = null
 let drake = null
 let tabResizeObs = null
 
-// B3 + B4: stato multi-row e posizione "+"
-// plusAbsolute = true quando le tab occupano più di una riga → "+" diventa absolute
-// e resta alla fine della prima riga
-const plusAbsolute = ref(false)
-const plusStyle = ref({})
-// hasMultiRow: true se tabs occupano > 1 riga (usato anche per disabilitare hover-expand su single-row)
+// hasMultiRow: true se tabs occupano > 1 riga (controlla anche posizione di "+" e clone)
 const hasMultiRow = ref(false)
+
+// B1: hover scope - true solo quando il cursore è sull'area tabs (NON sul topright).
+// Espande la tab bar in multi-row solo via questa flag, non con CSS :hover globale.
+const tabsAreaHovered = ref(false)
 
 // B5: tab "pinned" temporanea = la tab attiva quando NON è in prima riga.
 // Effetto temporaneo: cambia se si clicca un'altra tab non in riga 1, sparisce se
@@ -194,6 +199,19 @@ const removeFileInTab = (file) => {
 
 const newFile = () => {
   editorStore.NEW_UNTITLED_TAB({})
+}
+
+// B1: handler hover area tabs. Mantiene espansione anche se cursore va sul topright
+// (evita collasso a metà), perché alcune azioni utili sono lì.
+const onTabsEnter = () => {
+  tabsAreaHovered.value = true
+}
+const onTabsLeave = (e) => {
+  // Se relatedTarget è dentro la tab bar (es. topright), mantieni hover.
+  const tabbar = e.currentTarget.parentElement
+  if (!e.relatedTarget || !tabbar.contains(e.relatedTarget)) {
+    tabsAreaHovered.value = false
+  }
 }
 
 // Scroll handler quando barra collassata (su row singola)
@@ -277,46 +295,29 @@ const onWinUnmaximize = () => { isMaximized.value = false }
 // della prima riga quando multi-row.
 // NB3: escludere il clone pinned dal calcolo — la sua presenza/assenza
 // non deve far saltare la posizione del "+".
+// B4: misurazione layout dopo nextTick + rAF, per evitare flash multi-row
+// transitorio durante il commit DOM (es. nuova tab) che farebbe scattare CSS hover.
+const scheduleUpdate = () => {
+  nextTick(() => {
+    requestAnimationFrame(() => updateTabRowsLayout())
+  })
+}
+
+// B1: solo rilevazione multi-row. Posizione di "+" non più calcolata (è nel topright).
 const updateTabRowsLayout = () => {
   const ul = tabDropContainer.value
   if (!ul) return
-  const items = Array.from(ul.querySelectorAll('li.v2-tab:not(.v2-tab-pinned)'))
+  const items = Array.from(ul.querySelectorAll('li.v2-tab'))
   if (items.length === 0) {
-    plusAbsolute.value = false
     hasMultiRow.value = false
     return
   }
   const firstTop = items[0].offsetTop
-  // Trova ultima tab di prima riga
-  let lastInFirstRow = items[0]
   let multiRow = false
   for (const it of items) {
     if (it.offsetTop > firstTop) { multiRow = true; break }
-    lastInFirstRow = it
   }
   hasMultiRow.value = multiRow
-
-  if (!multiRow) {
-    plusAbsolute.value = false
-    return
-  }
-  // Multi-row: posiziona "+" assoluto subito dopo l'ultima tab della prima riga
-  plusAbsolute.value = true
-  nextTick(() => {
-    const rect = lastInFirstRow.getBoundingClientRect()
-    const ulRect = ul.getBoundingClientRect()
-    // NB2: clamp left max per non sovrapporsi al gruppo topright
-    // (160px riservati = 5 buttons * ~30px + margine sicurezza)
-    const PLUS_W = 30
-    const TOPRIGHT_RESERVED = 160
-    const desiredLeft = rect.right - ulRect.left + 4
-    const maxLeft = ulRect.width - TOPRIGHT_RESERVED - PLUS_W
-    plusStyle.value = {
-      position: 'absolute',
-      top: `${lastInFirstRow.offsetTop + 1}px`,
-      left: `${Math.min(desiredLeft, maxLeft)}px`
-    }
-  })
 }
 
 onMounted(() => {
@@ -339,10 +340,10 @@ onMounted(() => {
 
   // B3 + B4: ResizeObserver per ricalcolare layout su resize finestra/tab list
   if (window.ResizeObserver && tabDropContainer.value) {
-    tabResizeObs = new ResizeObserver(() => updateTabRowsLayout())
+    tabResizeObs = new ResizeObserver(() => scheduleUpdate())
     tabResizeObs.observe(tabDropContainer.value)
   }
-  nextTick(() => updateTabRowsLayout())
+  scheduleUpdate()
 
   // Drag and drop ordering
   drake = dragula([tabDropContainer.value], {
@@ -402,7 +403,7 @@ onBeforeUnmount(() => {
 watch(tabs, () => {
   // Apertura nuova tab → resetta pinned (B5)
   pinnedTab.value = null
-  nextTick(() => updateTabRowsLayout())
+  scheduleUpdate()
 }, { deep: false })
 
 // B5: aggiorna pinnedTab al cambio di tab attiva.
@@ -433,6 +434,32 @@ watch(() => currentFile.value && currentFile.value.id, () => {
     updateTabRowsLayout()
   })
 })
+
+// B2: clone non scompare quando si compatta a riga singola.
+// Se hasMultiRow passa a false (resize finestra/chiusura tab), pinnedTab va azzerato.
+// Se torna a true, ricalcola pinnedTab usando stessa logica del watch currentFile.id.
+watch(hasMultiRow, (newVal) => {
+  if (!newVal) {
+    pinnedTab.value = null
+    return
+  }
+  nextTick(() => {
+    const ul = tabDropContainer.value
+    if (!ul) return
+    const realTabs = Array.from(ul.querySelectorAll('li.v2-tab:not(.v2-tab-pinned)'))
+    if (!realTabs.length) {
+      pinnedTab.value = null
+      return
+    }
+    const firstTop = realTabs[0].offsetTop
+    const activeEl = realTabs.find((el) => el.getAttribute('data-id') === String(currentFile.value.id))
+    if (!activeEl || activeEl.offsetTop <= firstTop) {
+      pinnedTab.value = null
+    } else {
+      pinnedTab.value = tabs.value.find((t) => t.id === currentFile.value.id) || null
+    }
+  })
+})
 </script>
 
 <style scoped>
@@ -445,10 +472,12 @@ watch(() => currentFile.value && currentFile.value.id, () => {
   border-bottom: 1px solid var(--v2-border);
   overflow: hidden;
   max-height: var(--v2-tab-h);
-  /* B11: animazione espansione più lenta (0.5s) */
+  /* B11: animazione espansione più lenta (0.5s)
+     B1: padding-right animato al passaggio multi-row (clone+ entrano nel topright). */
   transition:
     max-height 0.5s ease-in-out,
-    box-shadow var(--v2-t-mid) ease-in-out;
+    box-shadow var(--v2-t-mid) ease-in-out,
+    padding-right 0.3s ease;
   display: flex;
   align-items: flex-start;
   /* NB2: 160px riservati per topright (5 buttons: ⌘ 📂 min max close) */
@@ -458,9 +487,15 @@ watch(() => currentFile.value && currentFile.value.id, () => {
   user-select: none;
 }
 
-/* Hover sull'intera tabbar = espande multi-row.
-   B4: solo se le tab occupano effettivamente più righe (classe applicata via JS) */
-.v2-tabbar.has-multirow:hover {
+/* B1: in multi-row il topright ospita anche clone tab + "+" + separator,
+   serve più spazio. ~120 (clone) + 28 (+) + 9 (sep) + 160 (icone) = 320px */
+.v2-tabbar.has-multirow {
+  padding-right: 320px;
+}
+
+/* B1: hover-expand attivato SOLO da hover su area tab (classe `tabs-hovered`).
+   Hovering su .v2-topright NON deve espandere la tab bar. */
+.v2-tabbar.has-multirow.tabs-hovered {
   max-height: 260px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.07);
 }
@@ -526,47 +561,13 @@ watch(() => currentFile.value && currentFile.value.id, () => {
   padding-top: 3px;
 }
 
-/* NB6: tab pinned (clone tab attiva da righe 2+ mostrato in riga 1).
-   Sfondo distintivo per indicare che è una tab "pinnata" temporanea. */
-.v2-tab-pinned {
-  background: var(--v2-accent-dim, var(--v2-surface2)) !important;
-  border: 1px dashed var(--v2-accent);
-  box-shadow: none !important;
-  /* NB6: transition opacity per fade in hover tab bar */
-  transition:
-    background var(--v2-t-fast) ease-in-out,
-    color var(--v2-t-fast) ease-in-out,
-    opacity 0.15s ease;
-}
-
-.v2-tab-pinned::before {
-  background: var(--v2-accent) !important;
-  opacity: 1 !important;
-}
-
-/* NB6: badge ↑ per indicare "tab attiva su riga inferiore" */
+/* B1: badge ↑ usato dalla clone tab nel topright */
 .v2-tab-pinned-badge {
   font-size: 10px;
   color: var(--v2-accent);
   margin-left: 2px;
   flex-shrink: 0;
   font-weight: bold;
-}
-
-/* NB6: clone scompare quando tab bar è espansa in hover */
-.v2-tabbar:hover .v2-tab-pinned {
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* NB6: fade-in/out al cambio di pinnedTab (Vue Transition) */
-.pinned-fade-enter-active,
-.pinned-fade-leave-active {
-  transition: opacity 0.2s ease;
-}
-.pinned-fade-enter-from,
-.pinned-fade-leave-to {
-  opacity: 0;
 }
 
 .v2-tab-active::before {
@@ -650,11 +651,59 @@ watch(() => currentFile.value && currentFile.value.id, () => {
   transform: scale(1.05);
 }
 
-/* B3: "+" assoluto (multi-row) - posizionato via JS alla fine prima riga */
-.v2-tab-new {
+/* B1: "+" inline single-row resta tondo. In multi-row si usa .v2-tr-plus dentro topright. */
+
+/* Top-right controls (sovrapposti tab bar)
+   B1: padding-left animato. In multi-row si crea spazio per clone + "+" + separatore. */
+.v2-topright {
+  position: absolute;
+  top: 0;
+  right: 10px;
+  height: var(--v2-tab-h);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  z-index: 20;
+  padding-left: 0;
+  transition: padding-left 0.3s ease;
+}
+
+.v2-topright.topright-expanded {
+  padding-left: 8px;
+}
+
+/* B1: clone della tab attiva (riga 2+) nel topright. Pill compatta. */
+.v2-topright-clone {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  max-width: 140px;
+  padding: 0 10px;
+  font-size: 12px;
+  border-radius: 100px;
+  background: var(--v2-accent-dim, var(--v2-surface2));
+  border: 1px dashed var(--v2-accent);
+  color: var(--v2-text);
+  cursor: default;
+  white-space: nowrap;
+  overflow: hidden;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.v2-topright-clone .v2-tab-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* B1: "+" all'interno del topright */
+.v2-tr-plus {
   width: 26px;
   height: 26px;
   font-size: 16px;
+  line-height: 1;
   color: var(--v2-text3);
   border-radius: 50%;
   display: flex;
@@ -665,28 +714,37 @@ watch(() => currentFile.value && currentFile.value.id, () => {
   cursor: pointer;
   transition: all var(--v2-t-fast) ease-in-out;
   padding: 0;
+  flex-shrink: 0;
 }
 
-.v2-tab-new:hover {
+.v2-tr-plus:hover {
   background: var(--v2-accent-dim, var(--v2-surface));
   color: var(--v2-accent);
   transform: scale(1.05);
 }
 
-.v2-tab-new-abs {
-  z-index: 5;
+/* B1: clone fade. Delay 0.3s = durata espansione del topright (entrano DOPO l'espansione). */
+.topright-clone-fade-enter-active {
+  transition: opacity 0.2s ease 0.3s;
+}
+.topright-clone-fade-leave-active {
+  transition: opacity 0.15s ease;
+}
+.topright-clone-fade-enter-from,
+.topright-clone-fade-leave-to {
+  opacity: 0;
 }
 
-/* Top-right controls (sovrapposti tab bar) */
-.v2-topright {
-  position: absolute;
-  top: 0;
-  right: 10px;
-  height: var(--v2-tab-h);
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  z-index: 20;
+/* B1: "+" fade leggermente prima del clone */
+.topright-plus-fade-enter-active {
+  transition: opacity 0.2s ease 0.25s;
+}
+.topright-plus-fade-leave-active {
+  transition: opacity 0.15s ease;
+}
+.topright-plus-fade-enter-from,
+.topright-plus-fade-leave-to {
+  opacity: 0;
 }
 
 .v2-tr-btn {
@@ -720,6 +778,38 @@ watch(() => currentFile.value && currentFile.value.id, () => {
 .v2-tr-btn-close:hover {
   background: #e81123 !important;
   color: white !important;
+}
+
+/* B12: separatore verticale tra gruppo app e gruppo finestra */
+.v2-tr-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--v2-border);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+/* B5: sopprime sfondo tab attiva quando è rappresentata dalla clone (pinnedTab),
+   ma SOLO con tab bar collassata. Quando l'utente espande (hover), torna visibile. */
+.v2-tab-active-hidden {
+  background: transparent !important;
+  box-shadow: none !important;
+  font-weight: 400 !important;
+  color: var(--v2-text3) !important;
+}
+.v2-tab-active-hidden::before {
+  display: none;
+}
+.v2-tabbar:hover .v2-tab-active-hidden,
+.v2-tabbar.tabs-hovered .v2-tab-active-hidden {
+  background: var(--v2-surface) !important;
+  box-shadow: var(--v2-shadow-sm) !important;
+  font-weight: 500 !important;
+  color: var(--v2-text) !important;
+}
+.v2-tabbar:hover .v2-tab-active-hidden::before,
+.v2-tabbar.tabs-hovered .v2-tab-active-hidden::before {
+  display: block;
 }
 
 </style>

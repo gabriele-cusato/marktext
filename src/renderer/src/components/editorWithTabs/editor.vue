@@ -655,12 +655,16 @@ const replaceMisspelling = ({ word, replacement }) => {
 }
 
 const handleUndo = () => {
+  // B10: in modalità sourceCode CodeMirror gestisce undo via keymap, Muya non ha cursore valido
+  if (sourceCode.value) return
   if (editor.value) {
     editor.value.undo()
   }
 }
 
 const handleRedo = () => {
+  // B10: stesso motivo di handleUndo
+  if (sourceCode.value) return
   if (editor.value) {
     editor.value.redo()
   }
@@ -905,6 +909,9 @@ const handleDialogTableConfirm = () => {
 
 // listen for `open-single-file` event, it will call this method only when open a new file.
 const setMarkdownToEditor = ({ markdown: newMarkdown, cursor: newCursor }) => {
+  // B6: in modalità sourceCode (file non-markdown) il rendering è gestito da
+  // sourceCode.vue (CodeMirror). Muya non deve toccare il contenuto.
+  if (sourceCode.value) return
   if (editor.value) {
     editor.value.clearHistory()
     if (newCursor) {
@@ -925,6 +932,8 @@ const handleFileChange = ({
   muyaIndexCursor,
   blocks = undefined
 }) => {
+  // B6: deve essere PRIMA di accedere a editor.value (in sourceCode mode editor è null/undef).
+  if (sourceCode.value) return
   const { container } = editor.value
 
   if (editor.value) {
@@ -1174,37 +1183,29 @@ onMounted(() => {
     selectionChange.value = changes
     editorStore.SELECTION_CHANGE(changes)
 
-    // F1: emette posizione Ln/Col anche in modalità WYSIWYG (Muya).
+    // F1+B11: emette posizione Ln/Col anche in modalità WYSIWYG (Muya).
     // Muya identifica i blocchi via attributo id=<block.key>. Ricavo la riga
-    // contando l'ordine del blocco attivo nell'editor (DOM tree-walk).
+    // risalendo al blocco top-level e contando solo blocchi figli diretti del root.
     try {
       const startKey = changes.start && changes.start.key
       if (startKey) {
         const target = document.getElementById(startKey)
-        let line = 1
         if (target) {
-          // Conta tutti gli elementi con id che precedono quello attivo nel DOM
           const root = container.querySelector('#ag-editor-id') || container
-          const all = root.querySelectorAll('[id]')
-          let idx = 0
-          for (let i = 0; i < all.length; i++) {
-            if (all[i] === target) { line = idx + 1; break }
-            // Conta solo i blocchi top-level (figli diretti di root o paragrafi)
-            if (all[i].parentElement && all[i].parentElement.contains(target) && all[i].parentElement === root) {
-              idx++
-            } else if (all[i].parentElement === root) {
-              idx++
-            }
+          // Risale dal target fino al figlio diretto di root (blocco top-level)
+          let blockEl = target
+          while (blockEl && blockEl.parentElement !== root) {
+            blockEl = blockEl.parentElement
           }
-          // Fallback semplice se il count non trova: usa indice tra fratelli del root
-          if (line === 1 && target.parentElement) {
-            const siblings = Array.from(target.parentElement.children)
-            const pos = siblings.indexOf(target)
-            if (pos >= 0) line = pos + 1
+          if (blockEl) {
+            // :scope > [id] = solo figli diretti con id (esclude elementi non-blocco)
+            const blockChildren = Array.from(root.querySelectorAll(':scope > [id]'))
+            const pos = blockChildren.indexOf(blockEl)
+            const line = pos >= 0 ? pos + 1 : 1
+            const col = (changes.start.offset || 0) + 1
+            bus.emit('statusbar::cursor-change', { line, col })
           }
         }
-        const col = (changes.start.offset || 0) + 1
-        bus.emit('statusbar::cursor-change', { line, col })
       }
     } catch (e) {
       // failsafe: ignora errori DOM
