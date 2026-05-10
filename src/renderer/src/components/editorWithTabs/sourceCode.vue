@@ -352,13 +352,16 @@ onMounted(() => {
 
   setMode(codeMirrorInstance, 'markdown')
 
-  // Bug B: undo word-by-word.
+  // Bug B: undo word-by-word + Bug 7: include andate-a-capo.
   // CodeMirror default merge changes con origin '+input' se entro historyEventDelay (1250ms).
   // Digitando "parola1 parola2" rapidamente tutto entra in un solo evento undo.
   // Reset lastModTime=0 dopo char di word-boundary forza il prossimo input a creare
-  // un nuovo evento history → Ctrl+Z cancella una parola alla volta.
-  codeMirrorInstance.on('inputRead', (cm, change) => {
-    if (change.origin === '+input' && /[\s.,;:!?]/.test(change.text.join(''))) {
+  // un nuovo evento history → Ctrl+Z cancella una parola/riga alla volta.
+  // Uso evento 'change' (non 'inputRead') perché Enter è gestito dal command
+  // newlineAndIndent via replaceSelection — fires 'change' ma NON 'inputRead'.
+  // change.text è array split su '\n' → join('\n') restituisce testo originale incluso \n.
+  codeMirrorInstance.on('change', (cm, change) => {
+    if (change.origin === '+input' && /[\s.,;:!?]/.test(change.text.join('\n'))) {
       cm.doc.history.lastModTime = 0
     }
   })

@@ -341,9 +341,20 @@ const inputCtrl = (ContentState) => {
     // Skip durante composition IME (cinese/giapponese) per non spezzare la parola
     // a metà. Il setTimeout 800ms del cursor setter resta come fallback per
     // parole molto lunghe senza spazi.
-    if (event.type === 'input' && event.inputType === 'insertText' && !event.isComposing) {
-      const ch = event.data
-      if (ch && /[\s.,;:!?)\]}"']/.test(ch)) {
+    // Bug 7: Enter su contenteditable emette inputType 'insertParagraph' o
+    // 'insertLineBreak' (non 'insertText') → gestire esplicitamente come
+    // boundary paragrafo, altrimenti nuova riga finisce nello stesso evento undo.
+    if (event.type === 'input' && !event.isComposing) {
+      if (event.inputType === 'insertText') {
+        const ch = event.data
+        if (ch && /[\s.,;:!?)\]}"']/.test(ch)) {
+          this.history.commitPending()
+        }
+      } else if (
+        event.inputType === 'insertParagraph' ||
+        event.inputType === 'insertLineBreak'
+      ) {
+        // Enter / Shift+Enter = boundary nuovo paragrafo/riga → checkpoint
         this.history.commitPending()
       }
     } else if (event.type === 'compositionend') {
