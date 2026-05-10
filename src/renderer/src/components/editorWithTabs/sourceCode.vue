@@ -104,8 +104,9 @@ const scrollToCords = (y) => {
     // Ensures there we have scrolled to that position before the browser paints the next frame
     // prevents "flickers"
     // B7: guard, componente può smontarsi prima del frame → null deref
-    if (sourceCodeContainer.value) {
-      sourceCodeContainer.value.scrollTop = y
+    // Bug 6: scroll surface ora è .CodeMirror-scroll (interno CM) → API CM scrollTo
+    if (editor.value) {
+      editor.value.scrollTo(null, y)
     }
   })
 }
@@ -302,7 +303,8 @@ onMounted(() => {
 
   const { markdown, muyaIndexCursor, textDirection } = props
   const container = sourceCodeContainer.value
-  container.addEventListener('scroll', handleScroll)
+  // Bug 6: scroll listener spostato su CM (editor.on('scroll')) post-init,
+  // perché .source-code ha overflow:hidden e non emette più eventi scroll.
   const codeMirrorConfig = {
     value: markdown,
     lineNumbers: true,
@@ -310,8 +312,9 @@ onMounted(() => {
     // v2: lineWrapping pilotato da preferences.wordWrap (default true)
     lineWrapping: preferencesStore.wordWrap !== false,
     styleActiveLine: true,
-    direction: textDirection,
-    viewportMargin: Infinity
+    direction: textDirection
+    // Bug 6: rimosso `viewportMargin: Infinity`. Con scroll interno CM (default)
+    // è inutile e rendere tutte le righe DOM-side è uno spreco di performance.
   }
 
   if (railscastsThemes.includes(theme.value)) {
@@ -365,6 +368,12 @@ onMounted(() => {
     event.stopPropagation()
   })
 
+  // Bug 6: scroll listener su surface CM (.CodeMirror-scroll) — sostituisce ex
+  // listener su .source-code (ora overflow:hidden, non emette scroll).
+  codeMirrorInstance.on('scroll', () => {
+    handleScroll()
+  })
+
   if (muyaIndexCursor && muyaIndexCursor.anchor && muyaIndexCursor.focus) {
     const { anchor, focus } = muyaIndexCursor
     codeMirrorInstance.setSelection(anchor, focus, { scroll: true })
@@ -383,10 +392,11 @@ onMounted(() => {
     if (!editor.value || viewDestroyed.value) return
     const cm = editor.value
     const cur = cm.getCursor()
-    const scrollTop = container ? container.scrollTop : 0
+    // Bug 6: scroll surface ora è interno CM
+    const scrollTop = cm.getScrollInfo().top
     cm.setValue(cm.getValue())   // forza re-creation lineView con dimensioni stabili
     cm.setCursor(cur)
-    if (container) container.scrollTop = scrollTop
+    cm.scrollTo(null, scrollTop)
     cm.refresh()
   }, 150)
   // Safety net: ResizeObserver per resize successivi (sidebar toggle, window resize)
@@ -424,12 +434,15 @@ onBeforeUnmount(() => {
     muyaIndexCursor: cursor,
     renderCursor: true
   })
-
-  sourceCodeContainer.value.removeEventListener('scroll', handleScroll)
+  // Bug 6: ex `removeEventListener('scroll')` rimosso — listener era su .source-code
+  // ma ora scroll è su CM (gestito automaticamente da CM.destroy quando montato unmount).
 })
 
 const handleScroll = debounce(() => {
-  editorStore.updateScrollPosition(sourceCodeContainer.value.scrollTop)
+  // Bug 6: legge scrollTop da CM (surface .CodeMirror-scroll) invece di .source-code
+  if (editor.value) {
+    editorStore.updateScrollPosition(editor.value.getScrollInfo().top)
+  }
 }, 50)
 </script>
 
@@ -437,17 +450,18 @@ const handleScroll = debounce(() => {
 .source-code {
   /* Bug 3: 100% delega sizing a parent flex (.container in editor-with-tabs).
      Prima `calc(100vh - var(--titleBarHeight))` eccedeva di tabBar+statusBar
-     causando range scrollTop sballato e prime righe non raggiungibili. */
+     causando range scrollTop sballato e prime righe non raggiungibili.
+     Bug 6: overflow hidden — scroll delegato a CodeMirror interno (.CodeMirror-scroll).
+     Magic margin CM è progettato per CM con altezza fissa + scroll interno; wrapparlo
+     in surface scroll esterna (overflow:auto) faceva apparire .CodeMirror 50px più corto
+     del contenuto reale → ultime righe non raggiungibili. */
   height: 100%;
   box-sizing: border-box;
-  overflow: auto;
-  /* Bug C: buffer scroll-reachable per ultima riga, evita che nuova riga finale
-     finisca visivamente sotto/dietro footer status-bar in casi limite di
-     auto-scroll cursor-into-view interagendo con magic margin CodeMirror. */
-  padding-bottom: 1em;
+  overflow: hidden;
 }
 .source-code .CodeMirror {
-  height: auto;
+  /* Bug 6: height 100% (non auto) → CM riempie .source-code, magic margin funziona come da design */
+  height: 100% !important;
   /* NB8: editor allineato a sinistra, no margin/max-width */
   margin: 0;
   background: transparent;
