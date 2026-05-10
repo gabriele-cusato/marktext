@@ -126,6 +126,13 @@ const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop }) => {
         if (editor.value) editor.value.refresh()
       })
     })
+    // Bug A: in modalità sourceCode (CodeMirror) il markdown caricato è il baseline corretto.
+    // CM non normalizza il contenuto come Muya → spegnere justLoaded evita che il primo
+    // LISTEN_FOR_CONTENT_CHANGE post-edit sovrascriva originalMarkdown con il contenuto
+    // post-modifica, rompendo il check di Ctrl+Z back-to-saved.
+    if (currentTab.value && currentTab.value.justLoaded) {
+      currentTab.value.justLoaded = false
+    }
   }
 
   // t('editor.sourceCode.cursorNullComment')
@@ -159,6 +166,15 @@ const handleInvalidateImageCache = () => {
   if (editor.value) {
     editor.value.invalidateImageCache()
   }
+}
+
+// Bug 2: handler undo/redo per modalità sourceCode (CodeMirror)
+const handleUndo = () => {
+  if (editor.value) editor.value.execCommand('undo')
+}
+
+const handleRedo = () => {
+  if (editor.value) editor.value.execCommand('redo')
 }
 
 const handleSelectAll = () => {
@@ -245,6 +261,9 @@ const listenChange = () => {
     if (currentTab.value && currentTab.value.originalMarkdown !== null) {
       if (newMarkdown === currentTab.value.originalMarkdown && !currentTab.value.isSaved) {
         currentTab.value.isSaved = true
+      } else if (newMarkdown !== currentTab.value.originalMarkdown && currentTab.value.isSaved) {
+        // Bug 1: flip isSaved=false immediato quando utente modifica (no debounce 1s)
+        currentTab.value.isSaved = false
       }
     }
 
@@ -306,6 +325,10 @@ onMounted(() => {
   bus.on('file-changed', handleFileChange)
   bus.on('selectAll', handleSelectAll)
   bus.on('image-action', handleImageAction)
+  // Bug 2: Ctrl+Z/Y intercettato da menu Electron, bus.emit('undo'/'redo') arriva qui
+  // ma editor.vue handleUndo/handleRedo escono in sourceCode mode → instradiamo a CodeMirror
+  bus.on('undo', handleUndo)
+  bus.on('redo', handleRedo)
   // v2: toggle word wrap dalla status bar
   bus.on('mt::wordwrap-change', (value) => {
     if (editor.value) {
@@ -325,6 +348,17 @@ onMounted(() => {
   const codeMirrorInstance = markRaw(codeMirror(container, codeMirrorConfig))
 
   setMode(codeMirrorInstance, 'markdown')
+
+  // Bug B: undo word-by-word.
+  // CodeMirror default merge changes con origin '+input' se entro historyEventDelay (1250ms).
+  // Digitando "parola1 parola2" rapidamente tutto entra in un solo evento undo.
+  // Reset lastModTime=0 dopo char di word-boundary forza il prossimo input a creare
+  // un nuovo evento history → Ctrl+Z cancella una parola alla volta.
+  codeMirrorInstance.on('inputRead', (cm, change) => {
+    if (change.origin === '+input' && /[\s.,;:!?]/.test(change.text.join(''))) {
+      cm.doc.history.lastModTime = 0
+    }
+  })
 
   codeMirrorInstance.on('contextmenu', (cm, event) => {
     event.preventDefault()
@@ -380,6 +414,8 @@ onBeforeUnmount(() => {
   bus.off('file-changed', handleFileChange)
   bus.off('selectAll', handleSelectAll)
   bus.off('image-action', handleImageAction)
+  bus.off('undo', handleUndo)
+  bus.off('redo', handleRedo)
 
   const { cursor, markdown: newMarkdown } = getMarkdownAndCursor(editor.value)
   bus.emit('file-changed', {
@@ -399,9 +435,16 @@ const handleScroll = debounce(() => {
 
 <style>
 .source-code {
-  height: calc(100vh - var(--titleBarHeight));
+  /* Bug 3: 100% delega sizing a parent flex (.container in editor-with-tabs).
+     Prima `calc(100vh - var(--titleBarHeight))` eccedeva di tabBar+statusBar
+     causando range scrollTop sballato e prime righe non raggiungibili. */
+  height: 100%;
   box-sizing: border-box;
   overflow: auto;
+  /* Bug C: buffer scroll-reachable per ultima riga, evita che nuova riga finale
+     finisca visivamente sotto/dietro footer status-bar in casi limite di
+     auto-scroll cursor-into-view interagendo con magic margin CodeMirror. */
+  padding-bottom: 1em;
 }
 .source-code .CodeMirror {
   height: auto;
