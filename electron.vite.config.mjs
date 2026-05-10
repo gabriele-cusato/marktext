@@ -64,6 +64,11 @@ export default defineConfig({
   renderer: {
     // --> Bundled as ES Modules
     assetsInclude: ['**/*.md'],
+    // PATCH MarkText DESIGN-FIX-8: no-store su dev server per evitare cache browser
+    // di chunk pre-bundled obsoleti dopo patch a node_modules (es. codemirror).
+    server: {
+      headers: { 'Cache-Control': 'no-store' }
+    },
     resolve: {
       alias: {
         '@': resolve(__dirname, 'src/renderer/src'),

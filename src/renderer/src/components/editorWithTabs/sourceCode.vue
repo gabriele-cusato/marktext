@@ -6,7 +6,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount, nextTick, markRaw } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import { usePreferencesStore } from '@/store/preferences'
 import { storeToRefs } from 'pinia'
@@ -40,6 +40,8 @@ const editor = ref(null)
 const commitTimer = ref(null)
 const viewDestroyed = ref(false)
 const tabId = ref(null)
+const isFirstLoad = ref(true) // P6: evita LISTEN_FOR_CONTENT_CHANGE al primo handleFileChange
+let containerResizeObs = null  // P-DF8-6: ResizeObserver per refresh CodeMirror su resize container
 
 const { theme, sourceCode } = storeToRefs(preferencesStore)
 const { currentFile: currentTab } = storeToRefs(editorStore)
@@ -81,12 +83,18 @@ const getMarkdownAndCursor = (cm) => {
 const prepareTabSwitch = () => {
   if (commitTimer.value) clearTimeout(commitTimer.value)
   if (tabId.value) {
-    const { cursor, markdown: newMarkdown } = getMarkdownAndCursor(editor.value)
-    editorStore.LISTEN_FOR_CONTENT_CHANGE({
-      id: tabId.value,
-      markdown: newMarkdown,
-      muyaIndexCursor: cursor
-    })
+    if (!isFirstLoad.value) {
+      // P6: il primo handleFileChange è il caricamento iniziale — nessuna modifica da salvare.
+      // Saltare evita che justLoaded venga consumato qui, prima che il debounce post-setValue
+      // possa usarlo per sincronizzare originalMarkdown senza alzare il bollino.
+      const { cursor, markdown: newMarkdown } = getMarkdownAndCursor(editor.value)
+      editorStore.LISTEN_FOR_CONTENT_CHANGE({
+        id: tabId.value,
+        markdown: newMarkdown,
+        muyaIndexCursor: cursor
+      })
+    }
+    isFirstLoad.value = false
     tabId.value = null // invalidate tab id
   }
 }
@@ -107,8 +115,17 @@ const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop }) => {
 
   if (typeof newMarkdown === 'string') {
     editor.value.setValue(newMarkdown)
-    // N9: forza rimisura dopo setValue — previene crash prepareMeasureForLine al click
+    // P-DF8-1: tiny line + crash "Cannot read properties of undefined (reading 'map')".
+    // Single rAF non basta: misura prima del paint completo, lineView restano stale →
+    // tiny line + click su line non sincronizzata → mapFromLineView ritorna undefined.
+    // Refresh sync: forza ricalcolo views immediato (evita stato stale per click rapidi).
+    // Doppio rAF: garantisce layout+paint completo del browser prima della rimisura finale.
     editor.value.refresh()
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (editor.value) editor.value.refresh()
+      })
+    })
   }
 
   // t('editor.sourceCode.cursorNullComment')
@@ -301,7 +318,11 @@ onMounted(() => {
 
   // For some reason, code mirror does not seem to play well with Vue's refs if we reference editor.value directly.
   // See https://github.com/codemirror/codemirror5/issues/6886 - hence, we need to use a local variable first.
-  const codeMirrorInstance = codeMirror(container, codeMirrorConfig)
+  // F12 DESIGN-FIX-8: markRaw evita Vue3 deep-reactive proxy su cm.doc tree.
+  // Senza markRaw, accessi al doc tree creano proxy lazily → CodeMirror's internal indexOf
+  // (loop manuale `arr[i] == elt`) confronta raw line con proxy line → ritorna -1 →
+  // lineNo orphan → click triggera prepareMeasureForLine con lineN=-1 → cursore non si setta.
+  const codeMirrorInstance = markRaw(codeMirror(container, codeMirrorConfig))
 
   setMode(codeMirrorInstance, 'markdown')
 
@@ -320,8 +341,27 @@ onMounted(() => {
   editor.value = codeMirrorInstance
   tabId.value = id
 
-  // N9: rimisura iniziale — viewportMargin: Infinity può lasciare cache stale al primo mount
-  nextTick(() => editor.value.refresh())
+  // P-DF8-8: fix tiny line + click-shift via setTimeout(150ms).
+  // Doppio rAF non basta: layout + flex computations richiedono più tempo a settle.
+  // setTimeout(150) garantisce che container abbia dimensioni reali.
+  // Tab switch funziona perché avviene SECONDI dopo mount (layout già completo).
+  setTimeout(() => {
+    if (!editor.value || viewDestroyed.value) return
+    const cm = editor.value
+    const cur = cm.getCursor()
+    const scrollTop = container ? container.scrollTop : 0
+    cm.setValue(cm.getValue())   // forza re-creation lineView con dimensioni stabili
+    cm.setCursor(cur)
+    if (container) container.scrollTop = scrollTop
+    cm.refresh()
+  }, 150)
+  // Safety net: ResizeObserver per resize successivi (sidebar toggle, window resize)
+  if (window.ResizeObserver && container) {
+    containerResizeObs = new ResizeObserver(() => {
+      if (editor.value) editor.value.refresh()
+    })
+    containerResizeObs.observe(container)
+  }
 
   listenChange()
 })
@@ -329,6 +369,11 @@ onMounted(() => {
 onBeforeUnmount(() => {
   viewDestroyed.value = true
   if (commitTimer.value) clearTimeout(commitTimer.value)
+  // P-DF8-6: cleanup ResizeObserver
+  if (containerResizeObs) {
+    containerResizeObs.disconnect()
+    containerResizeObs = null
+  }
 
   bus.off('file-loaded', handleFileChange)
   bus.off('invalidate-image-cache', handleInvalidateImageCache)
@@ -369,8 +414,14 @@ const handleScroll = debounce(() => {
   border-right: 1px solid var(--v2-border);
   background-color: var(--v2-surface2);
 }
-/* N10: rimuove padding sotto ultima riga → gutter non si estende oltre il contenuto */
-.source-code .CodeMirror-scroll {
+/* P-DF8-2: gutter allineato a fine ultima riga.
+   Il fix N10 originale targettava .CodeMirror-scroll padding-bottom: 0, MA quel padding
+   è il "magic margin" CodeMirror (50px + margin-bottom -50px) per nascondere scrollbar
+   nativi (vedi codemirror.css commento "Things will break if this is overridden").
+   VERO target: .CodeMirror-lines ha padding: 4px 0 di default → 4px sotto contenuto →
+   gutter (position absolute, min-height 100%) copre quei 4px. Override solo padding-bottom
+   per mantenere i 4px sopra prima riga (separazione visiva). */
+.source-code .CodeMirror-lines {
   padding-bottom: 0 !important;
 }
 .source-code .CodeMirror-activeline-background,

@@ -1172,6 +1172,13 @@ export const useEditorStore = defineStore('editor', {
       this.currentFile.markdown = markdown
 
       if (oldMarkdown.length === 0 && markdown.length === 1 && markdown[0] === '\n') {
+        // P1: Muya normalizza file vuoto a '\n'. Per Untitled (no pathname)
+        // sync originalMarkdown da '' a '\n' — altrimenti dopo Ctrl+Z totale
+        // Muya manda '' → adjustTrailingNewlines → '\n' ≠ originalMarkdown=''
+        // → bollino non scompare mai.
+        if (!pathname && this.currentFile.originalMarkdown === '') {
+          this.currentFile.originalMarkdown = '\n'
+        }
         return
       }
 

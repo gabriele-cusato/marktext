@@ -718,7 +718,9 @@ const handleUploadedImage = (url, deletionUrl) => {
 }
 
 const scrollToCursor = (duration = 300) => {
+  if (sourceCode.value) return // editor.value è null in sourceCode mode
   nextTick(() => {
+    if (sourceCode.value) return // P3: re-check, sourceCode può cambiare tra chiamata e tick
     const { container } = editor.value
     const { y } = editor.value.getSelection().cursorCoords
     animatedScrollTo(container, container.scrollTop + y - STANDAR_Y, duration)

@@ -336,6 +336,21 @@ const inputCtrl = (ContentState) => {
 
     this.cursor = { start, end }
 
+    // P2: history checkpoint su word boundary (spazio, newline, punteggiatura)
+    // così Ctrl+Z reverte parola-per-parola invece di tutto in un colpo.
+    // Skip durante composition IME (cinese/giapponese) per non spezzare la parola
+    // a metà. Il setTimeout 800ms del cursor setter resta come fallback per
+    // parole molto lunghe senza spazi.
+    if (event.type === 'input' && event.inputType === 'insertText' && !event.isComposing) {
+      const ch = event.data
+      if (ch && /[\s.,;:!?)\]}"']/.test(ch)) {
+        this.history.commitPending()
+      }
+    } else if (event.type === 'compositionend') {
+      // Fine composition IME → parola intera completata, chiudi checkpoint.
+      this.history.commitPending()
+    }
+
     // Throttle render if edit in code block.
     if (block && block.type === 'span' && block.functionType === 'codeContent') {
       if (renderCodeBlockTimer) {

@@ -1375,5 +1375,17 @@
     "vega-lite-start": "vega-lite start",
     "click-to-add-image": "Click to add image",
     "load-image-failed": "Load image failed"
+  },
+  "statusBar": {
+    "toggleWrap": "Toggle Word Wrap",
+    "resetZoom": "Reset Zoom (Ctrl+0)"
+  },
+  "theme": {
+    "cadmiumLight": "Cadmium Light",
+    "dark": "Dark",
+    "graphiteLight": "Graphite Light",
+    "materialDark": "Material Dark",
+    "oneDark": "One Dark",
+    "ulyssesLight": "Ulysses Light"
   }
 }

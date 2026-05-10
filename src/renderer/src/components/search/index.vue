@@ -1,16 +1,21 @@
 <template>
-  <!-- F2: backdrop solo in modalità floating -->
-  <div
-    v-if="showSearch && mode === 'floating'"
-    class="v2-search-backdrop"
-    @click="dockOrClose"
-  />
+  <!-- F2 + B2: backdrop wrappato in <Transition> per fade-out coerente con search-bar. -->
+  <Transition name="search-backdrop">
+    <div
+      v-if="showSearch && mode === 'floating'"
+      class="v2-search-backdrop"
+      @click="dockOrClose"
+    />
+  </Transition>
 
-  <div
-    v-show="showSearch"
-    :class="['search-bar', mode === 'floating' ? 'v2-search-floating' : 'v2-search-docked']"
-    @click.stop="noop"
-  >
+  <!-- B2: <Transition> + v-show → Vue applica leave-* alla chiusura
+       (Esc/X) per fade-out 0.2s. Senza wrapper: display:none istantaneo. -->
+  <Transition name="search-bar">
+    <div
+      v-show="showSearch"
+      :class="['search-bar', mode === 'floating' ? 'v2-search-floating' : 'v2-search-docked']"
+      @click.stop="noop"
+    >
     <!-- F2: Header solo in floating mode con titolo + hint -->
     <div
       v-if="mode === 'floating'"
@@ -176,6 +181,7 @@
       </section>
     </div>
   </div>
+  </Transition>
 </template>
 
 <script setup>
@@ -415,6 +421,16 @@ const noop = () => {}
   animation: v2fadeIn var(--v2-t-mid) ease-in-out;
 }
 
+/* B2: fade-out search-bar e backdrop (Esc / X / Ctrl+F mentre docked) */
+.search-bar-leave-active,
+.search-backdrop-leave-active {
+  transition: opacity 0.2s ease;
+}
+.search-bar-leave-to,
+.search-backdrop-leave-to {
+  opacity: 0;
+}
+
 /* v2: pannello find/replace - base */
 /* N2+N3: position fixed unificato su entrambe le classi; transizione su top+right
    per animazione smooth floating→docked senza scatto. */
@@ -435,7 +451,8 @@ const noop = () => {}
     top 0.35s cubic-bezier(0.22, 0.61, 0.36, 1),
     right 0.35s cubic-bezier(0.22, 0.61, 0.36, 1),
     border-radius 0.2s ease,
-    padding 0.2s ease;
+    padding 0.2s ease,
+    opacity 0.2s ease; /* permette fade-out via search-bar-leave-to */
 }
 
 /* F2: docked top-right (modalità "lavoro continuo") */

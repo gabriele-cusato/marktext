@@ -1,12 +1,17 @@
 <template>
-  <div :class="['v2-tabbar', { 'has-multirow': hasMultiRow, 'tabs-hovered': tabsAreaHovered }]">
+  <div
+    :class="['v2-tabbar', { 'has-multirow': hasMultiRow, 'tabs-hovered': tabsAreaHovered }]"
+    @mouseleave="onTabbarLeave"
+  >
     <!-- B1: Tabs pill multi-row con hover-expand. Hover SOLO su quest'area:
-         passare il mouse su .v2-topright NON espande la tab bar. -->
+         passare il mouse su .v2-topright NON espande la tab bar.
+         B3: @mouseleave montato sul wrapper esterno .v2-tabbar — uscire dalle
+         righe 2+ verso la zona di scrittura passa per padding-bottom di .v2-tabbar
+         e .contains(self) restituiva true bloccando il collasso. -->
     <div
       ref="tabContainer"
       class="v2-tabbar-scroll"
       @mouseenter="onTabsEnter"
-      @mouseleave="onTabsLeave"
     >
       <ul
         ref="tabDropContainer"
@@ -150,6 +155,9 @@ import dragula from 'dragula'
 import bus from '../../bus'
 import TabContextMenu from '../contextMenu/TabContextMenu.vue'
 
+// Larghezza stimata del bottone "+" inline: 26px width + 3px gap + 6px margini
+const PLUS_W = 35
+
 const editorStore = useEditorStore()
 const layoutStore = useLayoutStore()
 const preferencesStore = usePreferencesStore()
@@ -165,6 +173,12 @@ let tabResizeObs = null
 
 // hasMultiRow: true se tabs occupano > 1 riga (controlla anche posizione di "+" e clone)
 const hasMultiRow = ref(false)
+
+// P-DF8-3: lock per evitare flicker durante transizione CSS padding-right (0.3-0.5s).
+// Quando hasMultiRow flippa, ResizeObserver fires multipli durante l'animazione →
+// updateTabRowsLayout legge larghezze intermedie → flicker. Skip aggiornamenti per
+// la durata della transition + buffer.
+let layoutLockUntil = 0
 
 // B1: hover scope - true solo quando il cursore è sull'area tabs (NON sul topright).
 // Espande la tab bar in multi-row solo via questa flag, non con CSS :hover globale.
@@ -205,12 +219,10 @@ const newFile = () => {
 const onTabsEnter = () => {
   tabsAreaHovered.value = true
 }
-const onTabsLeave = (e) => {
-  // Se relatedTarget è dentro la tab bar (es. topright), mantieni hover.
-  const tabbar = e.currentTarget.parentElement
-  if (!e.relatedTarget || !tabbar.contains(e.relatedTarget)) {
-    tabsAreaHovered.value = false
-  }
+// B3: mouseleave sul wrapper .v2-tabbar (root). Quando il mouse esce
+// dall'intera tab bar (incluso topright/clone) collassa.
+const onTabbarLeave = () => {
+  tabsAreaHovered.value = false
 }
 
 // Scroll handler quando barra collassata (su row singola)
@@ -302,8 +314,15 @@ const scheduleUpdate = () => {
   })
 }
 
-// B1: solo rilevazione multi-row. Posizione di "+" non più calcolata (è nel topright).
+// P-DF8-4: rilevazione multi-row state-aware con larghezza tabbar STABILE.
+// Causa flicker precedente: ul.clientWidth varia durante transition padding-right
+// (160→320 in 0.3s). Soluzione: usare .v2-tabbar.clientWidth (NON cambia con padding
+// interno) − 160 = larghezza ul "sarebbe" in single-row mode.
 const updateTabRowsLayout = () => {
+  // P-DF8-5: lock dentro la funzione → gates ANCHE chiamate dirette
+  // (currentFile watcher line 463 bypassava il vecchio scheduleUpdate-only lock).
+  if (Date.now() < layoutLockUntil) return
+
   const ul = tabDropContainer.value
   if (!ul) return
   const items = Array.from(ul.querySelectorAll('li.v2-tab'))
@@ -311,16 +330,24 @@ const updateTabRowsLayout = () => {
     hasMultiRow.value = false
     return
   }
-  const firstTop = items[0].offsetTop
-  let multiRow = false
-  for (const it of items) {
-    if (it.offsetTop > firstTop) { multiRow = true; break }
-  }
-  // N5: tab ancora in riga 1 ma "+" inline straripa → anticipa switch a multi-row
-  if (!multiRow) {
-    const plusEl = ul.querySelector('.v2-tab-new-li')
-    if (plusEl && plusEl.offsetTop > firstTop) multiRow = true
-  }
+
+  // .v2-tabbar è il root .closest. clientWidth NON dipende da padding-right (clientWidth =
+  // padding-box width). Quindi misura stabile durante transition.
+  const tabbarEl = ul.closest('.v2-tabbar')
+  if (!tabbarEl) return
+  const SINGLE_ROW_PADDING_RIGHT = 160
+  const ulPadding = 12 // padding orizzontale .v2-tabs (6px × 2)
+  const GAP = 3        // gap CSS .v2-tabs
+
+  // Larghezza disponibile per ul in modalità single-row (stabile, indipendente da state corrente)
+  const stableSingleRowUlWidth = tabbarEl.clientWidth - SINGLE_ROW_PADDING_RIGHT
+
+  // Somma tabs + gap (offsetWidth tab è stabile, non dipende da wrap container width)
+  const tabsTotal = items.reduce((s, t) => s + t.offsetWidth, 0) + (items.length - 1) * GAP
+
+  // Decisione: tabs + "+" inline starebbero in single-row width? No → multi-row.
+  const multiRow = (tabsTotal + PLUS_W > stableSingleRowUlWidth - ulPadding)
+
   hasMultiRow.value = multiRow
 }
 
@@ -357,9 +384,11 @@ onMounted(() => {
     ignoreInputTextSelection: false
   }).on('drop', (el, target, source, sibling) => {
     const droppedId = el.getAttribute('data-id')
-    const nextTabId = sibling && sibling.getAttribute('data-id')
-    const isLastTab = !sibling || sibling.classList.contains('gu-mirror')
-    if (!droppedId || (sibling && !nextTabId)) {
+    // P5: ignora il "+" inline (.v2-tab-new-li) come sibling — non ha data-id
+    const realSibling = sibling && !sibling.classList.contains('v2-tab-new-li') ? sibling : null
+    const nextTabId = realSibling && realSibling.getAttribute('data-id')
+    const isLastTab = !realSibling || realSibling.classList.contains('gu-mirror')
+    if (!droppedId || (realSibling && !nextTabId)) {
       console.error('Tab reorder error: invalid tab IDs')
       return
     }
@@ -435,7 +464,8 @@ watch(() => currentFile.value && currentFile.value.id, () => {
       // Tab attiva è in riga 1 → nessun pinned
       pinnedTab.value = null
     }
-    updateTabRowsLayout()
+    // P1A: rAF garantisce misura post-paint → offsetTop stabili → no false multi-row con 2 tab
+    requestAnimationFrame(() => updateTabRowsLayout())
   })
 })
 
@@ -443,6 +473,13 @@ watch(() => currentFile.value && currentFile.value.id, () => {
 // Se hasMultiRow passa a false (resize finestra/chiusura tab), pinnedTab va azzerato.
 // Se torna a true, ricalcola pinnedTab usando stessa logica del watch currentFile.id.
 watch(hasMultiRow, (newVal) => {
+  // P-DF8-3: lock 500ms post-flip → blocca scheduleUpdate durante transition CSS
+  // padding-right (max 0.5s in multi-row). Evita ResizeObserver-driven flicker.
+  // Timer post-lock fa una rimisura finale per riconciliare lo stato col layout stabile.
+  layoutLockUntil = Date.now() + 500
+  setTimeout(() => {
+    nextTick(() => requestAnimationFrame(() => updateTabRowsLayout()))
+  }, 520)
   if (!newVal) {
     pinnedTab.value = null
     return
@@ -684,19 +721,27 @@ watch(hasMultiRow, (newVal) => {
   max-width: 0;
   opacity: 0;
   pointer-events: none;
+  /* B1: in uscita (1→0) niente delay → "+" topright fade rapido,
+     "+" inline riappare senza sovrapposizione (no doppio "+" visibile). */
   transition:
     max-width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
-    opacity 0.3s ease 0.2s;
+    opacity 0.15s ease;
 }
 
 .v2-topright.topright-expanded .v2-topright-dynamic {
   max-width: 180px;
   opacity: 1;
   pointer-events: auto;
+  /* B1: in entrata (0→1) opacity ritardata → max-width termina prima,
+     poi compaiono clone+"+". */
+  transition:
+    max-width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.3s ease 0.2s;
 }
 
 /* B1: clone della tab attiva (riga 2+) nel topright. Pill compatta. */
 .v2-topright-clone {
+  box-sizing: border-box; /* P2: max-width include padding → box=140px, 140+6+26=172px < 180px container */
   display: flex;
   align-items: center;
   gap: 4px;
@@ -719,6 +764,7 @@ watch(hasMultiRow, (newVal) => {
 
 .v2-topright-clone .v2-tab-name {
   flex: 1;
+  min-width: 0; /* permette shrink sotto larghezza testo → ellipsis funziona */
   overflow: hidden;
   text-overflow: ellipsis;
 }

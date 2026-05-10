@@ -653,11 +653,14 @@ class App {
       } else {
         const editor = this._windowManager.get(windowId)
         if (editor) {
+          // P3: normalizeMarkdownPath filtrava qualsiasi estensione fuori da
+          // MARKDOWN_EXTENSIONS (.md, .txt, ...) → file .js/.py/.css mai aperti.
+          // Sostituito con normalizeAndResolvePath che valida solo il path.
+          // Dialog usa properties:['openFile'] → no directory selezionabili.
           editor.openTabsFromPaths(
             fileList
-              .map((p) => normalizeMarkdownPath(p))
-              .filter((i) => i && !i.isDir)
-              .map((i) => i.path)
+              .map((p) => normalizeAndResolvePath(p))
+              .filter(Boolean)
           )
         }
       }
