@@ -24,6 +24,28 @@
   </a>
 </div>
 
+## BUILD & RUN
+
+```powershell
+=========================================================================================
+# REQUISITI PRELIMINARI (Da eseguire in PowerShell come AMMINISTRATORE):
+# 1. Node.js: Versione > 22.X.X (Verifica: node -v)
+#    - Per installare/aggiornare: nvm install lts (se usi NVM) o scarica da nodejs.org
+# 2. Python: Versione 3.12+ (Verifica: python --version)
+# 3. Visual Studio Build Tools:
+#    - Carico di lavoro: "Sviluppo di applicazioni desktop con C++"
+#    - Componenti Singoli (fondamentali):
+#      - Librerie con mitigazione Spectre x64/x86 MSVC v143 - VS 2022 C++ (più recenti)
+#      - Librerie MSVC v143 - VS 2022 C++ x64/x86 con mitigazione Spectre (v14.44-17.14)
+# ========================================================================================
+```
+
+### Svuota cache node-gyp, forza bypass SSL proxy, installa dipendenze e ricompila per Electron
+
+```powershell
+Remove-Item -Recurse -Force "$env:USERPROFILE\AppData\Local\node-gyp" -ErrorAction SilentlyContinue; $env:NODE_TLS_REJECT_UNAUTHORIZED="0"; npm install; npx electron-builder install-app-deps
+```
+
 ## 📥 Downloads
 
 **[⬇️ Download Latest Release](https://github.com/peterjthomson/marktext/releases/latest)**
