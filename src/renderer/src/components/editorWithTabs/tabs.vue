@@ -184,6 +184,7 @@ let autoScroller = null
 let drake = null
 let tabResizeObs = null
 let topRightResizeObs = null // B14: ResizeObserver su topright — clone width cambia con file/filename
+let tabbarResizeObs = null // ResizeObserver su tabbar root → trigger recalc su resize finestra
 
 // hasMultiRow: true se tabs occupano > 1 riga (controlla anche posizione di "+" e clone)
 const hasMultiRow = ref(false)
@@ -349,7 +350,7 @@ const updateTabRowsLayout = () => {
   // padding-box width). Quindi misura stabile durante transition.
   const tabbarEl = ul.closest('.v2-tabbar')
   if (!tabbarEl) return
-  const ulPadding = 12 // padding orizzontale .v2-tabs (6px × 2)
+  const ulPadding = 6 // padding orizzontale .v2-tabs (left 6px, right 0)
   const GAP = 3        // gap CSS .v2-tabs
 
   // B14: padding-right dinamico = larghezza reale .v2-topright + offset right + buffer.
@@ -360,33 +361,31 @@ const updateTabRowsLayout = () => {
   const dynamicPaddingRight = topRightWidth + TOPRIGHT_RIGHT_OFFSET + HOVER_BUFFER
   tabbarEl.style.paddingRight = `${dynamicPaddingRight}px`
 
-  // B14g: detection multi-row da DOM REALE (offsetTop) invece di predizione matematica.
-  // Vecchia formula `tabsTotal + PLUS_W > available - ulPadding` triggerava prematuro
-  // (subpixel rounding, offsetWidth approssimato) e tardo (sovrastima margini).
-  // offsetTop differente tra items = wrap effettivo CSS flex già avvenuto.
-  const firstTop = items[0].offsetTop
-  const visualMultiRow = items.some((t) => t.offsetTop > firstTop)
-
-  let multiRow
-  if (visualMultiRow) {
-    // Wrap già visibile → multi-row certo
-    multiRow = true
-  } else {
-    // Tutti in row 1 visualmente. Hysteresis return-to-single solo se attualmente multi-row.
-    // S7-fix: inline + è position:absolute (fuori flex flow) → NON conta nel wrap predict.
-    // Basta verificare che tabs reali stiano in ul (senza PLUS_W).
-    if (hasMultiRow.value) {
-      const tabsTotal = items.reduce((s, t) => s + t.offsetWidth, 0) + (items.length - 1) * GAP
-      const stableSingleRowUlWidth = tabbarEl.clientWidth - dynamicPaddingRight
-      const fitsTabsOnly = tabsTotal <= (stableSingleRowUlWidth - ulPadding)
-      multiRow = !fitsTabsOnly
-    } else {
-      // Già single-row e nessun wrap visibile → resta single-row
-      multiRow = false
-    }
+  // Detection + row1Width SIMULATI (non dipendono da DOM offsetTop attuale, che è
+  // condizionato da ul.style.width già settata in iterazioni precedenti → causava
+  // loop downgrade row 1 a 1 tab). offsetWidth tab è intrinseco (min/max-clamped,
+  // flex-shrink:0) → stabile a prescindere da ul width. Simulo wrap iterativo.
+  const availableForContent = tabbarEl.clientWidth - dynamicPaddingRight - ulPadding
+  let row1ContentWidth = 0
+  let row1Count = 0
+  for (const item of items) {
+    const itemW = item.offsetWidth
+    const addedWidth = row1Count === 0 ? itemW : (GAP + itemW)
+    if (row1Count > 0 && row1ContentWidth + addedWidth > availableForContent) break
+    row1ContentWidth += addedWidth
+    row1Count++
   }
-
+  const multiRow = row1Count < items.length
   hasMultiRow.value = multiRow
+
+  // Restringe ul a width REALE di row 1. Spazio liberato dentro scroll-area
+  // (flex:1 = full width) diventa drag region → drag finestra subito dopo last tab.
+  // Ul resta no-drag per eventi mouse / dragula.
+  const row1Width = ulPadding + row1ContentWidth
+  const newUlWidth = `${row1Width}px`
+  if (ul.style.width !== newUlWidth) {
+    ul.style.width = newUlWidth
+  }
 
   // S7-fix: posiziona inline + assoluto dopo ultima tab (single-row state).
   // Fuori flex flow → non wrappa mai. In multi-row state il + è rimosso via v-if.
@@ -398,26 +397,40 @@ const updateTabRowsLayout = () => {
     }
   }
 
-  // B14d: recalc pinnedTab anche quando hasMultiRow non flippa.
-  // Su resize window la tab attiva può cambiare riga (row 1 ↔ row 2+) senza
-  // toggle multi-row → i watcher esistenti (currentFile.id, hasMultiRow) non
-  // intercettano il caso → clone non appare/scompare correttamente.
-  if (!multiRow) {
+  // Pinned recalc via helper (chiamabile anche fuori updateTabRowsLayout per
+  // bypassare layoutLock — necessario post-drag dragula dove lock può essere
+  // attivo da ResizeObserver burst durante drag).
+  recomputePinnedTab(items, multiRow)
+}
+
+// Helper: aggiorna pinnedTab basato su layout DOM corrente.
+// `items` opzionale (querySelectorAll fresh se non passato), `multiRow` opzionale
+// (deriva da hasMultiRow.value se non passato).
+const recomputePinnedTab = (items = null, multiRow = null) => {
+  const ul = tabDropContainer.value
+  if (!ul) return
+  if (!items) items = Array.from(ul.querySelectorAll('li.v2-tab'))
+  if (multiRow === null) multiRow = hasMultiRow.value
+
+  if (!multiRow || !items.length) {
     pinnedTab.value = null
-  } else if (currentFile.value && currentFile.value.id) {
-    const firstTop = items[0].offsetTop
-    const activeEl = items.find(
-      (el) => el.getAttribute('data-id') === String(currentFile.value.id)
-    )
-    if (!activeEl || activeEl.offsetTop <= firstTop) {
-      pinnedTab.value = null
-    } else {
-      const tab = tabs.value.find((t) => t.id === currentFile.value.id) || null
-      // assegna solo se diverso → evita trigger reattivo inutile
-      if (!pinnedTab.value || pinnedTab.value.id !== tab?.id) {
-        pinnedTab.value = tab
-      }
-    }
+    return
+  }
+  if (!currentFile.value || !currentFile.value.id) {
+    pinnedTab.value = null
+    return
+  }
+  const firstTop = items[0].offsetTop
+  const activeEl = items.find(
+    (el) => el.getAttribute('data-id') === String(currentFile.value.id)
+  )
+  if (!activeEl || activeEl.offsetTop <= firstTop) {
+    pinnedTab.value = null
+    return
+  }
+  const tab = tabs.value.find((t) => t.id === currentFile.value.id) || null
+  if (!pinnedTab.value || pinnedTab.value.id !== tab?.id) {
+    pinnedTab.value = tab
   }
 }
 
@@ -450,6 +463,14 @@ onMounted(() => {
     topRightResizeObs = new ResizeObserver(() => scheduleUpdate())
     topRightResizeObs.observe(topRightEl.value)
   }
+  // ResizeObserver su tabbar root → triggera recalc su resize finestra.
+  // Senza questo, ul.style.width settata in updateTabRowsLayout resta fissa →
+  // su resize finestra ul può eccedere scroll-area → tabs overlap topright.
+  const tabbarRoot = tabDropContainer.value?.closest('.v2-tabbar')
+  if (window.ResizeObserver && tabbarRoot) {
+    tabbarResizeObs = new ResizeObserver(() => scheduleUpdate())
+    tabbarResizeObs.observe(tabbarRoot)
+  }
   scheduleUpdate()
 
   // Drag and drop ordering
@@ -460,18 +481,31 @@ onMounted(() => {
     ignoreInputTextSelection: false
   }).on('drop', (el, target, source, sibling) => {
     const droppedId = el.getAttribute('data-id')
-    // P5: ignora il "+" inline (.v2-tab-new-li) come sibling — non ha data-id
-    const realSibling = sibling && !sibling.classList.contains('v2-tab-new-li') ? sibling : null
+    // P5: ignora "+" inline (.v2-tab-new-li) e gu-mirror (placeholder dragula).
+    // Senza filter gu-mirror, sibling poteva risultare =mirror → isLastTab=true →
+    // toId=null → moveItem(tabs, fromIndex, tabs.length-1) → se fromIndex era ultima
+    // posizione = no-op → state non aggiornato → desync con DOM mosso da dragula.
+    const realSibling = sibling
+      && !sibling.classList.contains('v2-tab-new-li')
+      && !sibling.classList.contains('gu-mirror')
+      ? sibling : null
     const nextTabId = realSibling && realSibling.getAttribute('data-id')
-    const isLastTab = !realSibling || realSibling.classList.contains('gu-mirror')
     if (!droppedId || (realSibling && !nextTabId)) {
       console.error('Tab reorder error: invalid tab IDs')
       return
     }
+    // NB: NON rimuovere el dal DOM manualmente. Dragula tiene reference interno
+    // a el per cleanup post-drop; rimuoverlo lo lascia in stato corrotto →
+    // drag successivi falliscono, Vue diff incoerente, clone/editor non aggiornano.
+    // Vue v-for con :key="file.id" riconcilia DOM dopo EXCHANGE_TABS_BY_ID.
     editorStore.EXCHANGE_TABS_BY_ID({
       fromId: droppedId,
-      toId: isLastTab ? null : nextTabId
+      toId: nextTabId || null
     })
+    // Force pinnedTab recalc post-Vue-rerender bypassando layoutLock
+    // (drag può aver flippato hasMultiRow transient → lock attivo → updateTabRowsLayout
+    // via watch(tabs) viene skippato → clone non aggiornato dopo drag).
+    nextTick(() => requestAnimationFrame(() => recomputePinnedTab()))
   })
 
   autoScroller = autoScroll([el], {
@@ -510,6 +544,11 @@ onBeforeUnmount(() => {
   if (topRightResizeObs) {
     topRightResizeObs.disconnect()
     topRightResizeObs = null
+  }
+  // cleanup ResizeObserver tabbar root
+  if (tabbarResizeObs) {
+    tabbarResizeObs.disconnect()
+    tabbarResizeObs = null
   }
 })
 
@@ -597,6 +636,10 @@ watch(hasMultiRow, (newVal) => {
   border-bottom: 1px solid var(--v2-border);
   overflow: hidden;
   max-height: var(--v2-tab-h);
+  /* Drag finestra OS-native: tabbar = zona titolo. Doppio-click toggle maximize.
+     Figli interattivi (tab, +, bottoni topright) hanno no-drag → click liberi. */
+  -webkit-app-region: drag;
+  app-region: drag;
   /* B11: animazione espansione più lenta (0.5s)
      B1: padding-right animato al passaggio multi-row (clone+ entrano nel topright).
      B14: padding-right ora settato inline via JS in updateTabRowsLayout (= offsetWidth
@@ -637,6 +680,8 @@ watch(hasMultiRow, (newVal) => {
      Clipping verticale row 2+ resta gestito da .v2-tabbar (max-height + overflow:hidden). */
   overflow: visible;
   min-height: var(--v2-tab-h);
+  /* Scroll-area resta DRAG (eredita da .v2-tabbar): spazio dopo ul ristretta =
+     zona draggable finestra. Hover events fire su drag region in Chromium. */
 }
 
 /* NB5: rimossa regola .v2-tabbar.has-multirow:not(:hover) .v2-tabs
@@ -650,10 +695,17 @@ watch(hasMultiRow, (newVal) => {
   flex-wrap: wrap;
   align-items: center;
   gap: 3px;
-  padding: 5px 6px;
+  /* padding-right 0 → ultima tab della riga arriva fino al bordo destro ul.
+     Width settata runtime da updateTabRowsLayout() = row 1 content width →
+     ul si restringe al contenuto reale. Spazio oltre (entro scroll-area) =
+     drag finestra. */
+  padding: 5px 0 5px 6px;
   min-height: var(--v2-tab-h);
   margin: 0;
   list-style: none;
+  /* No-drag su ul → eventi mouse OK su tabs + gap interno → hover-expand multirow funziona. */
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
 
 /* Pill tab */
@@ -661,13 +713,16 @@ watch(hasMultiRow, (newVal) => {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
   height: 28px;
-  padding: 0 10px 0 12px;
+  padding: 0 4px 0 10px;
   border-radius: 100px;
   font-size: 12.5px;
   color: var(--v2-text3);
   cursor: default;
+  /* no-drag: click select, contextmenu, dragula reorder funzionano */
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
   flex-shrink: 0;
   min-width: 88px;
   max-width: 172px;
@@ -727,7 +782,9 @@ watch(hasMultiRow, (newVal) => {
 }
 
 .v2-tab-name {
-  flex: 1;
+  /* No flex:1 → span = larghezza testo intrinseca → X subito dopo nome.
+     min-width:0 abilita shrink sotto content quando tab eccede max-width 172. */
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -773,6 +830,8 @@ watch(hasMultiRow, (newVal) => {
   font-size: 16px;
   color: var(--v2-text3);
   border-radius: 50%;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -821,9 +880,10 @@ watch(hasMultiRow, (newVal) => {
      tra ".v2-topright-dynamic" e i pulsanti statici (cmd, open file). */
   justify-content: flex-end;
   overflow: hidden;
-  /* B14e: width 150px. Slot tighter = tabs hanno più spazio → multi-row più tardi.
-     Contenuto ~145px (clone 110 + gap 4 + plus 26 + sep 9). */
-  width: 150px;
+  /* B14e: width 158px. Era 150px ma contenuto reale ~151px (clone 110 + margin-r 6
+     + plus 26 + sep 9) eccedeva → bordo sinistro clone tagliato da overflow:hidden.
+     158px lascia ~7px buffer a sinistra del clone (flex-end) → bordo dashed visibile. */
+  width: 158px;
   flex-shrink: 0;
   opacity: 0;
   pointer-events: none;
@@ -856,9 +916,11 @@ watch(hasMultiRow, (newVal) => {
   box-sizing: border-box; /* P2: width include padding → box=110px, 110+6+26=142px < 180px container */
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   height: 26px;
   width: 110px;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
   padding: 0 10px;
   font-size: 12px;
   border-radius: 100px;
@@ -889,6 +951,8 @@ watch(hasMultiRow, (newVal) => {
   line-height: 1;
   color: var(--v2-text3);
   border-radius: 50%;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -937,6 +1001,8 @@ watch(hasMultiRow, (newVal) => {
   background: none;
   cursor: pointer;
   padding: 0;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
 
 .v2-tr-btn:hover {

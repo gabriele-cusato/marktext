@@ -34,6 +34,22 @@ Implementazione completa della UI v2 su fork MarkText (Electron + Vue3 + Pinia +
   - **Razionale:** inline + ora sconfina liberamente nello slot 150px riservato a `v2-topright-dynamic` (invisibile in single-row: opacity 0, pointer-events:none). Multirow scatta solo quando tabs reali violano lo slot fisso. `PLUS_W` const ora unused (lasciato declared per eventuali future feature).
   - **File:** `marktext/src/renderer/src/components/editorWithTabs/tabs.vue` `updateTabRowsLayout()`.
 
+- **S9 — Drag finestra app-region + hover-expand (RISOLTO)**:
+  - **Sintomo:** zona drag finestra (`-webkit-app-region: drag`) su `.v2-tabbar` poteva sopprimere `mouseenter` su `.v2-tabbar-scroll` quando cursore passava per gap/padding interno ul (zone drag inherit) → `tabsAreaHovered` non triggera → tab bar collassa nonostante mouse "in mezzo alle tabs".
+  - **Fix:** `no-drag` esplicito su `.v2-tabs` ul (NON su scroll-area) → gap/padding interno restano cliccabili + hover events liberi. Scroll-area resta drag → spazio dopo ul ristretta = drag region.
+  - **Regola:** elementi che fanno hover-expand o tracking mouse DEVONO essere `no-drag`. Drag region OK solo su zone "passive" (sfondo vuoto puro).
+
+- **S10 — Ul width dinamica, ResizeObserver tabbar root necessario (RISOLTO)**:
+  - **Sintomo:** dopo aver settato `ul.style.width = row1Width` inline, ridimensionare finestra non rilayoutava tabs → si compenetravano con topright.
+  - **Causa:** ResizeObserver su `tabDropContainer` (ul) non triggera perché ul ha width fissa inline → size invariata.
+  - **Fix:** aggiunto `tabbarResizeObs` su `.v2-tabbar` root → trigger `scheduleUpdate` su resize finestra → recalc `availableForContent` con nuovo `tabbar.clientWidth`.
+  - **NB:** cleanup `disconnect()` in `onBeforeUnmount`.
+
+- **S11 — Dragula drop handler + Vue v-for sync (RISOLTO)**:
+  - **Sintomo storico 1:** nuova tab in posizione errata dopo reorder dragula. **Causa:** sibling `gu-mirror` non filtrato → `isLastTab=true` → moveItem no-op se from era last index → state desync. **Fix:** filter `!sibling.classList.contains('gu-mirror')` nel realSibling check.
+  - **Sintomo storico 2:** drag tab → tab scompare, errori a catena (clone non aggiorna, editor non cambia). **Causa:** `removeChild(el)` manuale post-drop corrompe state interno dragula (refs invalidi) → drag successivi falliscono, Vue diff incoerente. **Fix:** NON toccare DOM. Vue v-for con `:key="file.id"` riconcilia naturalmente.
+  - **Sintomo storico 3:** clone pinnedTab non aggiornato post-drag. **Causa:** ResizeObserver burst durante drag flippa `hasMultiRow` transient → `layoutLockUntil` attivo → `scheduleUpdate` post-drop skippato. **Fix:** estratto `recomputePinnedTab(items, multiRow)` helper DOM-based (no lock check), drop handler chiama esplicitamente `nextTick → rAF → recomputePinnedTab()`.
+
 - **S8 — Lock layoutLockUntil ridotto 500→150ms (RISOLTO)**:
   - **Sintomo:** dopo flip `hasMultiRow`, resize finestra causava leggero delay visibile (fino a 500ms) prima che `hasMultiRow` flippasse di nuovo, perché `layoutLockUntil = Date.now() + 500` bloccava `updateTabRowsLayout()`.
   - **Causa storica:** lock progettato per evitare flicker durante transition CSS `padding-right` (0.5s) della tabbar.
@@ -214,6 +230,48 @@ electron.vite.config.mjs    # Cache-Control: no-store per dev
     - setTimeout 150ms post-mount preserva scroll via API CM (`getScrollInfo().top` + `scrollTo`)
     - Cleanup: rimosso `removeEventListener('scroll')` da `onBeforeUnmount` (CM scroller smontato da CM stesso)
 
+### 16. Drag finestra Windows-style + ottimizzazioni tab bar (sessione post-bug-fix-finale)
+
+Aggiunto drag finestra OS-native dalla tab bar + serie restringimenti/fix UX.
+
+- **Drag finestra Windows-style (`tabs.vue` CSS)**
+  - `.v2-tabbar` → `-webkit-app-region: drag` + `app-region: drag` → tab bar = zona drag finestra (Chromium gestisce auto: drag + doppio-click toggle maximize/restore).
+  - `no-drag` esplicito su: `.v2-tab`, `.v2-tab-new-li`, `.v2-topright-clone`, `.v2-tr-plus`, `.v2-tr-btn`, `.v2-tabs` ul → click/dragula/hover events liberi.
+  - `.v2-tabbar-scroll` → eredita drag da tabbar → spazio dentro scroll-area dopo ul ristretta = drag region.
+  - Dragula tab reorder coesiste: `no-drag` su `.v2-tab` non blocca mousedown/mousemove, solo cattura window-drag.
+
+- **Bug fix: nuova tab in posizione errata dopo reorder dragula (`tabs.vue` drop handler)**
+  - **Causa:** filter sibling escludeva solo `.v2-tab-new-li`, NON `gu-mirror`. Quando dragula passava `sibling=gu-mirror` al drop handler, `realSibling.classList.contains('gu-mirror')` triggera `isLastTab=true` → `toId=null` → `moveItem(tabs, fromIndex, tabs.length-1)`. Se `fromIndex === tabs.length-1`, splice no-op → state non aggiornato → desync con DOM mosso da dragula → push successivi (nuova tab) appaiono in posizione sbagliata.
+  - **Fix:** aggiunto `&& !sibling.classList.contains('gu-mirror')` al filter realSibling.
+  - **NB:** evitato pattern `removeChild(el)` per "revert dragula DOM mutation" — Vue v-for con :key="file.id" riconcilia naturalmente da `tabs` aggiornato. `removeChild` corrompe state interno dragula → drag successivi falliscono, Vue diff incoerente, clone/editor non aggiornano.
+
+- **Ul width dinamica = row 1 content (`tabs.vue updateTabRowsLayout`)**
+  - **Problema:** spazio "vuoto" dentro ul dopo last tab della prima riga, dentro `no-drag` ul → fastidioso per drag finestra. Causa: `.v2-tabbar-scroll { flex:1 }` → scroll fillata tabbar; ul block default → width = parent (es. 930px). Tabs contenuto < 930px → spazio finale dentro ul.
+  - **Fix CSS:** `.v2-tabs { padding: 5px 0 5px 6px }` (padding-right 0).
+  - **Fix JS:** in `updateTabRowsLayout()` calcola `row1Width = sum(row1Items.offsetWidth) + (n-1)*GAP + 6` e setta `ul.style.width = row1Width + 'px'` (idempotent via check `if (ul.style.width !== newUlWidth)`). Ul si restringe → spazio liberato dentro scroll-area (drag region eredita da tabbar) = drag finestra subito dopo last tab.
+  - **Detection multirow:** sostituita logica `visualMultiRow` (basata su `offsetTop`) + hysteresis con **simulazione iterativa**: accumula `offsetWidth` finché entra in `availableForContent = tabbar.clientWidth - dynamicPaddingRight - ulPadding`. Vantaggio: `offsetWidth` tab è intrinseco (min-width:88 max:172 flex-shrink:0) → stabile, non dipende da ul width settata in iterazioni precedenti → no loop downgrade row 1 a 1 tab.
+  - `ulPadding` costante 12 → 6 (riflette padding-left only).
+
+- **Bug fix: clone pinnedTab non aggiornato post-drag (`tabs.vue` drop handler)**
+  - **Sintomo:** drag tab attiva da row 1 a row 2+ → clone non appare. Drag attiva da row 2+ a row 1 → clone non scompare. A catena: editor non cambia view, errori successivi.
+  - **Causa:** drag dragula triggera ResizeObserver burst (mirror in ul) → `updateTabRowsLayout` può flippare `hasMultiRow` transient → `watch(hasMultiRow)` setta `layoutLockUntil = Date.now() + 150` → `scheduleUpdate` post-drop (via `watch(tabs)`) entra durante lock attivo → `updateTabRowsLayout` return early → pinnedTab logic skippata.
+  - **Fix:** estratto `recomputePinnedTab(items, multiRow)` helper DOM-based (no lock check). Drop handler chiama esplicitamente `nextTick → rAF → recomputePinnedTab()` → bypassa lock → garantisce clone aggiornato post-drag. `updateTabRowsLayout` ora usa stesso helper invece di logica inline duplicata.
+
+- **ResizeObserver tabbar root (`tabs.vue onMounted`)**
+  - Aggiunto `tabbarResizeObs` su `.v2-tabbar` root → `scheduleUpdate` su resize finestra.
+  - **Razionale:** dopo aver settato `ul.style.width = row1Width`, ul ha width fissa inline → ResizeObserver su ul non triggera su resize finestra (ul size invariata) → tabs non rilayoutavano → tabs in row 1 si compenetravano con topright.
+  - Cleanup `tabbarResizeObs.disconnect()` in `onBeforeUnmount`.
+
+- **Width `.v2-topright-dynamic` 150→158px**
+  - **Causa:** contenuto reale ~151px (clone 110 + margin-right 6 + plus 26 + sep 9) eccedeva width wrapper 150px → bordo sinistro clone tagliato da `overflow: hidden`.
+  - **Fix:** width 158px → ~7px buffer a sinistra clone (allineato flex-end) → bordo dashed integro.
+
+- **Restringimento stile interno tab (`tabs.vue` CSS)**
+  - `.v2-tab` padding `0 10px 0 12px` → `0 4px 0 10px` (right -6px, left -2px).
+  - `.v2-tab` `gap: 5px` → `8px` (più aria tra nome e X).
+  - `.v2-tab-name`: rimosso `flex: 1`, aggiunto `min-width: 0` → span = larghezza testo intrinseca → X immediatamente dopo titolo. min-width tab 88px ancora garantisce dimensione minima.
+  - `.v2-topright-clone`: `gap: 4px` → `8px` (coerenza con tab).
+
 ---
 
 ## NOTE TECNICHE IMPORTANTI
@@ -226,4 +284,12 @@ electron.vite.config.mjs    # Cache-Control: no-store per dev
 - **CodeMirror events `change` vs `inputRead`**: `inputRead` fires SOLO da kbd input handler (testo digitato), NON da command via `replaceSelection` (es. `newlineAndIndent` per Enter). Per catchare TUTTI gli input incl. Enter usare `change` event con filter `change.origin === '+input'`. `change.text` è array splittato su `\n` → `join('\n')` ricostruisce testo originale.
 - **CodeMirror history merge**: changes con stesso origin entro `historyEventDelay` (default 1250ms) si fondono in 1 evento undo. Per forzare boundary (word-by-word undo) settare `cm.doc.history.lastModTime = 0` dopo char di boundary → prossimo input crea nuovo evento. Pattern: hook `change` event, regex su testo inserito.
 - **contenteditable `inputType`**: Enter su contenteditable emette `inputType: 'insertParagraph'` (block-level) o `'insertLineBreak'` (Shift+Enter), NON `'insertText'`. Hook su input event devono gestire entrambi i tipi se vogliono detectare nuove righe come boundary.
+- **`-webkit-app-region: drag` su Electron Windows**: marca elemento come zona drag finestra OS-native (Chromium gestisce doppio-click → toggle maximize/restore senza JS). Eredita su figli. Children interattivi devono override con `no-drag`. Su zone drag, Chromium può sopprimere alcuni mouse events (hover/mouseenter possono comportarsi differentemente) → elementi che fanno hover-expand o tracking devono essere `no-drag`. Dragula tab reorder compatibile: `no-drag` su `.v2-tab` non blocca mousedown/mousemove, blocca solo cattura window-drag OS.
+
+- **Dragula + Vue v-for pattern**: drop handler NON deve manipolare DOM manualmente (`removeChild`, `insertBefore`) — corrompe refs interni dragula → drag successivi falliscono, Vue diff incoerente. Vue v-for con `:key` riconcilia DOM naturalmente da array reattivo post-mutation. Filtrare `gu-mirror` da sibling parameter prima di calcolare next-tab-id (mirror può essere passato come sibling in alcuni casi e portare a state update errato).
+
+- **Ul width dinamica: simulazione vs offsetTop detection**: per restringere ul a content row 1 reale (liberare spazio drag finestra dentro scroll-area), set `ul.style.width = row1Width` inline. Detection multi-row via `offsetTop` di items INSTABILE perché dipende da ul width settata in iterazioni precedenti → può loop downgrade row 1 a 1 tab. Soluzione: simulazione iterativa accumulando `offsetWidth` (intrinseco, `flex-shrink:0` + min/max-width) finché entra in `availableForContent = tabbar.clientWidth - dynamicPaddingRight - ulPadding`. Idempotent → no ResizeObserver loop. Necessario ResizeObserver su tabbar root (non solo ul) per reagire a resize finestra (ul size fissa = non triggera).
+
+- **`recomputePinnedTab` separato da `updateTabRowsLayout`**: pinnedTab assignment può essere skippato se `layoutLockUntil` attivo (es. da ResizeObserver burst durante drag dragula). Estrarre logica in helper DOM-based chiamabile fuori dal lock (es. da drop handler) garantisce clone sempre aggiornato post-eventi async. Pattern: `updateTabRowsLayout` gestisce layout (gated dal lock), `recomputePinnedTab` gestisce solo state pinned (no gate).
+
 - **`justLoaded` flag (`store/editor.js`)**: pensato per Muya che normalizza markdown caricato (whitespace, newline). Primo `LISTEN_FOR_CONTENT_CHANGE` post-load consuma flag e sovrascrive `originalMarkdown` con contenuto normalizzato → baseline corretto per Muya. CodeMirror NON normalizza → consumare il flag rompe baseline → Ctrl+Z back-to-saved fallisce. Regola: in modalità sourceCode disabilitare flag immediatamente in `handleFileChange` post-`setValue`.
