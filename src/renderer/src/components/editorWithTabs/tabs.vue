@@ -52,23 +52,35 @@
     </div>
 
     <!-- B1: zona topright si espande verso sinistra quando multi-row,
-         clone tab + "+" appaiono SOLO dopo che l'espansione è completata. -->
-    <div :class="['v2-topright', { 'topright-expanded': hasMultiRow }]">
+         clone tab + "+" appaiono SOLO dopo che l'espansione è completata.
+         B14: ref per misurare offsetWidth runtime → padding-right dinamico tabbar.
+         B14f: `topright-expanded` legata a hasMultiRow (= esistono 2+ righe).
+         + topright deve restare visibile finché c'è multi-row, indipendentemente
+         dal clone. Clone ha v-if separato su pinnedTab (active in row 2+). -->
+    <div
+      ref="topRightEl"
+      :class="['v2-topright', { 'topright-expanded': hasMultiRow }]"
+    >
       <!-- N4: wrapper animato max-width+opacity per espansione visibile verso sinistra.
            Sempre in DOM (no v-if) così CSS può fare transizione 0→max-width. -->
       <div class="v2-topright-dynamic">
-        <!-- B1: clone tab attiva (su riga 2+) nel topright -->
-        <div
-          v-if="pinnedTab"
-          class="v2-topright-clone"
-          :title="pinnedTab.pathname || pinnedTab.filename"
-          @click.stop="selectFile(pinnedTab)"
-          @contextmenu.prevent="handleContextMenu($event, pinnedTab)"
-        >
-          <span v-if="!pinnedTab.isSaved" class="v2-tab-dot" />
-          <span class="v2-tab-name">{{ pinnedTab.filename }}</span>
-          <span class="v2-tab-pinned-badge">↑</span>
-        </div>
+        <!-- B1: clone tab attiva (su riga 2+) nel topright.
+             B14f: Transition fade dedicato per clone (independente da wrapper).
+             Quando active passa row 1↔row 2+ in multi-row, clone fade in/out
+             senza che + topright sia coinvolto (resta visibile via wrapper). -->
+        <Transition name="v2-clone-fade">
+          <div
+            v-if="pinnedTab"
+            class="v2-topright-clone"
+            :title="pinnedTab.pathname || pinnedTab.filename"
+            @click.stop="selectFile(pinnedTab)"
+            @contextmenu.prevent="handleContextMenu($event, pinnedTab)"
+          >
+            <span v-if="!pinnedTab.isSaved" class="v2-tab-dot" />
+            <span class="v2-tab-name">{{ pinnedTab.filename }}</span>
+            <span class="v2-tab-pinned-badge">↑</span>
+          </div>
+        </Transition>
 
         <!-- B1: "+" nel topright -->
         <button
@@ -167,9 +179,11 @@ const { theme } = storeToRefs(preferencesStore)
 
 const tabContainer = ref(null)
 const tabDropContainer = ref(null)
+const topRightEl = ref(null) // B14: zona topright (.v2-topright) — misurata runtime per padding tabbar
 let autoScroller = null
 let drake = null
 let tabResizeObs = null
+let topRightResizeObs = null // B14: ResizeObserver su topright — clone width cambia con file/filename
 
 // hasMultiRow: true se tabs occupano > 1 riga (controlla anche posizione di "+" e clone)
 const hasMultiRow = ref(false)
@@ -335,20 +349,66 @@ const updateTabRowsLayout = () => {
   // padding-box width). Quindi misura stabile durante transition.
   const tabbarEl = ul.closest('.v2-tabbar')
   if (!tabbarEl) return
-  const SINGLE_ROW_PADDING_RIGHT = 160
   const ulPadding = 12 // padding orizzontale .v2-tabs (6px × 2)
   const GAP = 3        // gap CSS .v2-tabs
 
-  // Larghezza disponibile per ul in modalità single-row (stabile, indipendente da state corrente)
-  const stableSingleRowUlWidth = tabbarEl.clientWidth - SINGLE_ROW_PADDING_RIGHT
+  // B14: padding-right dinamico = larghezza reale .v2-topright + offset right + buffer.
+  const TOPRIGHT_RIGHT_OFFSET = 10 // CSS .v2-topright { right: 10px }
+  const HOVER_BUFFER = 12          // clearance per hover/box-shadow ultima tab
+  const tre = topRightEl.value
+  const topRightWidth = tre ? tre.offsetWidth : 160
+  const dynamicPaddingRight = topRightWidth + TOPRIGHT_RIGHT_OFFSET + HOVER_BUFFER
+  tabbarEl.style.paddingRight = `${dynamicPaddingRight}px`
 
-  // Somma tabs + gap (offsetWidth tab è stabile, non dipende da wrap container width)
-  const tabsTotal = items.reduce((s, t) => s + t.offsetWidth, 0) + (items.length - 1) * GAP
+  // B14g: detection multi-row da DOM REALE (offsetTop) invece di predizione matematica.
+  // Vecchia formula `tabsTotal + PLUS_W > available - ulPadding` triggerava prematuro
+  // (subpixel rounding, offsetWidth approssimato) e tardo (sovrastima margini).
+  // offsetTop differente tra items = wrap effettivo CSS flex già avvenuto.
+  const firstTop = items[0].offsetTop
+  const visualMultiRow = items.some((t) => t.offsetTop > firstTop)
 
-  // Decisione: tabs + "+" inline starebbero in single-row width? No → multi-row.
-  const multiRow = (tabsTotal + PLUS_W > stableSingleRowUlWidth - ulPadding)
+  let multiRow
+  if (visualMultiRow) {
+    // Wrap già visibile → multi-row certo
+    multiRow = true
+  } else {
+    // Tutti in row 1 visualmente. MA inline + può essere nascosto (stato attuale multi-row);
+    // se passassimo a single-row riapparirebbe il +, e se NON ci sta più → wrap → oscillazione.
+    // Hysteresis: se attualmente hasMultiRow=true, predici se tabs+gap+PLUS_W stanno in ul.
+    if (hasMultiRow.value) {
+      const tabsTotal = items.reduce((s, t) => s + t.offsetWidth, 0) + (items.length - 1) * GAP
+      const stableSingleRowUlWidth = tabbarEl.clientWidth - dynamicPaddingRight
+      const fitsWithPlus = (tabsTotal + GAP + PLUS_W) <= (stableSingleRowUlWidth - ulPadding)
+      multiRow = !fitsWithPlus
+    } else {
+      // Già single-row e nessun wrap visibile → resta single-row
+      multiRow = false
+    }
+  }
 
   hasMultiRow.value = multiRow
+
+  // B14d: recalc pinnedTab anche quando hasMultiRow non flippa.
+  // Su resize window la tab attiva può cambiare riga (row 1 ↔ row 2+) senza
+  // toggle multi-row → i watcher esistenti (currentFile.id, hasMultiRow) non
+  // intercettano il caso → clone non appare/scompare correttamente.
+  if (!multiRow) {
+    pinnedTab.value = null
+  } else if (currentFile.value && currentFile.value.id) {
+    const firstTop = items[0].offsetTop
+    const activeEl = items.find(
+      (el) => el.getAttribute('data-id') === String(currentFile.value.id)
+    )
+    if (!activeEl || activeEl.offsetTop <= firstTop) {
+      pinnedTab.value = null
+    } else {
+      const tab = tabs.value.find((t) => t.id === currentFile.value.id) || null
+      // assegna solo se diverso → evita trigger reattivo inutile
+      if (!pinnedTab.value || pinnedTab.value.id !== tab?.id) {
+        pinnedTab.value = tab
+      }
+    }
+  }
 }
 
 onMounted(() => {
@@ -373,6 +433,12 @@ onMounted(() => {
   if (window.ResizeObserver && tabDropContainer.value) {
     tabResizeObs = new ResizeObserver(() => scheduleUpdate())
     tabResizeObs.observe(tabDropContainer.value)
+  }
+  // B14: ResizeObserver su .v2-topright. Clone tab width cambia quando filename
+  // attivo cambia → padding-right dinamico va ricalcolato per evitare overlap X.
+  if (window.ResizeObserver && topRightEl.value) {
+    topRightResizeObs = new ResizeObserver(() => scheduleUpdate())
+    topRightResizeObs.observe(topRightEl.value)
   }
   scheduleUpdate()
 
@@ -429,6 +495,11 @@ onBeforeUnmount(() => {
   if (tabResizeObs) {
     tabResizeObs.disconnect()
     tabResizeObs = null
+  }
+  // B14: cleanup ResizeObserver topright
+  if (topRightResizeObs) {
+    topRightResizeObs.disconnect()
+    topRightResizeObs = null
   }
 })
 
@@ -514,25 +585,25 @@ watch(hasMultiRow, (newVal) => {
   overflow: hidden;
   max-height: var(--v2-tab-h);
   /* B11: animazione espansione più lenta (0.5s)
-     B1: padding-right animato al passaggio multi-row (clone+ entrano nel topright). */
+     B1: padding-right animato al passaggio multi-row (clone+ entrano nel topright).
+     B14: padding-right ora settato inline via JS in updateTabRowsLayout (= offsetWidth
+     reale .v2-topright + offset + buffer). Le costanti 160/320 erano hardcoded ma
+     non coprivano clone tab con filename lungo → X ultima tab coperta. */
   transition:
     max-height 0.5s ease-in-out,
     box-shadow var(--v2-t-mid) ease-in-out,
     padding-right 0.3s ease;
   display: flex;
   align-items: flex-start;
-  /* NB2: 160px riservati per topright (5 buttons: ⌘ 📂 min max close) */
-  padding-right: 160px;
   /* B2: padding-bottom default per non far attaccare le tabs alla barra di separazione */
   padding-bottom: 4px;
   user-select: none;
 }
 
-/* B1: in multi-row il topright ospita anche clone tab + "+" + separator,
-   serve più spazio. ~120 (clone) + 28 (+) + 9 (sep) + 160 (icone) = 320px */
-/* N4: durata aumentata da 0.3s a 0.5s per sincronizzarsi con v2-topright-dynamic */
+/* B1: in multi-row il topright ospita anche clone tab + "+" + separator.
+   B14: padding-right rimosso (gestito inline da JS). Solo durata transition mantenuta
+   per sincronia con v2-topright-dynamic. */
 .v2-tabbar.has-multirow {
-  padding-right: 320px;
   transition:
     max-height 0.5s ease-in-out,
     box-shadow var(--v2-t-mid) ease-in-out,
@@ -712,41 +783,57 @@ watch(hasMultiRow, (newVal) => {
   z-index: 20;
 }
 
-/* N4: wrapper animato per clone + "+" + sep. Sempre in DOM.
-   max-width: 0→180px crea espansione visibile verso sinistra. */
+/* N4: wrapper clone + "+" + sep. Sempre in DOM.
+   B14c: width FISSA 180px sempre. `max-width` era limite superiore non garanzia
+   di occupazione → senza clone (pinnedTab=null) il wrapper si restringeva al
+   contenuto residuo (+ + sep ≈ 35px) → topright totale variabile → padding-right
+   tabbar variabile (calcolato da offsetWidth) → tabs si riallineavano provocando
+   shift di row 1 last tab quando clone riappariva. Width fissa = topright costante. */
 .v2-topright-dynamic {
   display: flex;
   align-items: center;
+  /* B14d: clone+plus allineati a destra dentro lo slot → niente gap visibile
+     tra ".v2-topright-dynamic" e i pulsanti statici (cmd, open file). */
+  justify-content: flex-end;
   overflow: hidden;
-  max-width: 0;
+  /* B14e: width 150px. Slot tighter = tabs hanno più spazio → multi-row più tardi.
+     Contenuto ~145px (clone 110 + gap 4 + plus 26 + sep 9). */
+  width: 150px;
+  flex-shrink: 0;
   opacity: 0;
   pointer-events: none;
-  /* B1: in uscita (1→0) niente delay → "+" topright fade rapido,
-     "+" inline riappare senza sovrapposizione (no doppio "+" visibile). */
-  transition:
-    max-width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
-    opacity 0.15s ease;
+  /* B14f: fade più fluido (0.4s ease-out) per appearance/disappearance + topright */
+  transition: opacity 0.4s ease-out;
 }
 
 .v2-topright.topright-expanded .v2-topright-dynamic {
-  max-width: 180px;
   opacity: 1;
   pointer-events: auto;
-  /* B1: in entrata (0→1) opacity ritardata → max-width termina prima,
-     poi compaiono clone+"+". */
-  transition:
-    max-width 0.5s cubic-bezier(0.4, 0, 0.2, 1),
-    opacity 0.3s ease 0.2s;
 }
 
-/* B1: clone della tab attiva (riga 2+) nel topright. Pill compatta. */
+/* B14f: Vue Transition `v-clone-fade` per clone (indipendente da wrapper).
+   Fade in/out clone quando active passa row 1↔row 2+ entro stesso multi-row state. */
+.v2-clone-fade-enter-active,
+.v2-clone-fade-leave-active {
+  transition: opacity 0.35s ease-out;
+}
+.v2-clone-fade-enter-from,
+.v2-clone-fade-leave-to {
+  opacity: 0;
+}
+
+/* B1: clone della tab attiva (riga 2+) nel topright. Pill compatta.
+   B14b: width FISSA (era max-width) per layout stabile al cambio tab attiva.
+   Filename troppo lungo → ellipsis su .v2-tab-name (già configurato sotto).
+   Senza width fissa, cambio tab attiva con filename diverso ridimensionava clone
+   → ResizeObserver triggera ricalcolo padding-right tabbar → tabs row 1 saltavano. */
 .v2-topright-clone {
-  box-sizing: border-box; /* P2: max-width include padding → box=140px, 140+6+26=172px < 180px container */
+  box-sizing: border-box; /* P2: width include padding → box=110px, 110+6+26=142px < 180px container */
   display: flex;
   align-items: center;
   gap: 4px;
   height: 26px;
-  max-width: 140px;
+  width: 110px;
   padding: 0 10px;
   font-size: 12px;
   border-radius: 100px;
