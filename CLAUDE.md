@@ -219,3 +219,48 @@ Key stores in `src/renderer/src/store/`:
 - `editor.js` - Document tabs, content, file tree (largest store)
 - `preferences.js` - User settings
 - `layout.js` - UI layout state
+
+---
+
+## Fork Info
+
+Fork attivo: https://github.com/peterjthomson/marktext (PeterJThomson, basato su fork Tkaixiang)
+Stack completo: Electron + electron-vite + Vue3 + Pinia + Vitest + Playwright
+
+## Prerequisiti Build
+
+- Node.js **22.21.1** (usa nvm: `nvm install 22.21.1` + `nvm use 22.21.1`)
+- Python >= 3.12
+- VS2022 con workload **"Desktop development with C++"** + componente **"MSVC v143 Spectre-mitigated libs (x64/x86)"**
+
+## Comandi principali
+
+```bash
+npm install              # installa dipendenze
+npm run dev              # avvia in dev (hot reload solo renderer)
+npm run build:win        # build produzione Windows
+npm run test:unit        # unit test con Vitest
+npm run test:unit:watch  # watch mode
+npm run test:e2e         # e2e con Playwright (fa build prima)
+```
+
+## Entry Points
+
+- `src/main/index.js` — avvio app, eseguito una volta
+- `src/renderer/main.js` — montaggio Vue per ogni finestra editor
+
+## Hot Reload & Dev Notes
+
+- Main e preload NON hanno hot reload → riavviare processo dev dopo modifica
+- Renderer ha hot reload ma perde stato → fare full reload se comportamento strano
+- Compile target: main/preload → CommonJS; renderer → ESModules only; common → solo Node.js API (usabile da main/renderer); muya → solo JS puro + DOM/BOM (no Electron/Node)
+
+## Flow apertura file
+
+`File > Open` → evento `app-open-file-by-id` → `App.openTab()` → `mt::open-new-tab` → `src/renderer/store/editor.js`
+
+Dettagli IPC: `docs/dev/code/IPC.md`
+
+## TODO
+
+Vedi e modifica `TODO.md` nella root del progetto (`C:\Projects\MarkText\TODO.md`).

@@ -372,14 +372,14 @@ const updateTabRowsLayout = () => {
     // Wrap già visibile → multi-row certo
     multiRow = true
   } else {
-    // Tutti in row 1 visualmente. MA inline + può essere nascosto (stato attuale multi-row);
-    // se passassimo a single-row riapparirebbe il +, e se NON ci sta più → wrap → oscillazione.
-    // Hysteresis: se attualmente hasMultiRow=true, predici se tabs+gap+PLUS_W stanno in ul.
+    // Tutti in row 1 visualmente. Hysteresis return-to-single solo se attualmente multi-row.
+    // S7-fix: inline + è position:absolute (fuori flex flow) → NON conta nel wrap predict.
+    // Basta verificare che tabs reali stiano in ul (senza PLUS_W).
     if (hasMultiRow.value) {
       const tabsTotal = items.reduce((s, t) => s + t.offsetWidth, 0) + (items.length - 1) * GAP
       const stableSingleRowUlWidth = tabbarEl.clientWidth - dynamicPaddingRight
-      const fitsWithPlus = (tabsTotal + GAP + PLUS_W) <= (stableSingleRowUlWidth - ulPadding)
-      multiRow = !fitsWithPlus
+      const fitsTabsOnly = tabsTotal <= (stableSingleRowUlWidth - ulPadding)
+      multiRow = !fitsTabsOnly
     } else {
       // Già single-row e nessun wrap visibile → resta single-row
       multiRow = false
@@ -387,6 +387,16 @@ const updateTabRowsLayout = () => {
   }
 
   hasMultiRow.value = multiRow
+
+  // S7-fix: posiziona inline + assoluto dopo ultima tab (single-row state).
+  // Fuori flex flow → non wrappa mai. In multi-row state il + è rimosso via v-if.
+  if (!multiRow) {
+    const plusEl = ul.querySelector('.v2-tab-new-li')
+    if (plusEl) {
+      const last = items[items.length - 1]
+      plusEl.style.left = `${last.offsetLeft + last.offsetWidth + GAP}px`
+    }
+  }
 
   // B14d: recalc pinnedTab anche quando hasMultiRow non flippa.
   // Su resize window la tab attiva può cambiare riga (row 1 ↔ row 2+) senza
@@ -544,13 +554,16 @@ watch(() => currentFile.value && currentFile.value.id, () => {
 // Se hasMultiRow passa a false (resize finestra/chiusura tab), pinnedTab va azzerato.
 // Se torna a true, ricalcola pinnedTab usando stessa logica del watch currentFile.id.
 watch(hasMultiRow, (newVal) => {
-  // P-DF8-3: lock 500ms post-flip → blocca scheduleUpdate durante transition CSS
-  // padding-right (max 0.5s in multi-row). Evita ResizeObserver-driven flicker.
-  // Timer post-lock fa una rimisura finale per riconciliare lo stato col layout stabile.
-  layoutLockUntil = Date.now() + 500
+  // P-DF8-3 (rev S7-fix): lock ridotto da 500ms → 150ms.
+  // Post B14e (topright-dynamic width fissa 150px) la padding-right tabbar non
+  // cambia mai → transition CSS non si attiva → flicker quasi impossibile.
+  // 150ms = sotto soglia percezione umana, mantiene debounce contro burst
+  // ResizeObserver (es. drag-resize finestra continuo) e protezione parziale
+  // per eventuali future regressioni su transition dimensionali.
+  layoutLockUntil = Date.now() + 150
   setTimeout(() => {
     nextTick(() => requestAnimationFrame(() => updateTabRowsLayout()))
-  }, 520)
+  }, 170)
   if (!newVal) {
     pinnedTab.value = null
     return
@@ -619,7 +632,10 @@ watch(hasMultiRow, (newVal) => {
 
 .v2-tabbar-scroll {
   flex: 1;
-  overflow: hidden;
+  /* S7-fix: visible per permettere inline + assoluto di sconfinare nello
+     slot riservato topright-dynamic (invisibile in single-row).
+     Clipping verticale row 2+ resta gestito da .v2-tabbar (max-height + overflow:hidden). */
+  overflow: visible;
   min-height: var(--v2-tab-h);
 }
 
@@ -629,6 +645,7 @@ watch(hasMultiRow, (newVal) => {
    overflow: hidden + max-height transition, sufficiente per clippare. */
 
 .v2-tabs {
+  position: relative; /* S7-fix: anchor per inline + assoluto */
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -743,8 +760,14 @@ watch(hasMultiRow, (newVal) => {
   color: var(--v2-text);
 }
 
-/* B3: "+" tondo come bolla circolare, inline subito dopo l'ultima tab */
+/* B3: "+" tondo come bolla circolare, inline subito dopo l'ultima tab.
+   S7-fix: position: absolute → fuori dal flex flow → non wrappa mai in row 2.
+   Posizione `left` calcolata da JS in updateTabRowsLayout() (ultima tab right + GAP).
+   Può sconfinare nello slot invisibile del topright-dynamic (single-row state). */
 .v2-tab-new-li {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
   width: 26px;
   height: 26px;
   font-size: 16px;
@@ -757,15 +780,17 @@ watch(hasMultiRow, (newVal) => {
   cursor: pointer;
   background: var(--v2-surface2);
   list-style: none;
-  transition: all var(--v2-t-fast) ease-in-out;
+  transition: background var(--v2-t-fast) ease-in-out,
+              color var(--v2-t-fast) ease-in-out,
+              transform var(--v2-t-fast) ease-in-out;
   user-select: none;
-  align-self: center;
 }
 
 .v2-tab-new-li:hover {
   background: var(--v2-accent-dim, var(--v2-surface));
   color: var(--v2-accent);
-  transform: scale(1.05);
+  /* S7-fix: combinare translateY(-50%) base + scale hover */
+  transform: translateY(-50%) scale(1.05);
 }
 
 /* B1: "+" inline single-row resta tondo. In multi-row si usa .v2-tr-plus dentro topright. */
