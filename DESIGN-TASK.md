@@ -18,7 +18,9 @@ Implementazione completa della UI v2 su fork MarkText (Electron + Vue3 + Pinia +
 - capire come gestire il flag wrap: se visualizzazione simil notepad++ allora wrap = true -> al termine della finestra le scritte vanno a capo; wrap = false -> non c'è un termine della riga, se il testo va oltre il bordo della finestra, apparira uno scroller in basso per scorrere la sezione di editor in orizzontale ; in visualizzazione markdown invece non ho ben chiaro come fare, perchè il testo è centrato con dei bordi, non tocca mai i bordi della finestra, quindi decidere se ignorare il flag wrap in quel capo, oppure applicare un altro comportamento piu coerente, a primo impatto non mi viene in mente
 - cambiare icona impostazioni, e metterla in alto insieme a command palette e seleziona file. la tab bar deve ottimizzare piu spazio possibile, attualmente lo spazio va bene, ma siamo praticamente al limite
 - capire dove si potrebbe mettere l'icona del cambio tema, in basso fa un po schifo, in alto non c'è spazio
-- per risolvere i precedenti ultimi problemi si potrebbe implementare un 
+- per risolvere i precedenti ultimi problemi si potrebbe implementare un menu hamburger in alto a destra per le icone fisse, ma non mi piace avere un secondo livello di menu. Capirfe come gestire
+- purtroppo ancora a volte si bugga la tab creata che non viene creata alla fine, ma in mezzo dopo aver spostato una tab con il drag (non è stato individuato bene il caso cin cui succede, sicuramente non con tutti i drag)
+magari succede quando sposto le tab davanti all'ultima tab e faccio un po di movimenti in quella zona, c'è qualcosa che sballa, è da capire.
 
 ## BUG IN SOSPESO / NOTE
 
