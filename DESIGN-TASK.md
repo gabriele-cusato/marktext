@@ -13,15 +13,7 @@ Implementazione completa della UI v2 su fork MarkText (Electron + Vue3 + Pinia +
 
 ## FIX E MODIFICHE FINALI
 
-- [BUG] attualmente il + può essere draggato, non dovrebbe
-- si puo mettere un dragger orizzontale abilitato da impostazioni per dare meno spazio volendo alla tab bar (spazio riservato alle tab), se il flag è attivo allora allo spegnimento bisognerà ricordare la posizione alla prossima accensione, mentre se è disattivato il comportamento da mantenere è quello attuale
-- capire come gestire il flag wrap: se visualizzazione simil notepad++ allora wrap = true -> al termine della finestra le scritte vanno a capo; wrap = false -> non c'è un termine della riga, se il testo va oltre il bordo della finestra, apparira uno scroller in basso per scorrere la sezione di editor in orizzontale ; in visualizzazione markdown invece non ho ben chiaro come fare, perchè il testo è centrato con dei bordi, non tocca mai i bordi della finestra, quindi decidere se ignorare il flag wrap in quel capo, oppure applicare un altro comportamento piu coerente, a primo impatto non mi viene in mente
-- cambiare icona impostazioni, e metterla in alto insieme a command palette e seleziona file. la tab bar deve ottimizzare piu spazio possibile, attualmente lo spazio va bene, ma siamo praticamente al limite
-- capire dove si potrebbe mettere l'icona del cambio tema, in basso fa un po schifo, in alto non c'è spazio
-- per risolvere i precedenti ultimi problemi si potrebbe implementare un menu hamburger in alto a destra per le icone fisse, ma non mi piace avere un secondo livello di menu. Capirfe come gestire
-- purtroppo ancora a volte si bugga la tab creata che non viene creata alla fine, ma in mezzo dopo aver spostato una tab con il drag (non è stato individuato bene il caso cin cui succede, sicuramente non con tutti i drag)
-magari succede quando sposto le tab davanti all'ultima tab e faccio un po di movimenti in quella zona, c'è qualcosa che sballa, è da capire.
-- aggiungere alle impostazioni il massimo di righe da mostrare, dopo verrà messo un hamburger che mostrerà un elenco verticale di tutte le tab in eccesso (tab clone visibile se è selezionata una tab presente nel menu di overflow)
+- aggiungere alle preferences nella sezione General, sotto Auto Save, il massimo di righe da mostrare, dopo se ci sono piu tabs aperte verrà messo un hamburger che mostrerà un elenco verticale di tutte le tab in eccesso (tab clone visibile se è selezionata una tab presente nel menu di overflow). L'icona dell'hamburger dev'essere visualizzata a sinistra nella tab bar nella prima riga in una posizione fissa e non dev'essere draggable. quindi se alla prossima tab che apro, ho superato il numero limite tutte le tab aperte tranne l'ultima che ho appena aperto che sforerebbe, deve andare dentro il menu dell'hamburger, il menu deve essere visibile andandoci sopra con l'hover. Ogni riga del menu hamburger aperto deve avere 2 elementi: titolo troncato se troppo lungo (sarebbe meglio troncato in mezzo con i 3 punti) e poi il bollino per indicare se ha modifiche non salvate o meno (il bollino si deve vedere solo se ha modifiche non salvate). Come ultima cosa sarebbe bello che l'animazione delle tab bar che vengono messe nell'hamburger fosse tipo che le tab fisicamente con l'animazione si spostino come risucchiate verso l'icona hamburger, e mentre si muovo dovrebbero scomparire (piu lentamente mentre si muovono e molto piu velocemente quando sono arrivate a destinazione), quindi alla creazione di una nuova tab l'animazione dev'essere che la tab viene creata, poi la tab bar si espande, appare con un animazione pop out (non so come si chiami) l'icona hamburger, poi tutte le tab vengono risucchiate e spariscono con fade out verso l'icona, poi alla fine la tab creata in precedenza si sposta al primo posto nella prima riga perchè rimane come ultima tab aperta visibile. Se modifico il counter mentre ci sono delle tab nel menu hamburger, se lo aumento, le tab di differenza devono essere spostate nuovamente nella tab bar normale anche di scatto, mentre se diminuisco il counter allora le tab in eccesso devono essere risucchiate come prima verso l'icona hamburger, le tab a essere risucchiate prima devono essere dalle prime alle ultime come ordine (è una coda). se è troppo complesso o fragile (le animazioni) dimmi pure e dimmi un'alternativa piu semplice che pero sia fluida.
 
 ## BUG IN SOSPESO / NOTE
 
@@ -33,42 +25,6 @@ magari succede quando sposto le tab davanti all'ultima tab e faccio un po di mov
 - **Ln/Col WYSIWYG**: Muya non espone coordinate reali, si usa DOM-walk per Prg (paragrafo).
 - **S5 — Architettura scroll sourceCode**: post-Bug6 fix lo scroll è gestito internamente da CodeMirror (`.CodeMirror-scroll`), NON da `.source-code` (overflow:hidden). Eventuali nuove feature che leggono/scrivono scrollTop devono usare API CM (`editor.getScrollInfo()`, `editor.scrollTo()`, `editor.on('scroll')`), MAI `sourceCodeContainer.value.scrollTop`.
 - **S6 — Word-boundary undo**: implementato sia su CM (`change` event + `lastModTime=0`) che Muya (`inputCtrl.js` su `insertText` con regex + `insertParagraph`/`insertLineBreak`). Per estendere set caratteri di boundary modificare regex in entrambi i punti coerentemente.
-- **S7 — `hasMultiRow` trigger borderline su inline + (RISOLTO)**:
-  - **Sintomo 1 (era):** quando la tab clone non c'è (active in row 1) e l'unico elemento dopo l'ultima tab è il + inline, il flag `hasMultiRow` poteva scattare prematuro perché lo spazio del + veniva contato nel predict hysteresis.
-  - **Sintomo 2 (era):** durante aggiunta/cancellazione tabs vicino al boundary, il + inline finiva visivamente in row 2 mentre `hasMultiRow=false`. Riguardava sempre l'ultima tab della prima riga.
-  - **Fix (S7-fix in `tabs.vue`):**
-    - `.v2-tab-new-li` → `position: absolute; top:50%; transform: translateY(-50%)` (fuori flex flow, mai wrap)
-    - `.v2-tabs` → `position: relative` (anchor per assoluto)
-    - `.v2-tabbar-scroll` → `overflow: visible` (no clip su + che sconfina nello slot invisibile topright-dynamic)
-    - `updateTabRowsLayout()` → 3 righe: `plusEl.style.left = lastTab.offsetLeft + lastTab.offsetWidth + GAP` post-detection
-    - Hysteresis return-to-single → tolto `PLUS_W` (inline + non più in flex flow, no contributo wrap)
-    - Hover style transform combinato: `translateY(-50%) scale(1.05)`
-  - **Razionale:** inline + ora sconfina liberamente nello slot 150px riservato a `v2-topright-dynamic` (invisibile in single-row: opacity 0, pointer-events:none). Multirow scatta solo quando tabs reali violano lo slot fisso. `PLUS_W` const ora unused (lasciato declared per eventuali future feature).
-  - **File:** `marktext/src/renderer/src/components/editorWithTabs/tabs.vue` `updateTabRowsLayout()`.
-
-- **S9 — Drag finestra app-region + hover-expand (RISOLTO)**:
-  - **Sintomo:** zona drag finestra (`-webkit-app-region: drag`) su `.v2-tabbar` poteva sopprimere `mouseenter` su `.v2-tabbar-scroll` quando cursore passava per gap/padding interno ul (zone drag inherit) → `tabsAreaHovered` non triggera → tab bar collassa nonostante mouse "in mezzo alle tabs".
-  - **Fix:** `no-drag` esplicito su `.v2-tabs` ul (NON su scroll-area) → gap/padding interno restano cliccabili + hover events liberi. Scroll-area resta drag → spazio dopo ul ristretta = drag region.
-  - **Regola:** elementi che fanno hover-expand o tracking mouse DEVONO essere `no-drag`. Drag region OK solo su zone "passive" (sfondo vuoto puro).
-
-- **S10 — Ul width dinamica, ResizeObserver tabbar root necessario (RISOLTO)**:
-  - **Sintomo:** dopo aver settato `ul.style.width = row1Width` inline, ridimensionare finestra non rilayoutava tabs → si compenetravano con topright.
-  - **Causa:** ResizeObserver su `tabDropContainer` (ul) non triggera perché ul ha width fissa inline → size invariata.
-  - **Fix:** aggiunto `tabbarResizeObs` su `.v2-tabbar` root → trigger `scheduleUpdate` su resize finestra → recalc `availableForContent` con nuovo `tabbar.clientWidth`.
-  - **NB:** cleanup `disconnect()` in `onBeforeUnmount`.
-
-- **S11 — Dragula drop handler + Vue v-for sync (RISOLTO)**:
-  - **Sintomo storico 1:** nuova tab in posizione errata dopo reorder dragula. **Causa:** sibling `gu-mirror` non filtrato → `isLastTab=true` → moveItem no-op se from era last index → state desync. **Fix:** filter `!sibling.classList.contains('gu-mirror')` nel realSibling check.
-  - **Sintomo storico 2:** drag tab → tab scompare, errori a catena (clone non aggiorna, editor non cambia). **Causa:** `removeChild(el)` manuale post-drop corrompe state interno dragula (refs invalidi) → drag successivi falliscono, Vue diff incoerente. **Fix:** NON toccare DOM. Vue v-for con `:key="file.id"` riconcilia naturalmente.
-  - **Sintomo storico 3:** clone pinnedTab non aggiornato post-drag. **Causa:** ResizeObserver burst durante drag flippa `hasMultiRow` transient → `layoutLockUntil` attivo → `scheduleUpdate` post-drop skippato. **Fix:** estratto `recomputePinnedTab(items, multiRow)` helper DOM-based (no lock check), drop handler chiama esplicitamente `nextTick → rAF → recomputePinnedTab()`.
-
-- **S8 — Lock layoutLockUntil ridotto 500→150ms (RISOLTO)**:
-  - **Sintomo:** dopo flip `hasMultiRow`, resize finestra causava leggero delay visibile (fino a 500ms) prima che `hasMultiRow` flippasse di nuovo, perché `layoutLockUntil = Date.now() + 500` bloccava `updateTabRowsLayout()`.
-  - **Causa storica:** lock progettato per evitare flicker durante transition CSS `padding-right` (0.5s) della tabbar.
-  - **Perché non serve più:** post DESIGN-FIX-8 (B14e) `v2-topright-dynamic` ha width FISSA 150px → `topRightEl.offsetWidth` costante → `padding-right` tabbar valore stabile → transition CSS mai attivata.
-  - **Fix:** `layoutLockUntil = Date.now() + 150` + setTimeout reconciliation 170ms (era 520ms). 150ms sotto soglia percezione umana, mantiene debounce contro burst ResizeObserver (drag-resize finestra) e protezione parziale per future regressioni dimensionali.
-  - **File:** `marktext/src/renderer/src/components/editorWithTabs/tabs.vue` `watch(hasMultiRow)`.
-
 ---
 
 ## ARCHITETTURA DEL PROGETTO
@@ -305,3 +261,33 @@ Aggiunto drag finestra OS-native dalla tab bar + serie restringimenti/fix UX.
 - **`recomputePinnedTab` separato da `updateTabRowsLayout`**: pinnedTab assignment può essere skippato se `layoutLockUntil` attivo (es. da ResizeObserver burst durante drag dragula). Estrarre logica in helper DOM-based chiamabile fuori dal lock (es. da drop handler) garantisce clone sempre aggiornato post-eventi async. Pattern: `updateTabRowsLayout` gestisce layout (gated dal lock), `recomputePinnedTab` gestisce solo state pinned (no gate).
 
 - **`justLoaded` flag (`store/editor.js`)**: pensato per Muya che normalizza markdown caricato (whitespace, newline). Primo `LISTEN_FOR_CONTENT_CHANGE` post-load consuma flag e sovrascrive `originalMarkdown` con contenuto normalizzato → baseline corretto per Muya. CodeMirror NON normalizza → consumare il flag rompe baseline → Ctrl+Z back-to-saved fallisce. Regola: in modalità sourceCode disabilitare flag immediatamente in `handleFileChange` post-`setValue`.
+
+- **Vue vdom `.el` staleness post-dragula (`tabs.vue`)**: dopo che dragula sposta nodi DOM, Vue mantiene internamente refs `.el` stale che puntano alle vecchie posizioni. Alla prossima inserzione (es. nuova tab), Vue usa `nextSibling` del ref stale → inserisce il nodo in posizione errata nel DOM. Fix: `:key` su v-for include un contatore `tabsRenderKey` incrementato su ogni `dragend` → Vue distrugge e ricrea tutti i `li.v2-tab` freschi → refs `.el` azzerati. Dragula non richiede re-init (lavora sul container `ul`, non sui figli registrati).
+
+### 17. Fix e UI sessione corrente
+
+- **Command palette quickbar (`commandPalette/index.vue`)**
+  - Aggiunta barra quickaction in cima alla palette (sopra la search bar) con due pulsanti: Preferences (⚙) e Theme (◐/◑)
+  - `openSettings`: emette `show-settings-modal` + chiude palette
+  - `changeTheme`: toglla `dark`/`light` via `SET_SINGLE_PREFERENCE` senza chiudere palette
+  - Separator verticale `.v2-cmd-qdiv` tra i due pulsanti
+
+- **Status bar wrap button disabilitato in markdown mode (`statusBar/index.vue`)**
+  - In markdown mode (`!sourceCode`): bottone Wrap ha classe `.v2-chip-disabled`, `disabled`, tooltip "Wrap non disponibile in modalità markdown"
+  - CSS: `opacity: 0.35` su `.v2-chip-disabled`; hover override neutralizzato (no background, no color change, no cursor not-allowed)
+  - Rimossi pulsanti Impostazioni (⚙) e Tema (◐/◑) dalla status bar (spostati nella command palette)
+
+- **Settings modal: freccia indietro → command palette (`settingsModal/index.vue`)**
+  - Pulsante `.v2-settings-back` (SVG chevron-left) visibile solo quando `activeSection === 'menu'`
+  - `backToPalette()`: emette `show-command-palette` + chiude modal → cross-fade palette/settings
+
+- **Bug: view mode non cambia chiudendo tab notepad++ → markdown (`store/editor.js`)**
+  - **Causa:** `FORCE_CLOSE_TAB` non chiamava `_applySourceCodeForFile` sul nuovo tab selezionato dopo chiusura → `sourceCode` preference restava su `true` anche se il nuovo tab attivo era markdown.
+  - **Fix:** aggiunta chiamata `_applySourceCodeForFile(fileState)` in `FORCE_CLOSE_TAB` dopo aver aggiornato `currentFile`, coerente con `UPDATE_CURRENT_FILE`.
+
+- **Bug: nuova tab in posizione errata dopo drag (`tabs.vue`)**
+  - **Causa root:** Vue vdom mantiene refs `.el` stale dopo che dragula sposta DOM. Su cancel dragula può creare duplicati + Vue ricrea elementi → alcuni `.el` puntano a nodi rimossi. Al successivo `NEW_UNTITLED_TAB`, Vue usa `nextSibling` del ref stale → inserisce `li` nella posizione sbagliata.
+  - **Fix:** `tabsRenderKey = ref(0)` a livello setup; `:key="\`${file.id}-${tabsRenderKey}\`"` su v-for; in `dragend` dopo `resyncDomToStore()` → `tabsRenderKey.value++` → Vue ricrea tutti i `li.v2-tab` fresh.
+  - **Fix correlato:** `moves: (el) => el.classList.contains('v2-tab')` in dragula config → esclude `.v2-tab-new-li` (pulsante +) dal drag.
+  - **Fix correlato:** `currentDragDropHandled` flag per filtrare doppio-fire spurio `drop` con sibling `gu-mirror`.
+  - `resyncDomToStore()` spostato a livello setup (era dentro `onMounted`) → accessibile da `newFile`, `watch(tabs)`, e handler dragula.
