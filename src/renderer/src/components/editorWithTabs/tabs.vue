@@ -99,7 +99,7 @@
         @click="openCommandPalette"
       >⌘</button>
       <button
-        class="v2-tr-btn"
+        class="v2-tr-btn v2-tr-btn-open"
         title="Apri file (Ctrl+O)"
         @click="openFileDialog"
       >
@@ -588,6 +588,14 @@ watch(tabs, () => {
   scheduleUpdate()
 }, { deep: false })
 
+// Riposiziona "+" inline quando dot isSaved appare/sparisce o filename cambia
+// (causano variazione di offsetWidth della pill → serve recalc left del +).
+// deep:false non catcherebbe queste variazioni interne agli oggetti tab.
+watch(
+  () => tabs.value.map(t => `${t.isSaved}|${t.filename}`).join(','),
+  () => scheduleUpdate()
+)
+
 // B5: aggiorna pinnedTab al cambio di tab attiva.
 // - Se la nuova tab attiva è in riga 1 → pinned sparisce
 // - Se è su riga 2+ → diventa pinned (cloned in riga 1)
@@ -1037,6 +1045,11 @@ watch(hasMultiRow, (newVal) => {
 .v2-tr-btn:hover {
   background: var(--v2-surface2);
   color: var(--v2-text);
+}
+
+/* Allineamento ottico SVG cartella rispetto all'icona ⌘ */
+.v2-tr-btn-open svg {
+  padding-bottom: 3px;
 }
 
 /* F7: button gestione finestra (più stretti e font specifico) */

@@ -5,7 +5,7 @@ import { getLongUniqueId } from '../utils/random'
 // [0.25, 0.5, 1, 2, 4, 8] <—?—> [256M, 500M/768M, 1G/1000M, 2G, 4G, 8G]
 // Electron 2.0.2 not support yet! So give a default value 4
 export const DEVICE_MEMORY = navigator.deviceMemory || 4 // Get the device memory number(Chrome >= 63)
-export const UNDO_DEPTH = DEVICE_MEMORY >= 4 ? 100 : 50
+export const UNDO_DEPTH = 500
 export const HAS_TEXT_BLOCK_REG = /^span$/i
 export const VOID_HTML_TAGS = Object.freeze(voidHtmlTags)
 export const HTML_TAGS = Object.freeze(htmlTags)

@@ -291,3 +291,16 @@ Aggiunto drag finestra OS-native dalla tab bar + serie restringimenti/fix UX.
   - **Fix correlato:** `moves: (el) => el.classList.contains('v2-tab')` in dragula config → esclude `.v2-tab-new-li` (pulsante +) dal drag.
   - **Fix correlato:** `currentDragDropHandled` flag per filtrare doppio-fire spurio `drop` con sibling `gu-mirror`.
   - `resyncDomToStore()` spostato a livello setup (era dentro `onMounted`) → accessibile da `newFile`, `watch(tabs)`, e handler dragula.
+
+- **Bug: "+" inline si interseca con tab quando isSaved cambia (`tabs.vue`)**
+  - **Causa:** `watch(tabs, ..., { deep: false })` non triggera su variazioni interne agli oggetti tab. Quando `isSaved` cambia (dot `v2-tab-dot` appare/sparisce), la pill cresce/decresce (da ~88px a ~105px per filenames corti), ma `updateTabRowsLayout` non veniva chiamato → `plusEl.style.left` restava alla posizione pre-espansione → overlap tab/+.
+  - **Fix:** aggiunto watch separato su `tabs.value.map(t => \`${t.isSaved}|${t.filename}\`).join(',')` → `scheduleUpdate()`. Triggera riposizionamento "+" ogni volta che dot o filename cambia su qualsiasi tab.
+
+- **Bug: Ctrl+Z non funzionava in modalità notepad++ dopo cambio tab (`sourceCode.vue`)**
+  - **Causa 1 — `cmStatePerTab` per-istanza:** `sourceCode.vue` usa `v-if` → si smonta/rimonta ad ogni cambio tab. `const cmStatePerTab = new Map()` era dentro `<script setup>` → ricreato ad ogni mount → history persa ad ogni ritorno sulla tab.
+  - **Causa 2 — loop commitTimer:** `LISTEN_FOR_CONTENT_CHANGE` (debounce 1s) aggiornava lo store → watch nel parent re-emetteva `file-changed` per la tab corrente → `handleFileChange` chiamava `setValue + setHistory` → history azzerata ogni secondo, anche senza cambiare tab.
+  - **Causa 3 — history non ripristinata al mount:** il vecchio codice ripristinava la history solo via `handleFileChange`, ma al mount il componente era già re-inizializzato con `markdown` prop fresca → nessun ripristino effettivo.
+  - **Fix 1:** `cmStatePerTab` spostato a livello modulo in un blocco `<script>` separato (prima di `<script setup>`) → sopravvive ai remount.
+  - **Fix 2:** `onBeforeUnmount` salva `{content, history, cursor}` nel Map prima di smontarsi.
+  - **Fix 3:** `onMounted` ripristina da `cmStatePerTab` se la tab è già stata visitata (`cmStatePerTab.has(id)`), con `setHistory` chiamato DOPO `setCursor` per evitare che il selection event del cursore finisca in cima allo stack undo e renda il Ctrl+Z un no-op visivo.
+  - **Fix 4:** early-return in `handleFileChange` quando `id === tabId.value` (stessa tab già attiva) per bloccare il loop commitTimer → store → `file-changed` → reset history.

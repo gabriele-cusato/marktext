@@ -5,6 +5,12 @@
   />
 </template>
 
+<script>
+// Livello modulo: sopravvive ai remount del componente (ogni cambio tab smonta/rimonta).
+// Se fosse dentro <script setup>, verrebbe ricreato ad ogni mount → history persa ad ogni cambio tab.
+const cmStatePerTab = new Map()
+</script>
+
 <script setup>
 import { ref, watch, onMounted, onBeforeUnmount, nextTick, markRaw } from 'vue'
 import { useEditorStore } from '@/store/editor'
@@ -42,6 +48,7 @@ const viewDestroyed = ref(false)
 const tabId = ref(null)
 const isFirstLoad = ref(true) // P6: evita LISTEN_FOR_CONTENT_CHANGE al primo handleFileChange
 let containerResizeObs = null  // P-DF8-6: ResizeObserver per refresh CodeMirror su resize container
+// cmStatePerTab è a livello modulo (vedi <script> sopra) → non ridichiarare qui
 
 const { theme, sourceCode } = storeToRefs(preferencesStore)
 const { currentFile: currentTab } = storeToRefs(editorStore)
@@ -94,6 +101,17 @@ const prepareTabSwitch = () => {
         muyaIndexCursor: cursor
       })
     }
+    // Salva snapshot {content, history} prima di invalidare tabId.
+    // getHistory() ritorna deep copy → non corrotta da setValue successivi.
+    // Usare il content CM (non lo store) garantisce consistenza con le posizioni in history.
+    if (editor.value) {
+      const hist = editor.value.getHistory()
+      console.log('[UNDO-DBG] prepareTabSwitch SAVE', tabId.value, 'done.length=', hist.done.length, 'undone.length=', hist.undone.length)
+      cmStatePerTab.set(tabId.value, {
+        content: editor.value.getValue(),
+        history: hist
+      })
+    }
     isFirstLoad.value = false
     tabId.value = null // invalidate tab id
   }
@@ -112,10 +130,44 @@ const scrollToCords = (y) => {
 }
 
 const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop }) => {
+  console.log('[UNDO-DBG] handleFileChange START id=', id, 'mapHas=', cmStatePerTab.has(id), 'mapSize=', cmStatePerTab.size, 'tabId=', tabId.value)
+
+  // Stessa tab già attiva: skip save/restore per preservare la history.
+  // commitTimer (1s) → LISTEN_FOR_CONTENT_CHANGE → store update → parent watch re-emette
+  // file-changed per la tab corrente. Fare setValue+setHistory qui azzerebbe lo stack undo
+  // ogni secondo, rendendo Ctrl+Z permanentemente inutile.
+  if (id === tabId.value) {
+    console.log('[UNDO-DBG] handleFileChange SKIP same-tab fire')
+    // Pulisce justLoaded: CM non normalizza come Muya → il content caricato è già il baseline
+    // corretto, nessun bisogno che LISTEN_FOR_CONTENT_CHANGE aggiorni originalMarkdown.
+    if (currentTab.value && currentTab.value.justLoaded) {
+      currentTab.value.justLoaded = false
+    }
+    return
+  }
+
   prepareTabSwitch()
 
-  if (typeof newMarkdown === 'string') {
+  // historyToRestore viene impostato se si ripristina uno snapshot.
+  // setHistory viene chiamato DOPO il cursor positioning (vedi sotto) perché setCursorAtFirstLine
+  // aggiunge un selection event alla history stack: se setHistory fosse prima, quel selection
+  // event finisce sopra e al Ctrl+Z CM5 lo salta (cambia solo cursore) + undoes il cambio sotto
+  // → 2 entry rimosse in un colpo e cursore salta a riga 1 invece di revertire il testo.
+  let historyToRestore = null
+
+  if (cmStatePerTab.has(id)) {
+    // Tab già visitata: ripristina content dallo snapshot. History ripristinata dopo il cursore.
+    const { content, history } = cmStatePerTab.get(id)
+    console.log('[UNDO-DBG] handleFileChange RESTORE id=', id, 'saved done.length=', history.done.length, 'contentLen=', content.length)
+    editor.value.setValue(content)
+    historyToRestore = history
+  } else if (typeof newMarkdown === 'string') {
+    // Prima visita: carica dal store, history parte da zero.
+    console.log('[UNDO-DBG] handleFileChange FIRST VISIT id=', id, 'newMarkdown len=', newMarkdown.length)
     editor.value.setValue(newMarkdown)
+  }
+
+  if (typeof newMarkdown === 'string' || cmStatePerTab.has(id)) {
     // P-DF8-1: tiny line + crash "Cannot read properties of undefined (reading 'map')".
     // Single rAF non basta: misura prima del paint completo, lineView restano stale →
     // tiny line + click su line non sincronizzata → mapFromLineView ritorna undefined.
@@ -157,6 +209,13 @@ const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop }) => {
     setCursorAtFirstLine(editor.value)
   }
 
+  // setHistory DOPO il cursor positioning: sovrascrive il selection event che setCursorAtFirstLine
+  // ha appena aggiunto, garantendo uno stack undo pulito senza eventi fantasma in cima.
+  if (historyToRestore) {
+    editor.value.setHistory(historyToRestore)
+    console.log('[UNDO-DBG] handleFileChange AFTER setHistory done.length=', editor.value.getHistory().done.length)
+  }
+
   if (typeof scrollTop === 'number') {
     scrollToCords(scrollTop)
   }
@@ -171,7 +230,14 @@ const handleInvalidateImageCache = () => {
 
 // Bug 2: handler undo/redo per modalità sourceCode (CodeMirror)
 const handleUndo = () => {
-  if (editor.value) editor.value.execCommand('undo')
+  if (editor.value) {
+    const hist = editor.value.getHistory()
+    const types = hist.done.map(e => e.ranges ? 'SEL' : 'CHG').join(',')
+    console.log('[UNDO-DBG] handleUndo CALLED done.length=', hist.done.length, 'undone=', hist.undone.length, 'types=[', types, ']')
+    editor.value.execCommand('undo')
+    const histAfter = editor.value.getHistory()
+    console.log('[UNDO-DBG] handleUndo AFTER done.length=', histAfter.done.length, 'undone=', histAfter.undone.length)
+  }
 }
 
 const handleRedo = () => {
@@ -312,7 +378,8 @@ onMounted(() => {
     // v2: lineWrapping pilotato da preferences.wordWrap (default true)
     lineWrapping: preferencesStore.wordWrap !== false,
     styleActiveLine: true,
-    direction: textDirection
+    direction: textDirection,
+    undoDepth: 10000
     // Bug 6: rimosso `viewportMargin: Infinity`. Con scroll interno CM (default)
     // è inutile e rendere tutte le righe DOM-side è uno spreco di performance.
   }
@@ -361,6 +428,8 @@ onMounted(() => {
   // newlineAndIndent via replaceSelection — fires 'change' ma NON 'inputRead'.
   // change.text è array split su '\n' → join('\n') restituisce testo originale incluso \n.
   codeMirrorInstance.on('change', (cm, change) => {
+    const isDone = change.origin !== 'setValue'
+    if (isDone) console.log('[UNDO-DBG] CM change origin=', change.origin, 'done.length=', cm.doc.history.done.length)
     if (change.origin === '+input' && /[\s.,;:!?]/.test(change.text.join('\n'))) {
       cm.doc.history.lastModTime = 0
     }
@@ -377,30 +446,51 @@ onMounted(() => {
     handleScroll()
   })
 
-  if (muyaIndexCursor && muyaIndexCursor.anchor && muyaIndexCursor.focus) {
-    const { anchor, focus } = muyaIndexCursor
-    codeMirrorInstance.setSelection(anchor, focus, { scroll: true })
+  // Ripristino da snapshot salvato in onBeforeUnmount (cambio tab → smonta/rimonta).
+  // cmStatePerTab è a livello modulo → sopravvive ai remount.
+  // setHistory va DOPO setCursor per non lasciare un selection event in cima allo stack.
+  if (cmStatePerTab.has(id)) {
+    const { content, history, cursor: savedCursor } = cmStatePerTab.get(id)
+    console.log('[UNDO-DBG] onMounted RESTORE', id, 'done.length=', history.done.length, 'contentLen=', content.length)
+    codeMirrorInstance.setValue(content)
+    if (savedCursor) {
+      codeMirrorInstance.setCursor(savedCursor)
+    } else {
+      setCursorAtFirstLine(codeMirrorInstance)
+    }
+    codeMirrorInstance.setHistory(history)
   } else {
-    setCursorAtFirstLine(codeMirrorInstance)
+    // Prima visita a questa tab: cursor da muyaIndexCursor (se disponibile)
+    if (muyaIndexCursor && muyaIndexCursor.anchor && muyaIndexCursor.focus) {
+      const { anchor, focus } = muyaIndexCursor
+      codeMirrorInstance.setSelection(anchor, focus, { scroll: true })
+    } else {
+      setCursorAtFirstLine(codeMirrorInstance)
+    }
   }
 
   editor.value = codeMirrorInstance
   tabId.value = id
+  console.log('[UNDO-DBG] onMounted id=', id, 'hasSnapshot=', cmStatePerTab.has(id))
 
   // P-DF8-8: fix tiny line + click-shift via setTimeout(150ms).
   // Doppio rAF non basta: layout + flex computations richiedono più tempo a settle.
   // setTimeout(150) garantisce che container abbia dimensioni reali.
   // Tab switch funziona perché avviene SECONDI dopo mount (layout già completo).
+  // NOTA: setValue azzera la history come side effect → salviamo e ripristiniamo;
+  // setHistory chiamato DOPO setCursor per non lasciare un selection event in cima allo stack.
   setTimeout(() => {
     if (!editor.value || viewDestroyed.value) return
     const cm = editor.value
     const cur = cm.getCursor()
     // Bug 6: scroll surface ora è interno CM
     const scrollTop = cm.getScrollInfo().top
-    cm.setValue(cm.getValue())   // forza re-creation lineView con dimensioni stabili
+    const savedHist = cm.getHistory()    // cattura history prima che setValue la azzeri
+    cm.setValue(cm.getValue())           // forza re-creation lineView con dimensioni stabili
     cm.setCursor(cur)
     cm.scrollTo(null, scrollTop)
     cm.refresh()
+    cm.setHistory(savedHist)             // ripristina dopo setCursor per stack undo pulito
   }, 150)
   // Safety net: ResizeObserver per resize successivi (sidebar toggle, window resize)
   if (window.ResizeObserver && container) {
@@ -416,6 +506,19 @@ onMounted(() => {
 onBeforeUnmount(() => {
   viewDestroyed.value = true
   if (commitTimer.value) clearTimeout(commitTimer.value)
+
+  // Salva snapshot per ripristino al prossimo mount (cambio tab).
+  // Fatto prima di bus.off e del cleanup per avere editor.value ancora valido.
+  if (editor.value && tabId.value) {
+    const hist = editor.value.getHistory()
+    console.log('[UNDO-DBG] onBeforeUnmount SAVE', tabId.value, 'done.length=', hist.done.length)
+    cmStatePerTab.set(tabId.value, {
+      content: editor.value.getValue(),
+      history: hist,
+      cursor: editor.value.getCursor()
+    })
+  }
+
   // P-DF8-6: cleanup ResizeObserver
   if (containerResizeObs) {
     containerResizeObs.disconnect()
