@@ -11,6 +11,18 @@
       >
         <!-- Header sticky (F4: titolo grosso + icona settings a sinistra) -->
         <div class="v2-settings-hdr">
+          <!-- Freccia torna alla command palette (solo sul menu principale) -->
+          <button
+            v-if="activeSection === 'menu'"
+            class="v2-settings-back"
+            title="Torna alla Command Palette"
+            @click="backToPalette"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m15 18-6-6 6-6" />
+            </svg>
+          </button>
+          <!-- Freccia navigazione interna (sezione → menu) -->
           <button
             v-if="activeSection !== 'menu'"
             class="v2-settings-back"
@@ -184,6 +196,12 @@ const goToSection = (id) => {
 const goBackToMenu = () => {
   navDirection.value = 'v2-slide-bwd'
   activeSection.value = 'menu'
+}
+
+// Crossfade: settings sfuma mentre command palette riappare
+const backToPalette = () => {
+  bus.emit('show-command-palette')
+  close()
 }
 
 const activeTitle = computed(() => {

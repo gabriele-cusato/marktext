@@ -833,6 +833,8 @@ export const useEditorStore = defineStore('editor', {
       if (file.id === currentFile.id) {
         const fileState = this.tabs[index] || this.tabs[index - 1] || this.tabs[0] || {}
         this.currentFile = fileState
+        // Aggiorna sourceCode mode in base al nuovo tab (come fa UPDATE_CURRENT_FILE)
+        this._applySourceCodeForFile(fileState)
         if (typeof fileState.markdown === 'string') {
           const { id, markdown, cursor, history, pathname, scrollTop, blocks } = fileState
           window.DIRNAME = pathname ? window.path.dirname(pathname) : ''

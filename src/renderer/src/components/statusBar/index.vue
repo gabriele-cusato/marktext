@@ -6,23 +6,12 @@
       <span class="v2-si">{{ positionLabel }}</span>
     </div>
 
-    <!-- Destra: Settings/Theme / Wrap / Zoom / EOL / Encoding -->
+    <!-- Destra: Wrap / Zoom / EOL / Encoding -->
     <div class="v2-status-r">
-      <!-- F5: Settings + Theme spostati qui dalla tab bar, prima di Wrap -->
       <button
-        class="v2-sb-icon"
-        title="Settings"
-        @click="openSettings"
-      >⚙</button>
-      <button
-        class="v2-sb-icon"
-        :title="`Toggle theme (current: ${themeValue})`"
-        @click="toggleTheme"
-      >{{ themeValue === 'dark' ? '◐' : '◑' }}</button>
-
-      <button
-        :class="['v2-chip', { 'v2-chip-on': wordWrap }]"
-        :title="t('statusBar.toggleWrap', 'Toggle Word Wrap')"
+        :class="['v2-chip', { 'v2-chip-on': wordWrap, 'v2-chip-disabled': !sourceCode }]"
+        :title="!sourceCode ? 'Wrap non disponibile in modalità markdown' : t('statusBar.toggleWrap', 'Toggle Word Wrap')"
+        :disabled="!sourceCode"
         @click="toggleWrap"
       >Wrap</button>
       <button
@@ -128,14 +117,7 @@ import bus from '@/bus'
 const editorStore = useEditorStore()
 const preferencesStore = usePreferencesStore()
 const { currentFile } = storeToRefs(editorStore)
-const { zoom, sourceCode, theme: themeValue } = storeToRefs(preferencesStore)
-
-// F5: handler settings + theme spostati dalla tab bar
-const openSettings = () => bus.emit('show-settings-modal')
-const toggleTheme = () => {
-  const next = themeValue.value === 'dark' ? 'light' : 'dark'
-  preferencesStore.SET_SINGLE_PREFERENCE({ type: 'theme', value: next })
-}
+const { zoom, sourceCode } = storeToRefs(preferencesStore)
 
 // i18n con fallback su default string
 const i18n = useI18n()
@@ -407,6 +389,15 @@ onBeforeUnmount(() => {
 .v2-chip:hover {
   background: var(--v2-surface2);
   color: var(--v2-text2);
+}
+
+.v2-chip-disabled {
+  opacity: 0.35;
+}
+
+.v2-chip-disabled:hover {
+  background: none;
+  color: var(--v2-text3);
 }
 
 .v2-chip-on {

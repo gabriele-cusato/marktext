@@ -9,6 +9,19 @@
         :class="['v2-cmd', { 'v2-closing': closing }]"
         @mousedown.stop
       >
+        <!-- Riga quickaction: Impostazioni (sinistra) e Cambia Tema (destra) -->
+        <div class="v2-cmd-quickbar">
+          <button class="v2-cmd-qbtn" @click="openSettings">
+            <span class="v2-cmd-qbtn-icon">⚙</span>
+            <span class="v2-cmd-qbtn-label">Preferences</span>
+          </button>
+          <div class="v2-cmd-qdiv" />
+          <button class="v2-cmd-qbtn" @click="changeTheme">
+            <span class="v2-cmd-qbtn-icon">{{ themeValue === 'dark' ? '◐' : '◑' }}</span>
+            <span class="v2-cmd-qbtn-label">Theme</span>
+          </button>
+        </div>
+
         <div class="v2-cmd-search">
           <span class="v2-cmd-icon">⌘</span>
           <input
@@ -71,6 +84,8 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, nextTick, onBeforeUpdate, computed } from 'vue'
 import { useCommandCenterStore } from '@/store/commandCenter'
+import { usePreferencesStore } from '@/store/preferences'
+import { storeToRefs } from 'pinia'
 import log from 'electron-log'
 import bus from '../../bus'
 import loading from '../loading'
@@ -100,6 +115,20 @@ const availableCommands = ref([])
 const searcherBusy = ref(false)
 
 const commandCenterStore = useCommandCenterStore()
+const preferencesStore = usePreferencesStore()
+const { theme: themeValue } = storeToRefs(preferencesStore)
+
+// Apre impostazioni con crossfade: palette sfuma mentre settings appare
+const openSettings = () => {
+  bus.emit('show-settings-modal')
+  close()
+}
+
+// Cambia tema senza chiudere la palette
+const changeTheme = () => {
+  const next = themeValue.value === 'dark' ? 'light' : 'dark'
+  preferencesStore.SET_SINGLE_PREFERENCE({ type: 'theme', value: next })
+}
 
 onBeforeUpdate(() => {
   commandItems = []
@@ -478,5 +507,55 @@ onBeforeUnmount(() => {
   gap: 12px;
   flex-shrink: 0;
   font-family: var(--v2-sans);
+}
+
+/* ── Quick-action bar (Impostazioni / Cambia Tema) ─── */
+.v2-cmd-quickbar {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--v2-border);
+  flex-shrink: 0;
+}
+
+.v2-cmd-qbtn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 18px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--v2-text2);
+  font-family: var(--v2-sans);
+  font-size: 12.5px;
+  text-align: left;
+  line-height: 1.3;
+  transition: background var(--v2-t-fast) ease-in-out, color var(--v2-t-fast) ease-in-out;
+}
+
+.v2-cmd-qbtn:hover {
+  background: var(--v2-accent-dim);
+  color: var(--v2-accent);
+}
+
+.v2-cmd-qbtn-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.v2-cmd-qbtn-label {
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+/* Separatore verticale tra i due bottoni */
+.v2-cmd-qdiv {
+  width: 1px;
+  background: var(--v2-border);
+  margin: 6px 0;
+  flex-shrink: 0;
 }
 </style>

@@ -1,8 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run lint:*)"
-	  "PowerShell(Test-Path \"C:\\\\Projects\\\\MarkText\"; [System.IO.Directory]::GetFiles\\(\"C:\\\\Projects\\\\MarkText\"\\) | Select-Object -First 5; [System.IO.Directory]::GetDirectories\\(\"C:\\\\Projects\\\\MarkText\"\\) | Select-Object -First 10)",
+      "Bash(npm run lint:*)",
+      "PowerShell(Test-Path \"C:\\\\Projects\\\\MarkText\"; [System.IO.Directory]::GetFiles\\(\"C:\\\\Projects\\\\MarkText\"\\) | Select-Object -First 5; [System.IO.Directory]::GetDirectories\\(\"C:\\\\Projects\\\\MarkText\"\\) | Select-Object -First 10)",
       "WebSearch"
     ]
   }

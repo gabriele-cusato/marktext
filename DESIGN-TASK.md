@@ -21,6 +21,7 @@ Implementazione completa della UI v2 su fork MarkText (Electron + Vue3 + Pinia +
 - per risolvere i precedenti ultimi problemi si potrebbe implementare un menu hamburger in alto a destra per le icone fisse, ma non mi piace avere un secondo livello di menu. Capirfe come gestire
 - purtroppo ancora a volte si bugga la tab creata che non viene creata alla fine, ma in mezzo dopo aver spostato una tab con il drag (non è stato individuato bene il caso cin cui succede, sicuramente non con tutti i drag)
 magari succede quando sposto le tab davanti all'ultima tab e faccio un po di movimenti in quella zona, c'è qualcosa che sballa, è da capire.
+- aggiungere alle impostazioni il massimo di righe da mostrare, dopo verrà messo un hamburger che mostrerà un elenco verticale di tutte le tab in eccesso (tab clone visibile se è selezionata una tab presente nel menu di overflow)
 
 ## BUG IN SOSPESO / NOTE
 

@@ -19,7 +19,7 @@
       >
         <li
           v-for="file of tabs"
-          :key="file.id"
+          :key="`${file.id}-${tabsRenderKey}`"
           :title="file.pathname || file.filename"
           :class="['v2-tab', {
             'v2-tab-active': currentFile.id === file.id,
@@ -329,6 +329,35 @@ const scheduleUpdate = () => {
   })
 }
 
+// Incrementato su ogni dragend → forza Vue a ricreare tutti i li.v2-tab fresh,
+// eliminando i riferimenti .el stale nel vdom che causano inserimento nella posizione sbagliata.
+const tabsRenderKey = ref(0)
+
+const resyncDomToStore = () => {
+  const ul = tabDropContainer.value
+  if (!ul) return
+  const storeOrder = tabs.value.map(t => String(t.id))
+  const domOrder = Array.from(ul.querySelectorAll('li.v2-tab')).map(e => e.getAttribute('data-id'))
+  if (JSON.stringify(domOrder) === JSON.stringify(storeOrder)) return
+
+  // Rimuovi duplicati prima di riordinare
+  const seen = new Set()
+  Array.from(ul.querySelectorAll('li.v2-tab')).forEach(el => {
+    const id = el.getAttribute('data-id')
+    if (seen.has(id)) ul.removeChild(el)
+    else seen.add(id)
+  })
+
+  // Inserisce ogni tab nell'ordine corretto prima del "+" inline
+  const anchor = ul.querySelector('.v2-tab-new-li') || null
+  storeOrder.forEach(id => {
+    const el = ul.querySelector(`li.v2-tab[data-id="${id}"]`)
+    if (el) ul.insertBefore(el, anchor)
+  })
+}
+
+let currentDragDropHandled = false
+
 // P-DF8-4: rilevazione multi-row state-aware con larghezza tabbar STABILE.
 // Causa flicker precedente: ul.clientWidth varia durante transition padding-right
 // (160→320 in 0.3s). Soluzione: usare .v2-tabbar.clientWidth (NON cambia con padding
@@ -474,37 +503,37 @@ onMounted(() => {
   scheduleUpdate()
 
   // Drag and drop ordering
+
   drake = dragula([tabDropContainer.value], {
     direction: 'horizontal',
     revertOnSpill: true,
     mirrorContainer: tabDropContainer.value,
-    ignoreInputTextSelection: false
-  }).on('drop', (el, target, source, sibling) => {
+    ignoreInputTextSelection: false,
+    moves: (el) => el.classList.contains('v2-tab')
+  })
+  .on('drag', () => {
+    currentDragDropHandled = false
+  })
+  .on('dragend', () => {
+    nextTick(() => {
+      resyncDomToStore()
+      // Forza Vue a ricreare tutti i li.v2-tab con key fresca → azzera .el stale nel vdom
+      tabsRenderKey.value++
+    })
+  })
+  .on('drop', (el, target, source, sibling) => {
     const droppedId = el.getAttribute('data-id')
-    // P5: ignora "+" inline (.v2-tab-new-li) e gu-mirror (placeholder dragula).
-    // Senza filter gu-mirror, sibling poteva risultare =mirror → isLastTab=true →
-    // toId=null → moveItem(tabs, fromIndex, tabs.length-1) → se fromIndex era ultima
-    // posizione = no-op → state non aggiornato → desync con DOM mosso da dragula.
+    const isMirror = sibling && sibling.classList.contains('gu-mirror')
+    if (isMirror && currentDragDropHandled) return
+    currentDragDropHandled = true
+
     const realSibling = sibling
       && !sibling.classList.contains('v2-tab-new-li')
       && !sibling.classList.contains('gu-mirror')
       ? sibling : null
     const nextTabId = realSibling && realSibling.getAttribute('data-id')
-    if (!droppedId || (realSibling && !nextTabId)) {
-      console.error('Tab reorder error: invalid tab IDs')
-      return
-    }
-    // NB: NON rimuovere el dal DOM manualmente. Dragula tiene reference interno
-    // a el per cleanup post-drop; rimuoverlo lo lascia in stato corrotto →
-    // drag successivi falliscono, Vue diff incoerente, clone/editor non aggiornano.
-    // Vue v-for con :key="file.id" riconcilia DOM dopo EXCHANGE_TABS_BY_ID.
-    editorStore.EXCHANGE_TABS_BY_ID({
-      fromId: droppedId,
-      toId: nextTabId || null
-    })
-    // Force pinnedTab recalc post-Vue-rerender bypassando layoutLock
-    // (drag può aver flippato hasMultiRow transient → lock attivo → updateTabRowsLayout
-    // via watch(tabs) viene skippato → clone non aggiornato dopo drag).
+    if (!droppedId || (realSibling && !nextTabId)) return
+    editorStore.EXCHANGE_TABS_BY_ID({ fromId: droppedId, toId: nextTabId || null })
     nextTick(() => requestAnimationFrame(() => recomputePinnedTab()))
   })
 
