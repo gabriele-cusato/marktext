@@ -578,6 +578,22 @@ Il design originale era pensato per watcher di *directory* (dove filtrare i non-
 **Fix:** aggiunti acceleratori `Ctrl+Plus` e `Ctrl+-` per `window.zoomIn` e `window.zoomOut`
 in `keybindingsWindows.js` e `keybindingsLinux.js` (erano vuoti `''`).
 
+---
+
+## Bug B6 — Ctrl+Z in un tab ripristina testo di un'altra tab ❌ DA INVESTIGARE
+
+**Sintomo:** premendo Ctrl+Z in un tab, il testo che viene ripristinato appartiene a un altro tab (storia undo cross-tab).
+
+**Modalità interessata:** da verificare (source mode / markdown / entrambe).
+
+**Ipotesi:** la history undo non è isolata per tab — possibile che CodeMirror condivida la stessa istanza o che al cambio tab la history non venga salvata/ripristinata correttamente.
+
+**File sospetti:**
+- `src/renderer/src/components/editorWithTabs/sourceCode.vue` — gestione istanza CM e cambio tab (contiene già log `[UNDO-DBG]` residui da un fix precedente su Ctrl+Z)
+- `src/renderer/src/store/editor.js` — stato tab, `prepareTabSwitch`
+
+**⚠️ DA FARE:** investigare come viene creata/gestita l'istanza CodeMirror per tab e se la history viene correttamente isolata al cambio tab.
+
 ## Task 6 — Zoom solo testo
 - [ ] Ctrl+rotella sull'editor → cambia SOLO la dimensione del testo
 - [ ] La title bar NON cambia dimensione
