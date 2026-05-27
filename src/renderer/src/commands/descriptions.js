@@ -71,6 +71,8 @@ const getCommandDescriptions = () => {
     // 选择和复制
     'edit.select-all': t('commands.edit.selectAll'),
     'edit.duplicate': t('commands.edit.duplicate'),
+    'edit.to-uppercase': t('commands.edit.toUpperCase'),
+    'edit.to-lowercase': t('commands.edit.toLowerCase'),
 
     // 段落操作
     'edit.create-paragraph': t('commands.edit.createParagraph'),

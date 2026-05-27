@@ -71,7 +71,7 @@ export default new Map([
   // Format menu
   ['format.strong', 'Command+B'],
   ['format.emphasis', 'Command+I'],
-  ['format.underline', 'Command+U'],
+  ['format.underline', ''],
   ['format.superscript', ''],
   ['format.subscript', ''],
   ['format.highlight', 'Shift+Command+H'],
@@ -116,5 +116,9 @@ export default new Map([
   ['tabs.switchToEighth', 'Ctrl+8'],
   ['tabs.switchToNinth', 'Ctrl+9'],
   ['tabs.switchToTenth', 'Ctrl+0'],
-  ['file.quick-open', 'Command+P']
+  ['file.quick-open', 'Command+P'],
+
+  // Case transform — globali in entrambe le viste
+  ['edit.to-uppercase', 'Command+Shift+U'],
+  ['edit.to-lowercase', 'Command+U']
 ])

@@ -12,7 +12,7 @@ const cmStatePerTab = new Map()
 </script>
 
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount, nextTick, markRaw } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount, nextTick, markRaw, computed } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import { usePreferencesStore } from '@/store/preferences'
 import { storeToRefs } from 'pinia'
@@ -50,7 +50,7 @@ const isFirstLoad = ref(true) // P6: evita LISTEN_FOR_CONTENT_CHANGE al primo ha
 let containerResizeObs = null  // P-DF8-6: ResizeObserver per refresh CodeMirror su resize container
 // cmStatePerTab è a livello modulo (vedi <script> sopra) → non ridichiarare qui
 
-const { theme, sourceCode } = storeToRefs(preferencesStore)
+const { theme, sourceCode, zoom } = storeToRefs(preferencesStore)
 const { currentFile: currentTab } = storeToRefs(editorStore)
 
 watch(
@@ -61,6 +61,16 @@ watch(
     }
   }
 )
+
+// Font-size base CodeMirror (px) — allineato al valore in one-dark.css/sourceCode.vue style
+const CM_BASE_FONT_SIZE = 18
+
+watch(zoom, (newZoom) => {
+  if (!editor.value) return
+  const factor = newZoom || 1
+  editor.value.getWrapperElement().style.fontSize = `${Math.round(CM_BASE_FONT_SIZE * factor)}px`
+  editor.value.refresh()
+})
 
 const getMarkdownAndCursor = (cm) => {
   let focus = cm.getCursor('head')
@@ -106,7 +116,6 @@ const prepareTabSwitch = () => {
     // Usare il content CM (non lo store) garantisce consistenza con le posizioni in history.
     if (editor.value) {
       const hist = editor.value.getHistory()
-      console.log('[UNDO-DBG] prepareTabSwitch SAVE', tabId.value, 'done.length=', hist.done.length, 'undone.length=', hist.undone.length)
       cmStatePerTab.set(tabId.value, {
         content: editor.value.getValue(),
         history: hist
@@ -130,14 +139,11 @@ const scrollToCords = (y) => {
 }
 
 const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop }) => {
-  console.log('[UNDO-DBG] handleFileChange START id=', id, 'mapHas=', cmStatePerTab.has(id), 'mapSize=', cmStatePerTab.size, 'tabId=', tabId.value)
-
   // Stessa tab già attiva: skip save/restore per preservare la history.
   // commitTimer (1s) → LISTEN_FOR_CONTENT_CHANGE → store update → parent watch re-emette
   // file-changed per la tab corrente. Fare setValue+setHistory qui azzerebbe lo stack undo
   // ogni secondo, rendendo Ctrl+Z permanentemente inutile.
   if (id === tabId.value) {
-    console.log('[UNDO-DBG] handleFileChange SKIP same-tab fire')
     // Pulisce justLoaded: CM non normalizza come Muya → il content caricato è già il baseline
     // corretto, nessun bisogno che LISTEN_FOR_CONTENT_CHANGE aggiorni originalMarkdown.
     if (currentTab.value && currentTab.value.justLoaded) {
@@ -158,12 +164,10 @@ const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop }) => {
   if (cmStatePerTab.has(id)) {
     // Tab già visitata: ripristina content dallo snapshot. History ripristinata dopo il cursore.
     const { content, history } = cmStatePerTab.get(id)
-    console.log('[UNDO-DBG] handleFileChange RESTORE id=', id, 'saved done.length=', history.done.length, 'contentLen=', content.length)
     editor.value.setValue(content)
     historyToRestore = history
   } else if (typeof newMarkdown === 'string') {
     // Prima visita: carica dal store, history parte da zero.
-    console.log('[UNDO-DBG] handleFileChange FIRST VISIT id=', id, 'newMarkdown len=', newMarkdown.length)
     editor.value.setValue(newMarkdown)
   }
 
@@ -213,7 +217,6 @@ const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop }) => {
   // ha appena aggiunto, garantendo uno stack undo pulito senza eventi fantasma in cima.
   if (historyToRestore) {
     editor.value.setHistory(historyToRestore)
-    console.log('[UNDO-DBG] handleFileChange AFTER setHistory done.length=', editor.value.getHistory().done.length)
   }
 
   if (typeof scrollTop === 'number') {
@@ -231,17 +234,41 @@ const handleInvalidateImageCache = () => {
 // Bug 2: handler undo/redo per modalità sourceCode (CodeMirror)
 const handleUndo = () => {
   if (editor.value) {
-    const hist = editor.value.getHistory()
-    const types = hist.done.map(e => e.ranges ? 'SEL' : 'CHG').join(',')
-    console.log('[UNDO-DBG] handleUndo CALLED done.length=', hist.done.length, 'undone=', hist.undone.length, 'types=[', types, ']')
     editor.value.execCommand('undo')
-    const histAfter = editor.value.getHistory()
-    console.log('[UNDO-DBG] handleUndo AFTER done.length=', histAfter.done.length, 'undone=', histAfter.undone.length)
   }
 }
 
 const handleRedo = () => {
   if (editor.value) editor.value.execCommand('redo')
+}
+
+// Trasforma il case della selezione corrente in CodeMirror
+const handleToUpperCase = () => {
+  if (!sourceCode.value || !editor.value) return
+  const updated = editor.value.getSelections().map(s => s.toUpperCase())
+  editor.value.replaceSelections(updated, 'around')
+}
+
+const handleToLowerCase = () => {
+  if (!sourceCode.value || !editor.value) return
+  const updated = editor.value.getSelections().map(s => s.toLowerCase())
+  editor.value.replaceSelections(updated, 'around')
+}
+
+// Intercetta eventi format in source mode per operazioni riga (Ctrl+D / Ctrl+L)
+const handleFormatInSource = (type) => {
+  if (!sourceCode.value || !editor.value) return
+  if (type === 'del') {
+    // Ctrl+D in source = duplica riga corrente
+    const cur = editor.value.getCursor()
+    const line = editor.value.getLine(cur.line)
+    editor.value.replaceRange(line + '\n', { line: cur.line, ch: 0 })
+    editor.value.focus()
+  } else if (type === 'link') {
+    // Ctrl+L in source = elimina riga corrente
+    editor.value.execCommand('deleteLine')
+    editor.value.focus()
+  }
 }
 
 const handleSelectAll = () => {
@@ -379,7 +406,12 @@ onMounted(() => {
     lineWrapping: preferencesStore.wordWrap !== false,
     styleActiveLine: true,
     direction: textDirection,
-    undoDepth: 10000
+    undoDepth: 10000,
+    // Ctrl+Shift+↑/↓ liberi → sposta riga su/giù solo in source mode
+    extraKeys: {
+      'Ctrl-Shift-Up': 'swapLineUp',
+      'Ctrl-Shift-Down': 'swapLineDown'
+    }
     // Bug 6: rimosso `viewportMargin: Infinity`. Con scroll interno CM (default)
     // è inutile e rendere tutte le righe DOM-side è uno spreco di performance.
   }
@@ -399,6 +431,9 @@ onMounted(() => {
   // ma editor.vue handleUndo/handleRedo escono in sourceCode mode → instradiamo a CodeMirror
   bus.on('undo', handleUndo)
   bus.on('redo', handleRedo)
+  bus.on('toUpperCase', handleToUpperCase)
+  bus.on('toLowerCase', handleToLowerCase)
+  bus.on('format', handleFormatInSource)
   // v2: toggle word wrap dalla status bar
   bus.on('mt::wordwrap-change', (value) => {
     if (editor.value) {
@@ -428,8 +463,6 @@ onMounted(() => {
   // newlineAndIndent via replaceSelection — fires 'change' ma NON 'inputRead'.
   // change.text è array split su '\n' → join('\n') restituisce testo originale incluso \n.
   codeMirrorInstance.on('change', (cm, change) => {
-    const isDone = change.origin !== 'setValue'
-    if (isDone) console.log('[UNDO-DBG] CM change origin=', change.origin, 'done.length=', cm.doc.history.done.length)
     if (change.origin === '+input' && /[\s.,;:!?]/.test(change.text.join('\n'))) {
       cm.doc.history.lastModTime = 0
     }
@@ -451,7 +484,6 @@ onMounted(() => {
   // setHistory va DOPO setCursor per non lasciare un selection event in cima allo stack.
   if (cmStatePerTab.has(id)) {
     const { content, history, cursor: savedCursor } = cmStatePerTab.get(id)
-    console.log('[UNDO-DBG] onMounted RESTORE', id, 'done.length=', history.done.length, 'contentLen=', content.length)
     codeMirrorInstance.setValue(content)
     if (savedCursor) {
       codeMirrorInstance.setCursor(savedCursor)
@@ -471,7 +503,6 @@ onMounted(() => {
 
   editor.value = codeMirrorInstance
   tabId.value = id
-  console.log('[UNDO-DBG] onMounted id=', id, 'hasSnapshot=', cmStatePerTab.has(id))
 
   // P-DF8-8: fix tiny line + click-shift via setTimeout(150ms).
   // Doppio rAF non basta: layout + flex computations richiedono più tempo a settle.
@@ -511,7 +542,6 @@ onBeforeUnmount(() => {
   // Fatto prima di bus.off e del cleanup per avere editor.value ancora valido.
   if (editor.value && tabId.value) {
     const hist = editor.value.getHistory()
-    console.log('[UNDO-DBG] onBeforeUnmount SAVE', tabId.value, 'done.length=', hist.done.length)
     cmStatePerTab.set(tabId.value, {
       content: editor.value.getValue(),
       history: hist,
@@ -532,6 +562,9 @@ onBeforeUnmount(() => {
   bus.off('image-action', handleImageAction)
   bus.off('undo', handleUndo)
   bus.off('redo', handleRedo)
+  bus.off('toUpperCase', handleToUpperCase)
+  bus.off('toLowerCase', handleToLowerCase)
+  bus.off('format', handleFormatInSource)
 
   const { cursor, markdown: newMarkdown } = getMarkdownAndCursor(editor.value)
   bus.emit('file-changed', {

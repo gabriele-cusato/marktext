@@ -35,7 +35,7 @@ SOFTWARE.
   background-color: #282c34;
 }
 .cm-s-one-dark .CodeMirror-selected {
-  background-color: #3e4451;
+  background-color: var(--selectionColor) !important;
 }
 .cm-s-one-dark .CodeMirror-gutter,
 .cm-s-one-dark .CodeMirror-gutters {

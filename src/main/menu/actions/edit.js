@@ -66,6 +66,14 @@ export const editorDeleteParagraph = (win) => {
   edit(win, 'deleteParagraph')
 }
 
+export const editorToUpperCase = (win) => {
+  edit(win, 'toUpperCase')
+}
+
+export const editorToLowerCase = (win) => {
+  edit(win, 'toLowerCase')
+}
+
 export const editorFind = (win) => {
   edit(win, 'find')
 }
@@ -140,6 +148,8 @@ export const loadEditCommands = (commandManager) => {
   commandManager.add(COMMANDS.EDIT_REPLACE, editorReplace)
   commandManager.add(COMMANDS.EDIT_SCREENSHOT, screenshot)
   commandManager.add(COMMANDS.EDIT_SELECT_ALL, editorSelectAll)
+  commandManager.add(COMMANDS.EDIT_TO_UPPERCASE, editorToUpperCase)
+  commandManager.add(COMMANDS.EDIT_TO_LOWERCASE, editorToLowerCase)
   commandManager.add(COMMANDS.EDIT_UNDO, editorUndo)
 }
 

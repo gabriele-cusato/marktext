@@ -2,13 +2,14 @@
 
 ### Facile (~10-30 righe)
 
-- [ ] **Conversione EOL** — leggere file come buffer, sostituire sequenze `\r\n`/`\n`/`\r`, riscrivere. Node.js `fs` + regex. Voce in menu o barra stato.
-- [ ] **Conversione encoding** — rilevare encoding con libreria `ced` (già inclusa), convertire con `iconv-lite`, riscrivere. Voce in menu.
+- [x] **Conversione EOL** — **FATTO:** si possono scegliere tutti e tre i tipi: CRLF (Windows `\r\n`), LF (Unix `\n`), CR (vecchio Mac `\r`). **DA VERIFICARE:** controllare se all'apertura di un file viene già rilevato e applicato l'EOL corretto in base al sistema operativo corrente, oppure se è da implementare.
+- [x] **Conversione encoding** — **FATTO.** (`ced` già in `package.json`; `iconv-lite` non presente, da installare se servisse ancora.)
+- [ ] **Bug rilevamento encoding all'apertura** — se si salva un file con encoding diverso da un editor esterno (es. Notepad++ → ANSI) e poi si apre in MarkText, l'encoding mostrato è ancora UTF-8 (errato). Viceversa, se si cambia encoding da MarkText (es. UTF-8 BOM) e si riapre in Notepad++, il formato risulta corretto. Ipotesi: `ced` non rileva correttamente all'apertura, oppure il valore di encoding non viene aggiornato prima di mostrarlo in UI. **Da fare:** verificare il flusso di apertura file → rilevamento encoding → aggiornamento store, capire dove la catena si rompe.
 - [ ] **UPPERCASE / lowercase / Title Case** — prendere testo selezionato nel renderer, applicare trasformazione stringa, sostituire. Hook su shortcut via CodeMirror commands o Muya selection API.
-- [ ] **Operazioni riga** (sposta su/giù Alt+↑↓, duplica, elimina, unisci) — CodeMirror ha comandi built-in per source mode. Per Muya: studiare API blocchi per spostare/duplicare blocco corrente.
-- [ ] **Copia percorso file dal tab** — aggiungere voci context menu al componente tab (`src/renderer/components`). `clipboard.writeText()` con path/filename/directory del file corrente.
-- [ ] **Zoom testo Ctrl+rotella** — listener `wheel` + Ctrl nel renderer, incrementare/decrementare variabile CSS `font-size`. Resettabile con Ctrl+0.
-- [ ] **Word Wrap toggling** — toggle `lineWrapping` su CodeMirror (source mode) e `white-space` CSS per Muya. Stato salvato in `electron-store`.
+- [ ] **Operazioni riga** (sposta su/giù, duplica, elimina) — vedi `EASY-TASK.md` per analisi dettagliata e decisioni shortcut. Split/Join spostati sotto (Medio-facile).
+- [x] **Copia percorso file dal tab** — aggiungere voci context menu al componente tab (`src/renderer/components`). `clipboard.writeText()` con path/filename/directory del file corrente. **FATTO: funziona correttamente.**
+- [ ] **Zoom testo Ctrl+rotella** — lo zoom Ctrl+rotella funziona già, ma agisce su tutta l'app (incluse title bar e tab bar). Da limitare allo zoom solo nella sezione testuale (markdown/simil notepad++), lasciando invariate title bar e tab bar.
+- [x] **Word Wrap toggling** — **FATTO:** disabilitato nella visualizzazione markdown (Muya), abilitabile nella visualizzazione simil notepad++ (CodeMirror source mode).
 
 ### Medio-facile
 
@@ -17,6 +18,7 @@
 - [ ] **Context menu tasto destro Windows** — in `package.json` sezione `build.nsis` aggiungere chiave registro `HKCR\*\shell\MarkText`. ~10 righe.
 - [ ] **Rimuovi dialog "vuoi salvare?"** — intercettare `before-close` in `src/main/`, salvare contenuto silenziosamente in `app.getPath('userData')` invece di mostrare dialog. ~20-30 righe.
 - [ ] **Stile UI più professionale** — modificare variabili CSS (`border-radius`, font, spacing) nei file tema in `static/`. Solo CSS.
+- [ ] **Split / Join righe** (source mode, stile Notepad++ `Ctrl+I` / `Ctrl+J`) — CodeMirror NON ha comandi built-in: implementare a mano, solo in source mode. **Join** (`Ctrl+J`): unire la riga corrente con la successiva via `replaceRange`. **Split** (`Ctrl+I`): dividere le righe lunghe al margine della finestra (più complesso, dipende dalla larghezza del wrap). Rendere mode-aware: in markdown `Ctrl+I`=emphasis e `Ctrl+J`=sidebar restano invariati.
 
 ### Medio (~50-150 righe)
 

@@ -859,6 +859,7 @@ export const useEditorStore = defineStore('editor', {
 
       const { pathname } = file
       if (pathname) {
+        // mt::window-tab-closed fa già scattare removeFromOpenedFiles nel main che rimuove il watcher
         window.electron.ipcRenderer.send('mt::window-tab-closed', pathname)
       }
     },
@@ -904,6 +905,7 @@ export const useEditorStore = defineStore('editor', {
         const { pathname } = this.tabs[index]
 
         if (pathname) {
+          // mt::window-tab-closed fa già scattare removeFromOpenedFiles nel main che rimuove il watcher
           window.electron.ipcRenderer.send('mt::window-tab-closed', pathname)
         }
 
@@ -1094,7 +1096,9 @@ export const useEditorStore = defineStore('editor', {
       // B8: flag "appena caricato da disco". Serve a LISTEN_FOR_CONTENT_CHANGE per
       // distinguere la prima normalizzazione di Muya (che modifica il markdown)
       // dalle modifiche reali dell'utente. true solo per file con pathname.
-      docState.justLoaded = !!docState.pathname
+      // Timestamp di caricamento: usato da LISTEN_FOR_CONTENT_CHANGE per
+      // ignorare le normalizzazioni Muya nei primi 400ms dopo apertura.
+      docState.justLoaded = docState.pathname ? Date.now() : 0
       const { id, cursor } = docState
 
       if (selected) {
@@ -1103,6 +1107,8 @@ export const useEditorStore = defineStore('editor', {
       } else {
         this.tabs.push(docState)
       }
+      // Il watcher viene avviato dal main process in EditorWindow._doOpenTab
+      // via ipcMain.emit('watcher-watch-file', browserWindow, pathname)
 
       if (isMixedLineEndings) {
         const { filename, lineEnding } = markdownDocument
@@ -1126,6 +1132,7 @@ export const useEditorStore = defineStore('editor', {
     },
 
     SET_SAVE_STATUS_WHEN_REMOVE({ pathname }) {
+      console.log('[DOT-DBG] SET_SAVE_STATUS_WHEN_REMOVE chiamato per:', pathname)
       this.tabs.forEach((f) => {
         if (f.pathname === pathname) {
           f.isSaved = false
@@ -1195,15 +1202,17 @@ export const useEditorStore = defineStore('editor', {
       }
 
       if (markdown !== oldMarkdown) {
-        // B8: prima normalizzazione Muya dopo caricamento file → aggiorna baseline
-        // a contenuto normalizzato senza marcare come non salvato. Muya può
-        // riformattare il markdown (newline, spazi), e oldMarkdown ≠ originalMarkdown
-        // non significa modifica utente in questo caso.
-        if (this.currentFile.justLoaded) {
+        // B8: finestra di assestamento post-caricamento (400ms). Muya può fare
+        // più pass di normalizzazione all'init (newline, spazi, encoding). Durante
+        // la finestra si aggiorna la baseline senza marcare come non salvato.
+        const LOAD_SETTLE_MS = 400
+        const isSettling = this.currentFile.justLoaded &&
+          (Date.now() - this.currentFile.justLoaded) < LOAD_SETTLE_MS
+        if (isSettling) {
           this.currentFile.originalMarkdown = markdown
-          this.currentFile.justLoaded = false
-          // isSaved resta true
+          // isSaved resta true; NON azzero justLoaded — la finestra scade da sola
         } else {
+          if (this.currentFile.justLoaded) this.currentFile.justLoaded = 0
           // NB12: guardia contro false-dirty all'apertura file.
           // Se il contenuto corrente è identico a quello caricato da disco,
           // non marcare come "non salvato" (originalMarkdown è null per file nuovi).
@@ -1211,6 +1220,7 @@ export const useEditorStore = defineStore('editor', {
             this.currentFile.originalMarkdown !== null &&
             markdown === this.currentFile.originalMarkdown
           if (!isUnchangedFromDisk) {
+            console.log('[DOT-DBG] isSaved=false da CONTENT_CHANGE su tab:', this.currentFile.pathname, '| originalMarkdown null:', this.currentFile.originalMarkdown === null)
             this.currentFile.isSaved = false
             if (pathname && autoSave) {
               const options = getOptionsFromState(this.currentFile)
@@ -1398,9 +1408,13 @@ export const useEditorStore = defineStore('editor', {
     LISTEN_FOR_FILE_CHANGE() {
       const preferencesStore = usePreferencesStore()
       window.electron.ipcRenderer.on('mt::update-file', (_, { type, change }) => {
+        console.log('[WATCH-DBG] renderer ricevuto mt::update-file type:', type, 'path:', change.pathname)
         const { tabs } = this
         const { pathname } = change
         const tab = tabs.find((t) => window.fileUtils.isSamePathSync(t.pathname, pathname))
+        if (!tab) {
+          console.warn('[WATCH-DBG] tab NON trovato per pathname:', pathname, '| tabs aperti:', tabs.map(t => t.pathname))
+        }
         if (tab) {
           const { id, isSaved, filename } = tab
           switch (type) {
@@ -1431,6 +1445,7 @@ export const useEditorStore = defineStore('editor', {
                 }
               }
 
+              console.log('[DOT-DBG] isSaved=false da FILE_CHANGED_ON_DISK su tab:', filename, pathname)
               tab.isSaved = false
               this.pushTabNotification({
                 tabId: id,
@@ -1465,15 +1480,34 @@ export const useEditorStore = defineStore('editor', {
       if (zoom !== zoomFactor) {
         preferencesStore.SET_SINGLE_PREFERENCE({ type: 'zoom', value: zoomFactor })
       }
-      window.electron.webFrame.setZoomFactor(zoomFactor)
+      // Non chiama più webFrame.setZoomFactor: lo zoom agisce solo sul testo dell'editor
     },
 
     LISTEN_WINDOW_ZOOM() {
+      const ZOOM_STEP = 0.125
       window.electron.ipcRenderer.on('mt::window-zoom', (_, zoomFactor) => {
         this.EDIT_ZOOM(zoomFactor)
       })
+      // Gestisce zoom per step da menu e da Ctrl+rotella (via main process)
+      window.electron.ipcRenderer.on('mt::window-zoom-direction', (_, direction) => {
+        const preferencesStore = usePreferencesStore()
+        const current = preferencesStore.zoom || 1.0
+        const next = direction === 'in'
+          ? Math.min(2.0, current + ZOOM_STEP)
+          : Math.max(0.5, current - ZOOM_STEP)
+        this.EDIT_ZOOM(next)
+      })
       bus.on('mt::window-zoom', (zoomFactor) => {
         this.EDIT_ZOOM(zoomFactor)
+      })
+      // Gestisce zoom per step da Ctrl+rotella intercettato nel renderer (index.vue)
+      bus.on('mt::window-zoom-direction', (direction) => {
+        const preferencesStore = usePreferencesStore()
+        const current = preferencesStore.zoom || 1.0
+        const next = direction === 'in'
+          ? Math.min(2.0, current + ZOOM_STEP)
+          : Math.max(0.5, current - ZOOM_STEP)
+        this.EDIT_ZOOM(next)
       })
     },
 

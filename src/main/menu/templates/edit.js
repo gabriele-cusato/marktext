@@ -3,6 +3,7 @@ import { isOsx } from '../../config'
 import { COMMANDS } from '../../commands'
 import { t } from '../../i18n'
 
+
 export default function (keybindings) {
   return {
     label: t('menu.edit.edit'),
@@ -77,6 +78,23 @@ export default function (keybindings) {
         accelerator: keybindings.getAccelerator(COMMANDS.EDIT_SELECT_ALL),
         click(menuItem, browserWindow) {
           actions.editorSelectAll(browserWindow)
+        }
+      },
+      {
+        type: 'separator'
+      },
+      {
+        label: t('menu.edit.toUpperCase'),
+        accelerator: keybindings.getAccelerator(COMMANDS.EDIT_TO_UPPERCASE),
+        click(menuItem, browserWindow) {
+          actions.editorToUpperCase(browserWindow)
+        }
+      },
+      {
+        label: t('menu.edit.toLowerCase'),
+        accelerator: keybindings.getAccelerator(COMMANDS.EDIT_TO_LOWERCASE),
+        click(menuItem, browserWindow) {
+          actions.editorToLowerCase(browserWindow)
         }
       },
       {

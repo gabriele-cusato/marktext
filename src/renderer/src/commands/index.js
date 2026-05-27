@@ -175,6 +175,18 @@ const commands = [
     }
   },
   {
+    id: 'edit.to-uppercase',
+    execute: async () => {
+      focusEditorAndExecute(() => bus.emit('toUpperCase', 'toUpperCase'))
+    }
+  },
+  {
+    id: 'edit.to-lowercase',
+    execute: async () => {
+      focusEditorAndExecute(() => bus.emit('toLowerCase', 'toLowerCase'))
+    }
+  },
+  {
     id: 'edit.find',
     execute: async () => {
       await delay(150)

@@ -261,6 +261,103 @@ npm run test:e2e         # e2e con Playwright (fa build prima)
 
 Dettagli IPC: `docs/dev/code/IPC.md`
 
+## Regole di verifica obbligatoria (imparate da bug reali)
+
+### IPC handler — firma del primo argomento
+
+In questo progetto esistono **due pattern di chiamata** per gli handler `ipcMain.on`:
+
+| Chiamante | Come chiama | Primo arg nel handler |
+|-----------|-------------|----------------------|
+| Renderer | `ipcRenderer.send('channel', data)` | `IpcMainEvent` → usare `BrowserWindow.fromWebContents(event.sender)` |
+| Main process | `ipcMain.emit('channel', browserWindow, data)` | `BrowserWindow` direttamente |
+
+**Prima di cambiare la firma di un handler esistente**, eseguire sempre entrambi i grep:
+```
+ipcMain.emit('nome-channel'        ← chiamate da main process
+ipcRenderer.send('nome-channel'    ← chiamate da renderer
+```
+Se esistono chiamate da entrambi i lati, la firma non può soddisfarli entrambi → servono due channel separati o un branch interno.
+
+### Canali senza prefisso `mt::` in windowManager.js
+
+I canali registrati in `windowManager.js` **senza** prefisso `mt::` (es. `watcher-watch-file`, `watcher-unwatch-file`, `window-add-file-path`, ecc.) sono chiamati **esclusivamente dal main process** via `ipcMain.emit`. Il renderer non li usa e non deve usarli.
+
+### Prima di aggiungere un ipcRenderer.send
+
+Verificare se il main process gestisce già quell'evento in un altro percorso. Esempio: chiusura tab → il renderer manda `mt::window-tab-closed` → il main chiama `removeFromOpenedFiles` → che già emette `watcher-unwatch-file`. Aggiungere un secondo send dal renderer per lo stesso scopo causa conflitti di firma o doppia esecuzione.
+
+### Prima di modificare una funzione condivisa
+
+Cercare **tutti i siti di chiamata** con grep prima di cambiare firma, tipo di argomento o comportamento:
+```
+grep -r "nomeFunzione\|'nome-channel'" src/
+```
+Non fermarsi al primo risultato trovato. Verificare anche le chiamate indirette (es. funzione A chiama B che chiama il channel).
+
+### Prima di assumere che "nessun altro usa X"
+
+Se stai modificando un handler, un evento bus, o un metodo che esiste già nel codice: assumere sempre che qualcun altro lo chiami finché il grep non dimostra il contrario.
+
+---
+
+## Checklist generale di verifica (applicare PRIMA di scrivere codice)
+
+Queste regole valgono per qualsiasi modifica, non solo IPC. Lo scopo è rendere obbligatorio il check prima di dare per scontato qualcosa.
+
+### 1. Prima di cambiare firma / tipo di argomento di qualsiasi funzione o handler
+
+- Grep tutti i siti di chiamata (`nomeFunzione(`, `'nome-channel'`)
+- Verificare le chiamate indirette: funzione A → chiama B → usa il channel
+- Se i caller sono in processi diversi (main vs renderer), la firma può non essere la stessa per tutti
+
+### 2. Prima di aggiungere una nuova funzionalità / costante / channel / evento bus
+
+- Grep per verificare che non esista già con nome diverso
+- Verificare che il comportamento desiderato non sia già gestito da un altro percorso nel codice (es. evento già emesso altrove, azione già eseguita da un handler esistente)
+- Doppia esecuzione dello stesso effetto è spesso peggio dell'assenza
+
+### 3. Prima di rimuovere o rinominare qualsiasi cosa visibile dall'esterno
+
+Qualsiasi cosa "visibile dall'esterno" include: funzioni esportate, proprietà Pinia, eventi bus, canali IPC, classi CSS, nomi di prop Vue, costanti condivise.
+- Grep tutti i file che la usano (non solo il file corrente)
+- Verificare anche i file di test, locales, menu templates
+
+### 4. Prima di modificare CSS (classi, variabili custom)
+
+- Grep la variabile / classe in tutti i file `.css`, `.vue`, `.js`
+- Le variabili `--custom-property` possono essere usate in temi multipli (`src/renderer/src/assets/themes/`)
+- Cambiare un valore in un file non aggiorna gli override negli altri temi
+
+### 5. Prima di aggiungere un `bus.on` in un componente Vue
+
+- Verificare che esista il corrispondente `bus.off` in `onBeforeUnmount` — listener orfani causano esecuzioni multiple dopo rimount
+- Verificare che nessun altro componente già ascolti lo stesso evento e faccia la stessa cosa (doppia esecuzione)
+
+### 6. Prima di assegnare una scorciatoia da tastiera
+
+- Grep il channel/comando nei file `keybindings*.js` per verificare che la combinazione non sia già assegnata
+- Verificare anche i comandi di sistema Electron che non passano dai file keybindings
+
+### 7. Prima di modificare lo shape di un Pinia store (aggiungere/rinominare proprietà)
+
+- Grep i componenti che usano `storeToRefs` o accedono direttamente alla proprietà
+- I getter hanno la stessa sintassi delle proprietà state — verificare che il nuovo nome non collida con un getter esistente
+
+### 8. Prima di modificare Muya (`src/muya/lib/`)
+
+- Muya è engine isolato (no Electron, no Node, solo JS puro + DOM)
+- I mixin di `contentState` si aggiungono come prototype — grep `ContentState.prototype.nomeMetodo` per verificare che non esista già in un altro mixin
+- Modifiche a Muya impattano **sia** la modalità WYSIWYG **sia** tutto ciò che chiama `editor.value.*` nei componenti Vue
+
+### 9. Prima di modificare un flusso asincrono (IPC, promise, watcher)
+
+- Identificare tutti i punti di ingresso del flusso, non solo quello che stai toccando
+- Verificare chi gestisce l'errore: se un handler non risponde, il chiamante si blocca silenziosamente?
+- Verificare la simmetria start/stop: ogni `watch` ha un `unwatch`, ogni `on` ha un `off`, ogni risorsa aperta viene chiusa
+
+---
+
 ## TODO
 
 Vedi e modifica `TODO.md` nella root del progetto (`C:\Projects\MarkText\TODO.md`).

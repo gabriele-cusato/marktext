@@ -294,6 +294,10 @@ class Muya {
     this.contentState.deleteParagraph()
   }
 
+  changeSelectionCase(type) {
+    this.contentState.changeSelectionCase(type)
+  }
+
   insertParagraph(location /* before or after */, text = '', outMost = false) {
     this.contentState.insertParagraph(location, text, outMost)
   }

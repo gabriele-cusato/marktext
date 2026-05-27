@@ -2,8 +2,13 @@
   background: transparent;
   height: auto;
 }
+/* Usa la variabile tema per coerenza con Muya e visibilità su tutti i temi */
+.CodeMirror-selected,
+.CodeMirror-focused .CodeMirror-selected {
+  background: var(--selectionColor) !important;
+}
 .CodeMirror-line::selection,
 .CodeMirror-line > span::selection,
 .CodeMirror-line > span > span::selection {
-  background: rgb(178, 215, 254);
+  background: var(--selectionColor);
 }

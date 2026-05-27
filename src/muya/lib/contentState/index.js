@@ -36,6 +36,7 @@ import dragDropCtrl from './dragDropCtrl'
 import footnoteCtrl from './footnoteCtrl'
 import wrapSelectionCtrl from './wrapSelectionCtrl'
 import moveLineCtrl from './moveLineCtrl'
+import caseCtrl from './caseCtrl'
 import importMarkdown from '../utils/importMarkdown'
 import Cursor from '../selection/cursor'
 import escapeCharactersMap, { escapeCharacters } from '../parser/escapeCharacter'
@@ -70,6 +71,7 @@ const prototypes = [
   footnoteCtrl,
   wrapSelectionCtrl,
   moveLineCtrl,
+  caseCtrl,
   importMarkdown
 ]
 

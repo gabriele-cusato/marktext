@@ -141,11 +141,6 @@ class Keyboard {
         return
       }
 
-      // Handle move line up/down with Alt/Option + Arrow keys
-      if (contentState.handleMoveLineKeydown(event)) {
-        return
-      }
-
       if (
         this.shownFloat.size > 0 &&
         (event.key === EVENT_KEYS.Enter ||

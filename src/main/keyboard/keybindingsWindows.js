@@ -68,13 +68,13 @@ export default new Map([
   ['paragraph.task-list', 'Ctrl+Alt+X'],
   ['paragraph.loose-list-item', 'Ctrl+Alt+L'],
   ['paragraph.paragraph', 'Ctrl+Shift+0'],
-  ['paragraph.horizontal-line', 'Ctrl+Shift+U'],
+  ['paragraph.horizontal-line', ''],
   ['paragraph.front-matter', 'Ctrl+Alt+Y'],
 
   // Format menu
   ['format.strong', 'Ctrl+B'],
   ['format.emphasis', 'Ctrl+I'],
-  ['format.underline', 'Ctrl+U'],
+  ['format.underline', ''],
   ['format.superscript', ''],
   ['format.subscript', ''],
   ['format.highlight', 'Ctrl+Shift+H'],
@@ -88,8 +88,8 @@ export default new Map([
   // Window menu
   ['window.minimize', 'Ctrl+M'],
   ['window.toggle-always-on-top', ''],
-  ['window.zoomIn', ''],
-  ['window.zoomOut', ''],
+  ['window.zoomIn', 'Ctrl+Plus'],
+  ['window.zoomOut', 'Ctrl+-'],
   ['window.toggle-full-screen', 'F11'],
 
   // View menu
@@ -119,5 +119,9 @@ export default new Map([
   ['tabs.switchToEighth', 'Ctrl+8'],
   ['tabs.switchToNinth', 'Ctrl+9'],
   ['tabs.switchToTenth', 'Ctrl+0'],
-  ['file.quick-open', 'Ctrl+P']
+  ['file.quick-open', 'Ctrl+P'],
+
+  // Case transform — globali in entrambe le viste
+  ['edit.to-uppercase', 'Ctrl+Shift+U'],
+  ['edit.to-lowercase', 'Ctrl+U']
 ])

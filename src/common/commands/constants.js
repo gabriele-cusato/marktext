@@ -16,6 +16,8 @@ const COMMANDS = Object.freeze({
   EDIT_REPLACE: 'edit.replace',
   EDIT_SCREENSHOT: 'edit.screenshot',
   EDIT_SELECT_ALL: 'edit.select-all',
+  EDIT_TO_LOWERCASE: 'edit.to-lowercase',
+  EDIT_TO_UPPERCASE: 'edit.to-uppercase',
   EDIT_UNDO: 'edit.undo',
 
   FILE_CHECK_UPDATE: 'file.check-update',

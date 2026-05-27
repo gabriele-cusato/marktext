@@ -150,7 +150,8 @@ class EditorWindow extends BaseWindow {
       this._doOpenFilesToOpen()
       this._markdownToOpen.length = 0
 
-      // Listen on default system mouse zoom event (e.g. Ctrl+MouseWheel on Linux/Windows).
+      // Ctrl+rotella nativo: il renderer intercetta prima via wheel handler sul .container
+      // (event.preventDefault()) — questo handler è fallback per piattaforme che non bloccano.
       win.webContents.on('zoom-changed', (event, zoomDirection) => {
         if (zoomDirection === 'in') {
           zoomIn(win)

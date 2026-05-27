@@ -4,7 +4,7 @@
     :class="[{ typewriter: typewriter, focus: focus, source: sourceCode }]"
     :style="{
       lineHeight: lineHeight,
-      fontSize: `${fontSize}px`,
+      fontSize: `${Math.round(fontSize * (zoom || 1))}px`,
       'font-family': editorFontFamily
         ? `${editorFontFamily}, ${defaultFontFamily}`
         : `${defaultFontFamily}`
@@ -194,7 +194,9 @@ const {
   // Edit modes
   typewriter,
   focus,
-  sourceCode
+  sourceCode,
+
+  zoom
 } = storeToRefs(preferencesStore)
 
 // Editor store refs
@@ -901,7 +903,19 @@ const handleParagraph = (type) => {
 }
 
 const handleInlineFormat = (type) => {
+  // In source mode il formato viene gestito da sourceCode.vue
+  if (sourceCode.value) return
   editor.value && editor.value.format(type)
+}
+
+const handleToUpperCase = () => {
+  if (sourceCode.value) return
+  editor.value && editor.value.changeSelectionCase('upper')
+}
+
+const handleToLowerCase = () => {
+  if (sourceCode.value) return
+  editor.value && editor.value.changeSelectionCase('lower')
 }
 
 const handleDialogTableConfirm = () => {
@@ -1094,6 +1108,8 @@ onMounted(() => {
   bus.on('print-service-clearup', handlePrintServiceClearup)
   bus.on('paragraph', handleEditParagraph)
   bus.on('format', handleInlineFormat)
+  bus.on('toUpperCase', handleToUpperCase)
+  bus.on('toLowerCase', handleToLowerCase)
   bus.on('searchValue', handleSearch)
   bus.on('replaceValue', handReplace)
   bus.on('find-action', handleFindAction)
@@ -1234,6 +1250,8 @@ onBeforeUnmount(() => {
   bus.off('print-service-clearup', handlePrintServiceClearup)
   bus.off('paragraph', handleEditParagraph)
   bus.off('format', handleInlineFormat)
+  bus.off('toUpperCase', handleToUpperCase)
+  bus.off('toLowerCase', handleToLowerCase)
   bus.off('searchValue', handleSearch)
   bus.off('replaceValue', handReplace)
   bus.off('find-action', handleFindAction)

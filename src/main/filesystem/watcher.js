@@ -70,34 +70,32 @@ const change = async (win, pathname, type, endOfLine, autoGuessEncoding, trimTra
   // No need to update the tree view if the file content has changed.
   if (type === 'dir') return
 
-  const isMarkdown = hasMarkdownExtension(pathname)
-  if (isMarkdown) {
-    // HACK: Markdown data should be removed completely in #1034/#1035 and
-    // should be only loaded after user interaction.
-    try {
-      const data = await loadMarkdownFile(
-        pathname,
-        endOfLine,
-        autoGuessEncoding,
-        trimTrailingNewline
-      )
-      const file = {
-        pathname,
-        data
-      }
-      win.webContents.send('mt::update-file', {
-        type: 'change',
-        change: file
+  // HACK: Markdown data should be removed completely in #1034/#1035 and
+  // should be only loaded after user interaction.
+  try {
+    const data = await loadMarkdownFile(
+      pathname,
+      endOfLine,
+      autoGuessEncoding,
+      trimTrailingNewline
+    )
+    const file = {
+      pathname,
+      data
+    }
+    console.log('[WATCH-DBG] invio mt::update-file change a renderer per:', pathname)
+    win.webContents.send('mt::update-file', {
+      type: 'change',
+      change: file
+    })
+  } catch (err) {
+    // Only notify user about opened files.
+    if (type === 'file') {
+      win.webContents.send('mt::show-notification', {
+        title: 'Watcher I/O error',
+        type: 'error',
+        message: err.message
       })
-    } catch (err) {
-      // Only notify user about opened files.
-      if (type === 'file') {
-        win.webContents.send('mt::show-notification', {
-          title: 'Watcher I/O error',
-          type: 'error',
-          message: err.message
-        })
-      }
     }
   }
 }
@@ -168,6 +166,10 @@ class Watcher {
         if (fileInfo.isDirectory()) {
           return false
         }
+        // Quando si guarda un singolo file (type==='file') non filtrare per estensione:
+        // MarkText può aprire qualsiasi file di testo, non solo .md/.markdown.
+        // Il filtro markdown resta solo per i watcher di directory.
+        if (type === 'file') return false
         return !hasMarkdownExtension(pathname)
       },
       ignoreInitial: type === 'file',
@@ -201,7 +203,10 @@ class Watcher {
         }
       })
       .on('change', async (pathname) => {
-        if (!(await this._shouldIgnoreEvent(win.id, pathname, type, usePolling))) {
+        console.log('[WATCH-DBG] change event ricevuto per:', pathname)
+        const ignored = await this._shouldIgnoreEvent(win.id, pathname, type, usePolling)
+        console.log('[WATCH-DBG] _shouldIgnoreEvent =', ignored)
+        if (!ignored) {
           const { _preferences } = this
           const eol = _preferences.getPreferredEol()
           const { autoGuessEncoding, trimTrailingNewline } = _preferences.getAll()
