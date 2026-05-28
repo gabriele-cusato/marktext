@@ -139,6 +139,11 @@ const scrollToCords = (y) => {
 }
 
 const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop }) => {
+  // sourceCode=false significa che il componente sta per smontarsi (tab close o switch).
+  // Non processare eventi: evita di caricare contenuto/history di tab estranee in CM
+  // e di cambiare tabId (che poi causerebbe emit spurio in onBeforeUnmount).
+  if (!sourceCode.value) return
+
   // Stessa tab già attiva: skip save/restore per preservare la history.
   // commitTimer (1s) → LISTEN_FOR_CONTENT_CHANGE → store update → parent watch re-emette
   // file-changed per la tab corrente. Fare setValue+setHistory qui azzerebbe lo stack undo
@@ -566,13 +571,23 @@ onBeforeUnmount(() => {
   bus.off('toLowerCase', handleToLowerCase)
   bus.off('format', handleFormatInSource)
 
-  const { cursor, markdown: newMarkdown } = getMarkdownAndCursor(editor.value)
-  bus.emit('file-changed', {
-    id: tabId.value,
-    markdown: newMarkdown,
-    muyaIndexCursor: cursor,
-    renderCursor: true
-  })
+  // Emette file-changed SOLO per view switch (stesso file, source→markdown).
+  // Per tab close/switch il contenuto della tab uscente non deve sovrascrivere
+  // il currentFile già caricato in Muya — causerebbe contenuto/history cross-tab.
+  if (tabId.value && currentTab.value?.id === tabId.value) {
+    const { cursor, markdown: newMarkdown } = getMarkdownAndCursor(editor.value)
+    bus.emit('file-changed', {
+      id: tabId.value,
+      markdown: newMarkdown,
+      muyaIndexCursor: cursor,
+      renderCursor: true
+    })
+  }
+
+  // Rimuove snapshot CM per tab chiuse (non per tab switch — potrebbero riaprirsi).
+  if (tabId.value && !editorStore.tabs.some(t => t.id === tabId.value)) {
+    cmStatePerTab.delete(tabId.value)
+  }
   // Bug 6: ex `removeEventListener('scroll')` rimosso — listener era su .source-code
   // ma ora scroll è su CM (gestito automaticamente da CM.destroy quando montato unmount).
 })

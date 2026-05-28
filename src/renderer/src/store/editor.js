@@ -924,6 +924,10 @@ export const useEditorStore = defineStore('editor', {
         if (typeof this.currentFile.markdown === 'string') {
           const { id, markdown, cursor, history, pathname, scrollTop, blocks } = this.currentFile
           window.DIRNAME = pathname ? window.path.dirname(pathname) : ''
+          // Imposta sourceCode mode PRIMA di emettere file-changed (come FORCE_CLOSE_TAB
+          // e UPDATE_CURRENT_FILE). Senza questo, sourceCode resta true anche se il tab
+          // successivo è markdown → Untitled resta in source mode + history cross-tab.
+          this._applySourceCodeForFile(this.currentFile)
           bus.emit('file-changed', {
             id,
             markdown,
@@ -1153,6 +1157,7 @@ export const useEditorStore = defineStore('editor', {
     }) {
       const preferencesStore = usePreferencesStore()
       const { autoSave } = preferencesStore
+      const LOAD_SETTLE_MS = 400
       const {
         id: currentId,
         filename,
@@ -1168,7 +1173,14 @@ export const useEditorStore = defineStore('editor', {
       } else if (id !== 'muya' && currentId !== id) {
         for (const tab of this.tabs) {
           if (tab.id && tab.id === id) {
-            tab.markdown = adjustTrailingNewlines(markdown, tab.trimTrailingNewline)
+            const adjMarkdown = adjustTrailingNewlines(markdown, tab.trimTrailingNewline)
+            tab.markdown = adjMarkdown
+            // Applica justLoaded anche per tab in background: se Muya normalizza il contenuto
+            // mentre l'utente ha già switchato ad altra tab, aggiorna la baseline senza
+            // marcare come dirty — altrimenti al ritorno originalMarkdown ≠ markdown → bollino.
+            if (tab.justLoaded && (Date.now() - tab.justLoaded) < LOAD_SETTLE_MS) {
+              tab.originalMarkdown = adjMarkdown
+            }
             if (cursor) tab.cursor = cursor
             if (history) tab.history = history
             break
@@ -1205,7 +1217,6 @@ export const useEditorStore = defineStore('editor', {
         // B8: finestra di assestamento post-caricamento (400ms). Muya può fare
         // più pass di normalizzazione all'init (newline, spazi, encoding). Durante
         // la finestra si aggiorna la baseline senza marcare come non salvato.
-        const LOAD_SETTLE_MS = 400
         const isSettling = this.currentFile.justLoaded &&
           (Date.now() - this.currentFile.justLoaded) < LOAD_SETTLE_MS
         if (isSettling) {

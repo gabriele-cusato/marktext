@@ -819,8 +819,9 @@ watch(hasMultiRow, (newVal) => {
 }
 
 .v2-tab-name {
-  /* No flex:1 → span = larghezza testo intrinseca → X subito dopo nome.
-     min-width:0 abilita shrink sotto content quando tab eccede max-width 172. */
+  /* flex-grow:1 → nome riempie spazio disponibile → X sempre al bordo destro.
+     min-width:0 abilita shrink quando tab è a max-width 172. */
+  flex-grow: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

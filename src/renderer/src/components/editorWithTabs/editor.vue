@@ -202,6 +202,9 @@ const {
 // Editor store refs
 const { currentFile } = storeToRefs(editorStore)
 
+// Traccia il tab id attualmente caricato in Muya — evita cross-tab dirty su cambio tab rapido.
+const currentMuyaTabId = ref(null)
+
 // Project store refs
 const { projectTree } = storeToRefs(projectStore)
 
@@ -924,10 +927,12 @@ const handleDialogTableConfirm = () => {
 }
 
 // listen for `open-single-file` event, it will call this method only when open a new file.
-const setMarkdownToEditor = ({ markdown: newMarkdown, cursor: newCursor }) => {
+const setMarkdownToEditor = ({ id, markdown: newMarkdown, cursor: newCursor }) => {
   // B6: in modalità sourceCode (file non-markdown) il rendering è gestito da
   // sourceCode.vue (CodeMirror). Muya non deve toccare il contenuto.
   if (sourceCode.value) return
+  // Aggiorna prima del setMarkdown → il listener 'change' usa già l'id corretto.
+  if (id) currentMuyaTabId.value = id
   if (editor.value) {
     editor.value.clearHistory()
     if (newCursor) {
@@ -940,6 +945,7 @@ const setMarkdownToEditor = ({ markdown: newMarkdown, cursor: newCursor }) => {
 
 // listen for markdown change form source mode or change tabs etc
 const handleFileChange = ({
+  id,
   markdown: newMarkdown,
   cursor: newCursor,
   renderCursor,
@@ -950,6 +956,8 @@ const handleFileChange = ({
 }) => {
   // B6: deve essere PRIMA di accedere a editor.value (in sourceCode mode editor è null/undef).
   if (sourceCode.value) return
+  // Aggiorna prima del setMarkdown → il listener 'change' usa già l'id corretto.
+  if (id) currentMuyaTabId.value = id
   const { container } = editor.value
 
   if (editor.value) {
@@ -1132,9 +1140,14 @@ onMounted(() => {
   bus.on('replace-misspelling', replaceMisspelling)
 
   editor.value.on('change', (changes) => {
-    // WORKAROUND: "id: 'muya',
+    // WORKAROUND: usa currentMuyaTabId (id del tab caricato in Muya) invece di 'muya' fisso.
+    // Senza questo, se l'utente switcha tab rapidamente, il change event di Muya per il
+    // file precedente atterra su currentFile (il nuovo tab) → bollino spurio cross-tab.
     editorStore.LISTEN_FOR_CONTENT_CHANGE(
-      Object.assign(changes, { id: 'muya', blocks: editor.value.contentState.getBlocks() })
+      Object.assign(changes, {
+        id: currentMuyaTabId.value || 'muya',
+        blocks: editor.value.contentState.getBlocks()
+      })
     )
   })
 

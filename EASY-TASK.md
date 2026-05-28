@@ -24,6 +24,8 @@
 | B3 | File ANSI con accenti → mojibake | ✅ Fix ced ASCII + isValidUtf8 | 100% |
 | B4 | Selezione temi scuri troppo poco visibile | ✅ Fix alpha CSS | 100% |
 | B5 | Zoom Ctrl+Plus / Ctrl+- non funzionano | ✅ Aggiunti keybinding | 100% |
+| B6 | Ctrl+Z cross-tab + close contaminazione (source mode + history) | ✅ FIXATO | 100% |
+| B7 | Spazio vuoto a destra nelle tab (filename corto) | ✅ FIXATO | 100% |
 
 ---
 
@@ -580,19 +582,61 @@ in `keybindingsWindows.js` e `keybindingsLinux.js` (erano vuoti `''`).
 
 ---
 
-## Bug B6 — Ctrl+Z in un tab ripristina testo di un'altra tab ❌ DA INVESTIGARE
+## Bug B6 — Ctrl+Z cross-tab + contaminazione source mode / history su close ✅ FIXATO
 
-**Sintomo:** premendo Ctrl+Z in un tab, il testo che viene ripristinato appartiene a un altro tab (storia undo cross-tab).
+**Sintomi (correlati, stessa root cause):**
+1. Premere Ctrl+Z in Untitled dopo aver chiuso una tab source mode → ripristina il testo della tab chiusa.
+2. Chiudere una tab in source mode (file .js, ecc.) senza salvare → Untitled passa a source mode.
+3. Bollino "non salvato" compare su Untitled dopo la chiusura.
 
-**Modalità interessata:** da verificare (source mode / markdown / entrambe).
+**Root cause 1 — `CLOSE_TABS` senza `_applySourceCodeForFile`:**
+`CLOSE_TABS` (path reale per "Discard" su unsaved close: `mt::save-and-close-tabs` → main dialog → `mt::force-close-tabs-by-id` → `CLOSE_TABS`) non chiamava `_applySourceCodeForFile` sul nuovo `currentFile`. Risultato: `sourceCode` restava `true` (dal file chiuso) → Untitled apriva in CodeMirror, `editor.vue` skippava il caricamento Muya, la history CM della tab chiusa finiva in Untitled.
 
-**Ipotesi:** la history undo non è isolata per tab — possibile che CodeMirror condivida la stessa istanza o che al cambio tab la history non venga salvata/ripristinata correttamente.
+**Root cause 2 — `sourceCode.vue` `handleFileChange` senza guard `sourceCode=false`:**
+Con `sourceCode=false` già impostato ma Vue non ancora smontato (DOM update asincrono), il `bus.emit('file-changed', ...)` per la nuova tab arrivava a `sourceCode.vue` ancora montato. `handleFileChange` lo processava, cambiava `tabId` e salvava contenuto errato in `cmStatePerTab`, causando poi un emit spurio in `onBeforeUnmount`.
 
-**File sospetti:**
-- `src/renderer/src/components/editorWithTabs/sourceCode.vue` — gestione istanza CM e cambio tab (contiene già log `[UNDO-DBG]` residui da un fix precedente su Ctrl+Z)
-- `src/renderer/src/store/editor.js` — stato tab, `prepareTabSwitch`
+**Root cause 3 — Muya usava `id: 'muya'` fisso:**
+`editor.vue` passava sempre `id: 'muya'` al listener `on('change')` di Muya. Il guard in `LISTEN_FOR_CONTENT_CHANGE` (`id !== 'muya' && currentId !== id`) veniva bypassato → la dirty logic girava su `this.currentFile` anche se era una tab diversa da quella Muya stava processando → bollino su Untitled.
 
-**⚠️ DA FARE:** investigare come viene creata/gestita l'istanza CodeMirror per tab e se la history viene correttamente isolata al cambio tab.
+**Fix 1** — `src/renderer/src/store/editor.js` (`CLOSE_TABS`, riga ~930):
+Aggiunto `this._applySourceCodeForFile(this.currentFile)` prima di `bus.emit('file-changed', ...)`, identico a `FORCE_CLOSE_TAB` e `UPDATE_CURRENT_FILE`.
+
+**Fix 2** — `src/renderer/src/components/editorWithTabs/sourceCode.vue` (`handleFileChange`, riga ~145):
+Aggiunto `if (!sourceCode.value) return` all'inizio — impedisce di processare eventi quando `sourceCode=false` (componente in smontaggio).
+
+**Fix 3** — `src/renderer/src/components/editorWithTabs/sourceCode.vue` (`onBeforeUnmount`, riga ~572):
+`bus.emit('file-changed', ...)` emesso solo se `currentTab.value?.id === tabId.value` (view switch: stesso file, toggle source↔markdown). Per tab close/switch, l'emit è soppresso.
+Aggiunto anche `cmStatePerTab.delete(tabId.value)` per tab chiuse (cleanup memoria).
+
+**Fix 4** — `src/renderer/src/components/editorWithTabs/editor.vue` + `src/renderer/src/store/editor.js`:
+- `editor.vue`: aggiunto `currentMuyaTabId = ref(null)`, aggiornato in `setMarkdownToEditor` e `handleFileChange`; il listener Muya `on('change')` usa `currentMuyaTabId.value || 'muya'` invece di `'muya'` fisso.
+- `editor.js` (`LISTEN_FOR_CONTENT_CHANGE`): spostato `LOAD_SETTLE_MS = 400` all'inizio funzione; nel path "background tab" aggiunto check `justLoaded` per aggiornare `tab.originalMarkdown` durante la finestra di settle.
+
+---
+
+## Bug B7 — Spazio vuoto a destra nelle tab con filename corto ✅ FIXATO
+
+**Sintomo:** le tab con filename corto (es. "a.md", "test.js") mostrano spazio vuoto a destra della X. Le tab Untitled ("Untitled" ≈ 8 char) non mostrano il problema.
+
+**Causa:** `.v2-tab` ha `min-width: 88px` ma `.v2-tab-name` non aveva `flex-grow`. Se il contenuto della tab (left-pad + nome + gap + X + right-pad) è inferiore a 88px, lo spazio eccedente restava vuoto a destra — `justify-content: flex-start` accumula lo spazio dopo l'ultimo elemento (la X). "Untitled" (≈91px) supera la soglia; filename corti no.
+
+**Fix** — `src/renderer/src/components/editorWithTabs/tabs.vue` (riga ~823):
+Aggiunto `flex-grow: 1` su `.v2-tab-name`. Il nome riempie lo spazio disponibile → X sempre al bordo destro del tab pill, nessuno spazio vuoto. Il `min-width: 0` preesistente garantisce che il nome possa anche ridursi (ellipsis) quando il tab è a `max-width: 172px`.
+
+---
+
+## Bug B6 — Test ✅ verificati
+
+- [x] Chiudere tab source mode (file .js) senza salvare → Untitled resta in markdown mode
+- [x] Bollino NON compare su Untitled dopo la chiusura
+- [x] Ctrl+Z in Untitled NON ripristina testo della tab chiusa
+- [x] Tab switch source→markdown sullo stesso file (view switch) ancora funzionante
+
+## Bug B7 — Test ✅ verificati
+
+- [x] Tab con filename corto ("a.md", "t.js") → X al bordo destro, nessuno spazio vuoto
+- [x] Tab Untitled → invariata
+- [x] Tab con filename lungo (max-width 172px) → ellipsis ancora funzionante
 
 ## Task 6 — Zoom solo testo
 - [ ] Ctrl+rotella sull'editor → cambia SOLO la dimensione del testo
