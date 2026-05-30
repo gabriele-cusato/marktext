@@ -2,13 +2,21 @@
   background: transparent;
   height: auto;
 }
-/* Usa la variabile tema per coerenza con Muya e visibilità su tutti i temi */
+/* Selezione MOLTO evidente in source mode: blu saturo ad alto alpha, indipendente dal tema.
+   Variabile dedicata --cmSelectionColor (NON --selectionColor di Muya) → la WYSIWYG resta invariata.
+   Un tema può sovrascrivere --cmSelectionColor per regolazioni fini. */
 .CodeMirror-selected,
 .CodeMirror-focused .CodeMirror-selected {
-  background: var(--selectionColor) !important;
+  background: var(--cmSelectionColor, rgba(56, 139, 253, 0.6)) !important;
 }
 .CodeMirror-line::selection,
 .CodeMirror-line > span::selection,
 .CodeMirror-line > span > span::selection {
-  background: var(--selectionColor);
+  background: var(--cmSelectionColor, rgba(56, 139, 253, 0.6));
+}
+/* railscasts (temi dark / material-dark) forza `div.CodeMirror-selected {#272935 !important}`
+   da node_modules → selezione quasi invisibile. Override a specificità superiore
+   (.CodeMirror.cm-s-railscasts > 0,2,1) per imporre la selezione evidente. */
+.CodeMirror.cm-s-railscasts div.CodeMirror-selected {
+  background: var(--cmSelectionColor, rgba(56, 139, 253, 0.6)) !important;
 }

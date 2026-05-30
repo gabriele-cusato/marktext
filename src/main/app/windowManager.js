@@ -361,6 +361,15 @@ class WindowManager extends EventEmitter {
       this.forceClose(win)
     })
 
+    // Reload manuale di un file (context menu tab "Reload"): rilegge da disco e invia
+    // mt::update-file → il renderer mostra il dialog di conferma se ci sono modifiche non salvate.
+    ipcMain.on('mt::request-file-reload', (e, pathname) => {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      if (win && pathname) {
+        this._watcher.reloadFile(win, pathname)
+      }
+    })
+
     // F7: minimize finestra (richiesto da bottoni v2 in tabs.vue)
     ipcMain.on('mt::minimize-window', (e) => {
       const win = BrowserWindow.fromWebContents(e.sender)

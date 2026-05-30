@@ -50,6 +50,15 @@ const items = computed(() => {
     },
     '---',
     {
+      label: t('contextMenu.tabs.reload'),
+      iconKey: 'refresh',
+      // Solo file su disco: Untitled non ha nulla da ricaricare.
+      disabled: !tab.pathname,
+      action: () =>
+        tab.pathname &&
+        window.electron.ipcRenderer.send('mt::request-file-reload', tab.pathname)
+    },
+    {
       label: t('contextMenu.tabs.rename'),
       iconKey: 'edit',
       disabled: !tab.pathname,

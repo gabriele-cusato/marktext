@@ -138,7 +138,7 @@ const scrollToCords = (y) => {
   })
 }
 
-const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop }) => {
+const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop, forceReload }) => {
   // sourceCode=false significa che il componente sta per smontarsi (tab close o switch).
   // Non processare eventi: evita di caricare contenuto/history di tab estranee in CM
   // e di cambiare tabId (che poi causerebbe emit spurio in onBeforeUnmount).
@@ -149,6 +149,21 @@ const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop }) => {
   // file-changed per la tab corrente. Fare setValue+setHistory qui azzerebbe lo stack undo
   // ogni secondo, rendendo Ctrl+Z permanentemente inutile.
   if (id === tabId.value) {
+    // Reload esterno (file modificato da altro programma) della tab corrente: forceReload
+    // distingue questo caso dal re-emit del commitTimer → qui DOBBIAMO ricaricare il contenuto
+    // in CM, altrimenti il file non si aggiorna a video.
+    if (forceReload && typeof newMarkdown === 'string' && editor.value) {
+      // il debounce pendente porterebbe contenuto stale (pre-reload) → annullalo
+      if (commitTimer.value) { clearTimeout(commitTimer.value); commitTimer.value = null }
+      editor.value.setValue(newMarkdown)
+      editor.value.refresh()
+      // baseline pulita: il contenuto CM è ora il file su disco (come al caricamento iniziale)
+      if (currentTab.value) {
+        currentTab.value.isSaved = true
+        currentTab.value.justLoaded = false
+      }
+      return
+    }
     // Pulisce justLoaded: CM non normalizza come Muya → il content caricato è già il baseline
     // corretto, nessun bisogno che LISTEN_FOR_CONTENT_CHANGE aggiorni originalMarkdown.
     if (currentTab.value && currentTab.value.justLoaded) {
@@ -287,7 +302,13 @@ const handlePreSave = () => {
     clearTimeout(commitTimer.value)
     commitTimer.value = null
   }
-  if (editor.value && tabId.value && !isFirstLoad.value) {
+  // NB: NON filtrare per isFirstLoad. Un Ctrl+S è sempre esplicito → il contenuto in CM
+  // DEVE essere flushato nello store prima che FILE_SAVE legga tab.markdown. isFirstLoad
+  // resta true per una tab aperta e mai cambiata (azzerato solo in prepareTabSwitch dentro
+  // `if (tabId.value)`, saltato al primo load) → con la guardia il flush non avveniva mai
+  // e Ctrl+S entro il debounce 1s salvava contenuto stale. Se non ci sono modifiche reali,
+  // LISTEN_FOR_CONTENT_CHANGE è comunque no-op (markdown === oldMarkdown).
+  if (editor.value && tabId.value) {
     const { cursor, markdown: newMarkdown } = getMarkdownAndCursor(editor.value)
     editorStore.LISTEN_FOR_CONTENT_CHANGE({
       id: tabId.value,
@@ -406,14 +427,17 @@ const listenChange = () => {
     }
 
     // N12: check immediato isSaved (no debounce) per feedback bollino istantaneo dopo Ctrl+Z.
-    // Normalizza cm.getValue() con la stessa logica di adjustTrailingNewlines prima di
-    // confrontare con originalMarkdown (già normalizzato). Senza, differenze di trailing
-    // newline causano false-dirty su ogni click cursore anche senza modifiche al contenuto.
+    // Normalizza ENTRAMBI i lati con adjustTrailingNewlines: originalMarkdown dopo un
+    // load/reload è il contenuto GREZZO del disco (non normalizzato). Se i trailing-newline
+    // del file ≠ forma normalizzata, confrontare grezzo vs normalizzato dava false-dirty
+    // su ogni click cursore anche senza modifiche. normalizeMarkdown è idempotente → sicuro.
     if (currentTab.value && currentTab.value.originalMarkdown !== null) {
-      const normalizedNew = normalizeMarkdown(newMarkdown, currentTab.value.trimTrailingNewline)
-      if (normalizedNew === currentTab.value.originalMarkdown && !currentTab.value.isSaved) {
+      const trim = currentTab.value.trimTrailingNewline
+      const normalizedNew = normalizeMarkdown(newMarkdown, trim)
+      const normalizedOrig = normalizeMarkdown(currentTab.value.originalMarkdown, trim)
+      if (normalizedNew === normalizedOrig && !currentTab.value.isSaved) {
         currentTab.value.isSaved = true
-      } else if (normalizedNew !== currentTab.value.originalMarkdown && currentTab.value.isSaved) {
+      } else if (normalizedNew !== normalizedOrig && currentTab.value.isSaved) {
         currentTab.value.isSaved = false
       }
     }

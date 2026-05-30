@@ -164,6 +164,13 @@ export const useEditorStore = defineStore('editor', {
         tab.history = oldHistory
       }
 
+      // Reload da disco = baseline pulita: il contenuto è quello del file.
+      tab.isSaved = true
+      // justLoaded: finestra di assestamento (come apertura file, B1/B8). Muya/CM
+      // normalizzano il contenuto ricaricato → senza questa finestra il content-change
+      // risultante marcherebbe il tab dirty (bollino verde) subito dopo il reload.
+      tab.justLoaded = Date.now()
+
       if (isMixedLineEndings) {
         this.pushTabNotification({
           tabId: tab.id,
@@ -188,9 +195,25 @@ export const useEditorStore = defineStore('editor', {
           cursor,
           renderCursor: true,
           history,
-          scrollTop
+          scrollTop,
+          // forceReload: in source mode handleFileChange salta il setValue quando id===tabId
+          // (caso re-emit commitTimer). Per il reload esterno serve forzare il caricamento in CM.
+          forceReload: true
         })
       }
+    },
+
+    // Opzione A: l'utente ha rifiutato il reload (Annulla). Il file su disco è cambiato ma
+    // teniamo la versione in editor. Spostiamo la baseline al contenuto NUOVO del disco:
+    // così editor (vecchio) ≠ originalMarkdown (disco) → il bollino "non salvato" compare
+    // e PERSISTE ai movimenti cursore/Ctrl+Z (il confronto contenuto-vs-baseline resta diverso),
+    // finché l'utente non riallinea o salva (sovrascrivendo il disco). NON tocca editor né history.
+    markDivergedFromDisk(change) {
+      const { data, pathname } = change
+      const tab = this.tabs.find((t) => window.fileUtils.isSamePathSync(t.pathname, pathname))
+      if (!tab) return
+      tab.originalMarkdown = data.markdown
+      tab.isSaved = false
     },
 
     FORMAT_LINK_CLICK({ data, dirname }) {
@@ -667,6 +690,19 @@ export const useEditorStore = defineStore('editor', {
             scrollTop,
             blocks
           })
+
+          // Se la tab appena attivata ha una modifica esterna rimandata (avvenuta mentre era
+          // in background), mostra ora il dialog di reload. Ora è la currentFile → loadChange
+          // ricarica davvero l'editor. Emesso dopo file-changed così l'editor è già montato.
+          if (currentFile.pendingExternalChange) {
+            const pending = currentFile.pendingExternalChange
+            currentFile.pendingExternalChange = null
+            bus.emit('file-changed-externally', {
+              change: pending,
+              filename: currentFile.filename,
+              hasUnsavedChanges: !currentFile.isSaved
+            })
+          }
         })
       }
 
@@ -1464,18 +1500,23 @@ export const useEditorStore = defineStore('editor', {
                 }
               }
 
-              tab.isSaved = false
-              this.pushTabNotification({
-                tabId: id,
-                msg: i18n.global.t('store.editor.fileChangedOnDisk', { name: filename }),
-                showConfirm: true,
-                exclusiveType: 'file_changed',
-                action: (status) => {
-                  if (status) {
-                    this.loadChange(change)
-                  }
-                }
-              })
+              // Mostra il dialog SOLO se la modifica riguarda la tab attiva: ricaricare ha
+              // senso solo sul file aperto a video (loadChange ricarica l'editor solo per la
+              // currentFile). Se la tab è in background, memorizziamo la modifica e mostriamo
+              // il dialog quando l'utente apre quella tab (vedi UPDATE_CURRENT_FILE).
+              const isActiveTab = this.currentFile && this.currentFile.id === id
+              if (isActiveTab) {
+                // Floating box centrale. NON marcare dirty qui: il tab resta nel suo stato
+                // finché l'utente non sceglie. hasUnsavedChanges → avviso perdita modifiche.
+                bus.emit('file-changed-externally', {
+                  change,
+                  filename,
+                  hasUnsavedChanges: !isSaved
+                })
+              } else {
+                // Tab in background: rimanda. L'ultima modifica vince (sovrascrive la pendente).
+                tab.pendingExternalChange = change
+              }
               break
             }
             default:

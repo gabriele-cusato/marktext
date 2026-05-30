@@ -213,6 +213,7 @@
       "closeOthers": "Close others",
       "closeSavedTabs": "Close saved tabs",
       "closeAllTabs": "Close all tabs",
+      "reload": "Reload",
       "rename": "Rename",
       "copyPath": "Copy path",
       "showInFolder": "Show in folder"
@@ -1106,7 +1107,11 @@
       "exportSuccessTitle": "Exported successfully",
       "exportSuccessMessage": "Exported \"{name}\" successfully!",
       "fileRemovedOnDisk": "\"{name}\" has been removed on disk.",
-      "fileChangedOnDisk": "\"{name}\" has been changed on disk. Do you want to reload it?"
+      "fileChangedOnDisk": "\"{name}\" has been changed on disk. Do you want to reload it?",
+      "fileChangedTitle": "File changed on disk",
+      "fileChangedReloadWarn": "\"{name}\" has been changed by another program. Reloading will discard the unsaved changes in the editor.",
+      "fileChangedReloadNoWarn": "\"{name}\" has been changed by another program. Do you want to reload it?",
+      "reloadFromDisk": "Reload"
     },
     "help": {
       "lineEndingAssertionError": "Line ending assertion error"

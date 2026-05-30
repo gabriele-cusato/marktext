@@ -139,6 +139,17 @@ class Watcher {
     this.watchers = {}
   }
 
+  // Reload manuale richiesto dall'utente (context menu "Reload"). Rilegge il file da disco
+  // e invia mt::update-file come fa il watcher sull'evento 'change', riusando le stesse
+  // preferenze (eol/encoding/trim). Il renderer mostra il dialog di conferma se ci sono
+  // modifiche non salvate, altrimenti procede.
+  reloadFile(win, pathname) {
+    const { _preferences } = this
+    const eol = _preferences.getPreferredEol()
+    const { autoGuessEncoding, trimTrailingNewline } = _preferences.getAll()
+    change(win, pathname, 'file', eol, autoGuessEncoding, trimTrailingNewline)
+  }
+
   // Watch a file or directory and return a unwatch function.
   watch(win, watchPath, type = 'dir' /* file or dir */) {
     // TODO: Is it needed to set `watcherUsePolling` ? because macOS need to set to true.

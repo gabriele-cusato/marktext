@@ -1,833 +1,475 @@
-# Easy Tasks — Guida all'implementazione
+# MarkText — Storico implementazioni, bug e fix
 
-> Analisi effettuata leggendo il codice reale. Per ogni punto: stato, file coinvolti,
-> fix proposto, valutazione di solidità e file collaterali che influenzano/sono influenzati.
-
----
-
-## Avanzamento implementazione
-
-| # | Titolo | Stato | % |
-|---|--------|-------|---|
-| 1 | Conversione EOL | ✅ Implementato | 100% |
-| 2 | Conversione Encoding | ✅ Implementato | 100% |
-| 3 | UPPERCASE / lowercase | ✅ Implementato | 100% |
-| 4 | Operazioni riga (move/dup/del + fix Alt Muya) | ✅ Implementato | 100% |
-| 5 | Copia percorso file dal tab | ✅ Implementato | 100% |
-| 6 | Zoom testo Ctrl+rotella | ✅ Implementato | 100% |
-| 7 | Word Wrap toggling | ✅ Implementato | 100% |
-| 8 | Selezione poco visibile tema scuro | ✅ Implementato | 100% |
-| 9 | Ricarica file modificato esternamente | ✅ Implementato | 100% |
-| 10 | Pulizia console.log debug (UNDO-DBG + DOT-DBG + WATCH-DBG + ENC-DBG) | ✅ Implementato | 100% |
-| B1 | Bollino verde su tab non modificate all'apertura | ✅ Fix finestra 400ms | 100% |
-| B2 | Prompt ricarica file esterno non compare | ✅ Fix watcher tutti i file | 100% |
-| B3 | File ANSI con accenti → mojibake | ✅ Fix ced ASCII + isValidUtf8 | 100% |
-| B4 | Selezione temi scuri troppo poco visibile | ✅ Fix alpha CSS | 100% |
-| B5 | Zoom Ctrl+Plus / Ctrl+- non funzionano | ✅ Aggiunti keybinding | 100% |
-| B6 | Ctrl+Z cross-tab + close contaminazione (source mode + history) | ✅ FIXATO | 100% |
-| B7 | Spazio vuoto a destra nelle tab (filename corto) | ✅ FIXATO | 100% |
-| B8 | Bollino riappare ~1s dopo Ctrl+S in source mode (debounce stale store) | ✅ FIXATO | 100% |
-| B9 | Bollino riappare al click cursore dopo save (lightTouch + N12 mismatch) | ✅ FIXATO | 100% |
-| B10 | Ctrl+Shift+↑/↓ non estende selezione in Muya (cross-block) | ✅ FIXATO | 100% |
+> **Scopo di questo file.** Registro storico di tutto ciò che è stato implementato, dei bug
+> affrontati e dei fix applicati. Serve a chi (umano o agente) lavorerà in futuro per:
+> 1. capire l'infrastruttura attuale **prima** di modificare codice;
+> 2. non rompere funzionalità esistenti né reintrodurre bug già risolti;
+> 3. sapere quali invarianti/decisioni sono volute e perché.
+>
+> **Leggere SEMPRE la sezione "Architettura e invarianti critiche" prima di toccare**
+> editor, salvataggio, dirty flag (bollino), watcher/ricarica o selezione.
+> Per le regole IPC generali vedi anche `CLAUDE.md` (root progetto).
 
 ---
 
-## ✅ LOG DIAGNOSTICI — TUTTI RIMOSSI
+## 🚦 Prima di iniziare QUALSIASI modifica
 
-| Prefisso | File | Stato |
-|----------|------|-------|
-| `[UNDO-DBG]` | `src/renderer/src/components/editorWithTabs/sourceCode.vue` | ✅ Rimosso |
-| `[DOT-DBG]` | `src/renderer/src/store/editor.js` | ✅ Rimosso |
-| `[WATCH-DBG]` | `src/main/app/windowManager.js` | ✅ Rimosso |
-| `[WATCH-DBG]` | `src/main/filesystem/watcher.js` | ✅ Rimosso |
-| `[WATCH-DBG]` | `src/renderer/src/store/editor.js` | ✅ Rimosso |
-| `[ENC-DBG]` | `src/main/filesystem/encoding.js` | ✅ Rimosso |
-
----
-
-## Cronologia bug fix
-
-### Bug fix watcher (task 9 post-implementazione)
-Durante l'implementazione di task 9 sono stati introdotti e poi fixati due crash:
-
-**Crash 1** (`TypeError: Cannot read properties of undefined (reading 'getOwnerBrowserWindow')`):
-- Causa: handler `watcher-watch-file` cambiato a `BrowserWindow.fromWebContents(event.sender)` ma viene chiamato da main via `ipcMain.emit(channel, browserWindow, path)` — `event.sender` = undefined.
-- Fix: ripristinata firma `(win, filePath)` originale per tutti i handler watcher.
-
-**Crash 2** (stesso errore al cambio tab):
-- Causa: `removeFromOpenedFiles` in `editor.js` (main) chiama `ipcMain.emit('watcher-unwatch-file', browserWindow, path)` — stessa firma diretta. Handler era stato cambiato in modo incompatibile.
-- Fix: ripristinata firma `(win, filePath)` per `watcher-unwatch-file/dir`; rimossi i send ridondanti `ipcRenderer.send('watcher-unwatch-file', ...)` da `FORCE_CLOSE_TAB` e `CLOSE_TABS` in `store/editor.js` (il main già gestisce l'unwatch via `mt::window-tab-closed` → `removeFromOpenedFiles`).
-
-**Regola appresa:** tutti gli handler watcher in `windowManager.js` (senza prefisso `mt::`) sono chiamati SOLO da main process via `ipcMain.emit` con BrowserWindow come primo arg. Il renderer non li chiama direttamente.
+1. **Leggi la checklist generale in `CLAUDE.md`** (root progetto): regole obbligatorie su grep dei
+   call-site prima di cambiare firme/comportamenti, IPC, eventi bus, CSS, store Pinia, Muya, keybinding.
+   Questo file NON la ripete: la integra con l'area editor.
+2. **Copertura di questo documento.** È **editor-centrico**: copre a fondo testo/Muya/CodeMirror,
+   salvataggio, dirty flag (bollino), watcher/ricarica, selezione, shortcut, tab. **NON** documenta:
+   `search`/find&replace, componente `settings`/preferenze UI, `sideBar`/`project`, sistema menu,
+   build/packaging/registry. Per quelle aree leggi il codice — qui non trovi avvisi specifici.
+3. **Consulta la tabella "Se la tua modifica tocca…" qui sotto** (inizio sezione Architettura) per sapere
+   quali invarianti rischi di rompere.
+4. **Modalità doppia sempre presente:** ricorda che ogni feature sull'editor va pensata sia per Muya
+   (WYSIWYG) sia per CodeMirror (source). Verifica in entrambe.
 
 ---
 
-## 1. Conversione EOL
-**Stato: FATTO — verifica completata**
+## Stato sintetico
 
-Supporta CRLF (`\r\n`), LF (`\n`), CR (`\r`).
+| # / Bug | Argomento | Stato |
+|---|---|---|
+| 1 | Conversione EOL (CRLF/LF/CR, preserva quello del file) | ✅ |
+| 2 | Conversione/rilevamento encoding (`ced` + `iconv-lite`) | ✅ |
+| 3 | UPPERCASE / lowercase (globale Muya+source) | ✅ |
+| 4 | Operazioni riga (sposta/duplica/elimina, source-only) | ✅ |
+| 5 | Copia percorso file dal context menu tab | ✅ |
+| 6 | Zoom testo Ctrl+rotella (solo testo, non UI) | ✅ |
+| 7 | Word Wrap toggling (solo source) | ✅ |
+| 8 | Selezione visibile in source mode (temi scuri) | ✅ |
+| 9 | Ricarica file modificato esternamente | ✅ |
+| 10 | Pulizia console.log di debug | ✅ |
+| B1 | Bollino su tab non modificate all'apertura | ✅ |
+| B2 | Prompt ricarica file esterno non compariva | ✅ |
+| B3 | File ANSI con accenti → mojibake (encoding) | ✅ |
+| B4 | Selezione temi scuri poco visibile (+ B4-bis source) | ✅ |
+| B5 | Zoom Ctrl+Plus / Ctrl+- non funzionanti | ✅ |
+| B6 | Ctrl+Z cross-tab + contaminazione source/history su close | ✅ |
+| B7 | Spazio vuoto a destra nelle tab con filename corto | ✅ |
+| B8 | Bollino riappare ~1s dopo Ctrl+S (debounce stale) | ✅ |
+| B9 | Bollino riappare al click cursore dopo save (lightTouch/N12) | ✅ |
+| B10 | Ctrl+Shift+↑/↓ non estende selezione in Muya | ✅ |
+| B11 | Reload esterno: contenuto non aggiorna + dialog v2 | ✅ |
+| B12 | Reload UX: stile v2 + Annulla→bollino + N12 + context menu | ✅ |
+| B13 | Ctrl+S in source salva contenuto stale (handlePreSave) | ✅ |
+| B14 | Dialog reload appariva per tab in background | ✅ |
 
-**Verifica "EOL adatto in base al sistema":**
-In `src/main/filesystem/markdown.js` (`loadMarkdownFile`, righe 101-115) all'apertura il file viene
-analizzato e l'EOL viene impostato in base a quello **realmente presente nel file** (rileva isLf / isCrlf / isCr).
-Solo se l'EOL non è rilevabile usa come fallback `preferredEol` (preferenza utente, non OS).
-Quindi MarkText **preserva l'EOL del file aperto**, non lo forza a quello dell'OS — comportamento corretto
-e atteso (evita di "sporcare" un file Unix aperto su Windows). Nessun intervento necessario.
-
----
-
-## 2. Conversione Encoding
-**Stato: FATTO — comportamento corretto, nessun fix necessario (confermato con test)**
-
-`ced` e `iconv-lite` entrambi presenti e usati (`src/main/filesystem/markdown.js:4`, `encoding.js`).
-La conversione/scrittura funziona: `writeMarkdownFile` usa `iconv.encode(..., { addBOM: isBom })`.
-
-### Conclusione (dopo verifica)
-Il comportamento di MarkText è identico nella logica a quello di Notepad++ (che usa `uchardet`,
-parente di `ced`). Il flusso di rilevamento è gerarchico:
-1. **BOM presente → deterministico** (EF BB BF = UTF-8, FF FE = UTF-16 LE, FE FF = UTF-16 BE). Gestito in `encoding.js:69-73`.
-2. **File con solo ASCII (byte 0x00-0x7F) → indistinguibile.** UTF-8 senza BOM e ANSI/Windows-1252 sono
-   identici bit per bit: matematicamente impossibile distinguerli. Si usa il default → `utf8`.
-3. **File senza BOM con byte > 0x7F (es. accenti) → statistica/euristica** via `ced`.
-
-**Test eseguiti (confermano che va bene):**
-- Da MarkText salvo solo testo ASCII come ANSI → Notepad++ lo legge come UTF-8. Caso indistinguibile: **accettabile** (byte identici).
-- Da MarkText salvo con "è" accentata come ANSI → Notepad++ lo legge come ANSI. **Corretto** (il byte > 0x7F rende il formato distinguibile).
-
-Quindi non c'è un difetto da correggere: per i casi ambigui (ASCII puro) qualunque etichetta è valida;
-per i casi distinguibili (caratteri non-ASCII) il rilevamento funziona.
-
-**Finding minore (cosmetico, opzionale):** in `encoding.js:97` la regex `encoding.replace(/-_/g, '')`
-cerca la sequenza letterale `"-_"`; l'intento era probabilmente `/[-_]/g` (rimuovere trattini E underscore).
-Non causa problemi pratici (iconv-lite accetta nomi con trattino) ma resta un errore da correggere se si tocca il file.
+> Tutti i fix sopra sono testati (verifiche utente, ultimo giro 2026-05-30).
+> I log diagnostici temporanei (`[UNDO-DBG]`, `[DOT-DBG]`, `[WATCH-DBG]`, `[ENC-DBG]`) sono stati
+> **tutti rimossi**. I `console.log` in `watcher.js` gated da `MARKTEXT_DEBUG_VERBOSE >= 3` sono
+> volontari → NON rimuovere.
 
 ---
 
-## 3. UPPERCASE / lowercase
-**Stato: DA IMPLEMENTARE — DECISO: case GLOBALE in entrambe le viste**
+# ⚠️ Architettura e invarianti critiche (LEGGERE PRIMA DI MODIFICARE)
 
-Solo due trasformazioni (deciso): selezione → tutto MAIUSCOLO o tutto minuscolo. **Niente Title/Proper Case.**
+## Se la tua modifica tocca… → attenzione a… (indice rischi)
 
-### DECISIONE PRESA (utente)
-Le trasformazioni di case devono funzionare **in entrambe le visualizzazioni** (markdown E source) — è
-l'eccezione voluta rispetto al resto (che è solo source). Quindi:
-- UPPERCASE = `Ctrl+Shift+U` → **globale** in entrambe le viste
-- lowercase = `Ctrl+U` → **globale** in entrambe le viste
+Mappa tra modifiche tipiche (incluse voci di `TODO.md`) e le invarianti che rischiano di romperle.
+La colonna "Sez." rimanda ai paragrafi qui sotto.
 
-**Conseguenza accettata:** questi due tasti smettono di fare le loro funzioni markdown attuali da tastiera:
-- `Ctrl+U` non farà più `format.underline`
-- `Ctrl+Shift+U` non farà più `paragraph.horizontal-line`
+| Se tocchi… | Rischi / cosa controllare PRIMA | Sez. |
+|---|---|---|
+| **Selezione / evidenziazione** (es. "evidenzia occorrenze", selezione a colonna) | `cursorActivity` (`sourceCode.vue`) fa GIÀ N12 (dirty check) **e** arma il `commitTimer`: un nuovo listener su selection/cursor non deve duplicarli o interferire. Per i colori usa `--cmSelectionColor` (CM) — NON `--selectionColor` (Muya). | A, B, F |
+| **Salvataggio / autosave / lightTouch** | Flusso `pre-save` flush (B8/B13), baseline `originalMarkdown`, `pendingSavedMarkdown`, lightTouch (`getMarkdownForSave`/`normalizeBlock`). NON aggiungere guardie a `handlePreSave`. Leggi `tab.markdown` solo dopo il flush. | B, C |
+| **Chiusura tab / "rimuovi dialog vuoi salvare"** | Flusso close: `mt::ask-for-close` → `ASK_FOR_CLOSE`/`ASK_FOR_SAVE_ALL` → `CLOSE_TABS`/`FORCE_CLOSE_TAB`, ognuno usa `pendingSavedMarkdown`, `getMarkdownForSave`, `_applySourceCodeForFile`. I path di close NON passano da `UPDATE_CURRENT_FILE` (edge B14). Unwatch watcher gestito dal main. | B, C, D, B6, B14 |
+| **Cambio/Toggle modalità Muya↔source** | `_applySourceCodeForFile` PRIMA di `file-changed`; guard `handleFileChange` nei due componenti; `cmStatePerTab`; emit in `onBeforeUnmount` solo per view-switch stesso tab (B6); `currentMuyaTabId`. | A, B6 |
+| **Apertura file / modalità per estensione** (es. ".md only", auto-switch file grandi) | `_applySourceCodeForFile` DECIDE GIÀ la modalità per estensione → non duplicare. `loadMarkdownFile` (main) per encoding/EOL/trim. `justLoaded` settle window al load (B1). | A, B, 1, 2 |
+| **Watcher / ricarica / file watching** | Avvio watch dal MAIN (`ipcMain.emit`, firma `(win,…)`); handler watcher senza `mt::` NON dal renderer; `loadChange`+`forceReload`; dialog `file-changed-externally`; `pendingExternalChange` per tab background. | D, B2, B11, B14 |
+| **Shortcut / keybinding / comandi** | Accelerator menu Electron precedono `extraKeys` CM → mode-aware via bus per i tasti in conflitto; `normalizeKeyMap`; tasti già occupati (tabella shortcut); `Ctrl+0`=switchToTenth. | H, Task 3/4 |
+| **Find & Replace / search** (NON documentato qui) | Subsystem `components/search` non coperto: leggi il codice. Probabile interazione con selezione/cursorActivity (vedi sopra) e con la doppia modalità. | — |
+| **CSS / temi / stile UI** | Token in `v2-tokens.css`; selezione `--cmSelectionColor` vs `--selectionColor`; override tema-specifici a specificità alta (railscasts/one-dark forzano `!important` da node_modules). | F, B4 |
+| **Store Pinia (shape tab)** | Campi non ovvi sul tab: `originalMarkdown`, `justLoaded` (timestamp), `pendingExternalChange`, `trimTrailingNewline`. Aggiungerne/leggerli senza rompere i confronti dirty. | B |
 
-Le relative voci di menu Format/Paragraph restano (cliccabili col mouse); va solo rimosso/riassegnato il
-loro accelerator in `keybindings{Windows,Linux,Darwin}.js` per liberare i tasti (evita errore "duplicate shortcut"
-in `shortcutHandler`). Opzionale: riassegnare underline/HR a una combo libera se le si vuole ancora da tastiera.
+## A. Due modalità editor: Muya (WYSIWYG) vs source (CodeMirror)
 
-### Implementazione: comando GLOBALE che instrada per modalità
-Il comando deve applicare il case alla vista attiva (controllo `preferences.sourceCode`):
-- **source mode (CodeMirror):** trasforma la selezione CM
-- **markdown mode (Muya):** trasforma la selezione Muya
+Una tab è renderizzata da **uno** dei due editor, in base a `preferences.sourceCode`:
+- **Markdown / WYSIWYG → Muya** (`components/editorWithTabs/editor.vue`, engine in `src/muya/`).
+- **Source / testo grezzo → CodeMirror 5** (`components/editorWithTabs/sourceCode.vue`).
 
-Esempio logica trasformazione:
+`_applySourceCodeForFile(file)` (in `store/editor.js`) decide la modalità dall'estensione:
+`.md/.markdown/.mdown/.mkd` o senza estensione → Muya; tutto il resto (`.js`, `.txt`, …) → source.
+**Va chiamato PRIMA di `bus.emit('file-changed')`** ad ogni cambio tab — altrimenti l'editor sbagliato
+riceve l'evento (vedi B6). È già chiamato in `UPDATE_CURRENT_FILE`, `FORCE_CLOSE_TAB`, `CLOSE_TABS`.
 
-**CodeMirror** (solidità ~90%):
-```javascript
-function changeCase(cm, type) {
-  const updated = cm.getSelections().map(s => type === 'upper' ? s.toUpperCase() : s.toLowerCase())
-  cm.replaceSelections(updated, 'around') // mantiene selezione
-}
-```
+**Differenza chiave (causa di molti bug):**
+- **Muya**: il listener `on('change')` (`editor.vue`) chiama `LISTEN_FOR_CONTENT_CHANGE` **in modo
+  sincrono** ad ogni modifica → lo store (`tab.markdown`) è sempre aggiornato.
+- **CodeMirror**: il commit allo store è **debounced 1s** (`commitTimer` in `listenChange`/`cursorActivity`,
+  `sourceCode.vue`). Quindi per ~1s dopo una digitazione `tab.markdown` può essere **stale**. Questo
+  buco di 1s è la radice di B8 e B13. Qualsiasi lettura di `tab.markdown` "subito dopo aver digitato"
+  in source mode DEVE prima forzare il flush (vedi sez. C).
 
-**Muya** (solidità ~85%) — modellato su `src/muya/lib/contentState/wrapSelectionCtrl.js`:
-```javascript
-ContentState.prototype.changeSelectionCase = function (type) {
-  const { start, end } = this.cursor
-  if (!start || !end || start.key !== end.key) return false  // solo selezione single-block
-  let { offset: s } = start; let { offset: e } = end
-  if (s > e) [s, e] = [e, s]
-  const block = this.getBlock(start.key)
-  if (!block) return false
-  const sel = block.text.substring(s, e)
-  const out = type === 'upper' ? sel.toUpperCase() : sel.toLowerCase()
-  block.text = block.text.substring(0, s) + out + block.text.substring(e)
-  this.partialRender()
-  this.muya.dispatchChange()
-  return true
-}
-```
+**Comunicazione store ↔ editor:** via mitt `bus` (sincrono).
+- `bus.emit('file-changed', {...})` → carica contenuto/cursore/history nell'editor attivo.
+- `editor.vue` `handleFileChange`: esce subito se `sourceCode.value` (la tab è source, Muya non c'entra).
+- `sourceCode.vue` `handleFileChange`: esce subito se `!sourceCode.value` (componente in smontaggio, B6).
 
-### Wiring necessario (~6 file)
-- `src/common/commands/constants.js` — nuovi comandi `EDIT_TO_UPPERCASE` / `EDIT_TO_LOWERCASE`
-- `src/main/menu/templates/edit.js` — voci di menu
-- `src/main/menu/actions/edit.js` — registrazione comando (con dispatch mode-aware o `edit(win, 'toUpperCase')`)
-- `src/main/keyboard/keybindings{Windows,Linux,Darwin}.js` — assegnare gli shortcut **dopo** aver liberato quelli in conflitto
-- `src/renderer/src/commands/index.js` + `descriptions.js` — command palette + label i18n
-- `src/muya/lib/index.js` — esporre `changeSelectionCase` come metodo Muya (pattern `duplicate()` riga 289)
-- `static/locales/` — traduzioni etichette
+**`cmStatePerTab` (Map in `sourceCode.vue`)**: cache `{content, history}` per tab già visitate, così
+tornando su una tab si ripristina contenuto + undo. Va pulita (`delete`) alla chiusura tab.
+`forceReload` bypassa questa cache (vedi sez. D).
 
-### Wiring specifico (oltre ai file sopra)
-- In `keybindings{Windows,Linux,Darwin}.js`: rimuovere/spostare gli accelerator di `format.underline` (`Ctrl+U`)
-  e `paragraph.horizontal-line` (`Ctrl+Shift+U`), poi assegnarli ai nuovi comandi case.
-- Il comando case NON deve essere mode-aware nel senso "fa altro in markdown": fa **sempre** il case,
-  ma sceglie l'editor attivo (CM o Muya) su cui agire.
+**`currentMuyaTabId` (`editor.vue`)**: id del tab attualmente in Muya. Il listener Muya usa
+`currentMuyaTabId.value || 'muya'`, NON `'muya'` fisso, per non contaminare un'altra tab (B6).
 
----
+## B. Sistema "bollino non salvato" (dirty flag)
 
-## 4. Operazioni riga (sposta su/giù, duplica, elimina)
-**Stato: IMPLEMENTATO — fix 4a e 4b applicati 2026-05-30.**
+Il bollino = `tab.isSaved === false`. La verità è il confronto **contenuto editor vs `tab.originalMarkdown`**
+(la baseline = ultima versione salvata/caricata da disco; `null` per Untitled mai salvati).
 
-### STATO REALE (test utente 2026-05-30 → fix applicati)
-| Sotto-funzione | Vista | Esito |
-|----------------|-------|-------|
-| Alt+frecce (line-move distruttivo) | Muya | ✅ disabilitato, non cancella più |
-| Ctrl+L (elimina riga) | source | ✅ funziona |
-| Ctrl+Shift+↑/↓ (sposta riga) | source | ✅ fixato (Bug 4a — normalizeKeyMap) — **DA TESTARE** |
-| Ctrl+D (duplica riga) | source | ✅ fixato (Bug 4b — gestione selezione) — **DA TESTARE** |
-| Task 3 case (Ctrl+U / Ctrl+Shift+U) | Muya + source | ✅ funziona in entrambe |
-| Task 6 zoom solo testo | entrambe | ✅ funziona |
+Campi rilevanti sul tab (`store/help.js` `defaultFileState`):
+- `markdown` — contenuto corrente (nello store).
+- `originalMarkdown` — baseline per il confronto dirty.
+- `isSaved` — flag bollino.
+- `justLoaded` — **timestamp** (`Date.now()`), non booleano (B1). Finestra di assestamento (`LOAD_SETTLE_MS = 400ms`)
+  dopo un load/reload: durante questa finestra i content-change aggiornano `originalMarkdown` SENZA
+  marcare dirty (Muya fa ≥2 pass di normalizzazione all'init che altrimenti darebbero falso-dirty).
+- `pendingExternalChange` — modifica esterna rimandata per tab in background (B14).
+- `trimTrailingNewline` — politica newline finale (0 = nessuna, 1 = singola, 3 = invariato).
 
-**Bug 4a — Ctrl+Shift+↑/↓ non sposta le righe (root cause AGGIORNATA dopo secondo test):**
+**Punti che impostano `isSaved`:**
+- `LISTEN_FOR_CONTENT_CHANGE` (`store/editor.js`): logica centrale. Durante settle non marca dirty;
+  altrimenti `isSaved=false` se `markdown !== originalMarkdown`, `true` se torna identico (B9).
+- N12 in `cursorActivity` (`sourceCode.vue`): check immediato (no debounce) per feedback istantaneo dopo
+  Ctrl+Z. Confronta **normalizzando ENTRAMBI i lati**: `normalizeMarkdown(cm.getValue()) ===
+  normalizeMarkdown(originalMarkdown)` (B12 — `originalMarkdown` può essere grezzo dopo un load).
+- `mt::tab-saved` / `mt::set-pathname`: dopo il salvataggio impostano baseline + `isSaved=true` (B9).
 
-Root cause primaria (confermata 2026-05-30): `swapLineUp`/`swapLineDown` **non sono comandi built-in CM5**.
-Sono definiti in `node_modules/codemirror/keymap/sublime.js` (Sublime keymap addon) che non viene importato
-in `src/renderer/src/codeMirror/index.js`. CM riceve il nome del comando ma non lo trova in `CodeMirror.commands`
-→ silenzioso no-op.
+**Normalizzazione (NON confonderle):**
+- `normalizeMarkdown(md, trim)` (`sourceCode.vue`): replica di `adjustTrailingNewlines` — normalizza solo
+  i newline finali. Idempotente. Usata nei confronti N12.
+- `normalizeBlock(text)` (`store/editor.js`): normalizzazione semantica forte (collassa blank line, spazi,
+  trim). Usata per decidere se due versioni sono "semanticamente uguali" (lightTouch, B9).
 
-Root cause secondaria (ancora valida): ordine modificatori nei nomi chiave. CM5 al dispatch costruisce
-`Shift-Ctrl-Up` ma `extraKeys` grezzo ha chiave `Ctrl-Shift-Up` → miss. Risolto con `normalizeKeyMap` (già applicato).
+## C. Salvataggio (FILE_SAVE, lightTouch, pre-save flush)
 
-**Fix applicato:** registrare `swapLineUp`/`swapLineDown` direttamente su `codeMirror.commands` in
-`src/renderer/src/codeMirror/index.js`. Implementazione copiata da `sublime.js` originale. Non importato
-`sublime.js` completo: porterebbe ~40 keybinding Sublime in conflitto con MarkText.
+`FILE_SAVE` / `FILE_SAVE_AS` (`store/editor.js`):
+1. emettono `bus.emit('pre-save')` **prima** di leggere `tab.markdown` (B8);
+2. leggono `tab.markdown`;
+3. `getMarkdownForSave(markdown, originalMarkdown, lightTouch)` decide cosa scrivere;
+4. registrano `pendingSavedMarkdown.set(id, markdownToSave)` e inviano `mt::response-file-save`;
+5. al ritorno, `mt::tab-saved` aggiorna baseline/`isSaved`.
 
-**Bug 4b — Ctrl+D duplica solo la riga del cursore, ignora la selezione:**
-`handleFormatInSource` ramo `'del'` (`sourceCode.vue:266-271`) duplica solo `getLine(cur.line)`.
-**Fix:** se esiste una selezione non collassata, duplicare l'intero blocco di righe coperte
-(`from.line`..`to.line`); altrimenti comportamento attuale (riga corrente). Selezione primaria sufficiente.
+**`pre-save` flush (B8 + B13):** `sourceCode.vue` `handlePreSave` ascolta `pre-save`, cancella il
+`commitTimer` e chiama `LISTEN_FOR_CONTENT_CHANGE` **sincrono** col contenuto CM reale → `tab.markdown`
+è fresco prima che `FILE_SAVE` lo legga. **INVARIANTE: handlePreSave NON deve avere guardie che lo
+saltino** (es. `isFirstLoad`): un Ctrl+S è sempre esplicito (B13). Muya non ha questo problema (commit
+sincrono) e infatti non ascolta `pre-save`.
 
-### Istruzioni fix self-contained (per implementazione a freddo)
+**lightTouch (preferenza, default ON):** `getMarkdownForSave` — se il contenuto è semanticamente uguale
+all'originale (`normalizeBlock` uguale) restituisce `originalMarkdown` (preserva formattazione originale);
+altrimenti `mergeWithOriginal`. Conseguenza: ciò che si salva può differire in formattazione da
+`tab.markdown`. Per questo `mt::tab-saved`, quando `tab.markdown ≠ savedMarkdown` ma `normalizeBlock`
+coincide, imposta `originalMarkdown = tab.markdown` (non savedMarkdown) → confronti dirty apples-to-apples (B9).
 
-**Wiring esistente (già funzionante, NON modificare):** `handleFormatInSource(type)` in `sourceCode.vue`
-è agganciato via `bus` ed è già mode-aware (gira solo se `sourceCode.value === true`). Mapping:
-`Ctrl+D → type 'del'` (duplica), `Ctrl+L → type 'link'` (elimina, OK). Il routing mode-aware è già a posto
-(in markdown i tasti restano su strike/hyperlink). Si tocca SOLO il corpo del ramo `'del'`.
+## D. Watch + ricarica file esterni (chokidar)
 
-**Fix 4a — codice attuale (`sourceCode.vue` ~416-418):**
-```javascript
-    extraKeys: {
-      'Ctrl-Shift-Up': 'swapLineUp',
-      'Ctrl-Shift-Down': 'swapLineDown'
-    }
-```
-**→ sostituire con:**
-```javascript
-    // normalizeKeyMap riordina i modificatori nell'ordine usato da CM al dispatch
-    // (Shift-Ctrl-Up). Senza, gli extraKeys grezzi non matchano → cade su Shift+frecce.
-    extraKeys: codeMirror.normalizeKeyMap({
-      'Ctrl-Shift-Up': 'swapLineUp',
-      'Ctrl-Shift-Down': 'swapLineDown'
-    })
-```
-(`codeMirror` = default export di `../../codeMirror`, già importato a riga 19, è il costruttore CM.)
+**Avvio watch:** è il **main process** ad avviarlo. `EditorWindow._doOpenTab` (`main/windows/editor.js`)
+chiama `ipcMain.emit('watcher-watch-file', browserWindow, pathname)`. Gli handler watcher in
+`windowManager.js` (`watcher-watch-file/dir`, `watcher-unwatch-file/dir`, **senza** prefisso `mt::`) sono
+chiamati SOLO dal main via `ipcMain.emit` con `BrowserWindow` come 1° arg → firma `(win, filePath)`.
+**NON** chiamarli dal renderer e **NON** cambiarne la firma (causò 2 crash, vedi B2/Task 9). L'unwatch
+alla chiusura è gestito dal main via `removeFromOpenedFiles` (il renderer manda solo `mt::window-tab-closed`).
 
-**Fix 4b — codice attuale del ramo `'del'` (`sourceCode.vue` ~266-271):**
-```javascript
-  if (type === 'del') {
-    // Ctrl+D in source = duplica riga corrente
-    const cur = editor.value.getCursor()
-    const line = editor.value.getLine(cur.line)
-    editor.value.replaceRange(line + '\n', { line: cur.line, ch: 0 })
-    editor.value.focus()
-  } else if (type === 'link') {
-```
-**→ sostituire il ramo `'del'` con (gestione selezione + edge case `to.ch === 0`):**
-```javascript
-  if (type === 'del') {
-    // Ctrl+D in source = duplica. Con selezione → duplica tutte le righe coperte.
-    const cm = editor.value
-    const from = cm.getCursor('from')
-    const to = cm.getCursor('to')
-    const hasSel = from.line !== to.line || from.ch !== to.ch
-    if (!hasSel) {
-      // nessuna selezione → duplica la riga corrente (comportamento originale)
-      const line = cm.getLine(from.line)
-      cm.replaceRange(line + '\n', { line: from.line, ch: 0 })
-    } else {
-      // selezione attiva → duplica l'intero blocco di righe coperte
-      // edge case: se la selezione finisce a ch=0, l'ultima riga non è realmente toccata → escludila
-      let endLine = (to.ch === 0 && to.line > from.line) ? to.line - 1 : to.line
-      const lines = []
-      for (let i = from.line; i <= endLine; i++) lines.push(cm.getLine(i))
-      cm.replaceRange(lines.join('\n') + '\n', { line: from.line, ch: 0 })
-    }
-    cm.focus()
-  } else if (type === 'link') {
-```
-NB: gestita solo la selezione primaria (no multi-cursore) — sufficiente per il requisito.
+**File singoli vs directory:** per `type === 'file'` il watcher NON filtra per estensione (B2) — l'utente
+può aprire `.js/.txt/.json/...`. Il filtro markdown-only vale solo per i watch di directory.
 
-### BUG confermato: Alt+frecce in markdown (Muya) cancella il testo selezionato
-**Sintomo:** in visualizzazione markdown, selezionando del testo e premendo Alt+↑/↓ il testo viene **cancellato** (errato).
+**Catena su modifica esterna:**
+`watcher.js change()` → legge il file con `loadMarkdownFile` → `win.webContents.send('mt::update-file',
+{type:'change', change:{pathname, data}})` → `LISTEN_FOR_FILE_CHANGE` (`store/editor.js`).
 
-**File coinvolti:**
-- `src/muya/lib/contentState/moveLineCtrl.js` — `handleMoveLineKeydown` (riga 186) scatta su Alt+↑/↓.
-  Controlla `ctrlKey/metaKey/shiftKey` (riga 189) ma **non** verifica se esiste una selezione attiva
-  (non collassata). Con una selezione lo swap dei blocchi (`swapBlocks` + reset cursore) perde il
-  contenuto selezionato → effetto "cancellazione".
-- `src/muya/lib/eventHandler/keyboard.js:145` — aggancio: `if (contentState.handleMoveLineKeydown(event)) return`.
+`LISTEN_FOR_FILE_CHANGE` (ramo change/add):
+- autoSave ON + tab salvato → `loadChange` silenzioso;
+- **tab ATTIVA** (`currentFile.id === id`) → `bus.emit('file-changed-externally', {change, filename,
+  hasUnsavedChanges})` → mostra il dialog;
+- **tab in background** → memorizza `tab.pendingExternalChange = change`, niente dialog (B14). Il dialog
+  esce quando si apre la tab (`UPDATE_CURRENT_FILE` consuma il pending nel `nextTick`).
+- `unlink` → `pushTabNotification` (banner — la barra è ancora usata qui e per mixed line endings).
 
-**Decisione (richiesta utente):** in visualizzazione markdown le azioni con Alt vanno **disabilitate**.
-Il line-move appartiene al source mode (tipo Notepad++), non alla vista WYSIWYG.
+**`loadChange(change)`** (`store/editor.js`): rimpiazza lo stato del tab col contenuto disco. Imposta
+`isSaved=true` + `justLoaded=Date.now()` (evita falso-dirty post-normalizzazione, B11). Ricarica
+l'editor solo se la tab è la `currentFile`, emettendo `file-changed` con **`forceReload:true`**.
 
-**Fix proposto (solidità ~90%, basso impatto):** neutralizzare il line-move in Muya.
-Opzione semplice: rimuovere/commentare l'aggancio in `keyboard.js:145`
-(oppure far ritornare sempre `false` a `handleMoveLineKeydown`). Così Alt+frecce non innesca più
-lo swap distruttivo. Verificare che nessun'altra logica Alt resti attiva in Muya.
+**`forceReload`** (`sourceCode.vue` `handleFileChange`): quando `id === tabId.value && forceReload`,
+forza `setValue(newMarkdown)` + `refresh()` (altrimenti l'early-return per "stessa tab" salterebbe il
+reload, B11). `setValue` resetta la history undo di CM del file ricaricato (atteso, come Notepad++).
 
-> NB: `duplicate` (Ctrl+Alt+D) e `deleteParagraph` (Ctrl+Shift+D) in Muya restano funzionanti e NON
-> usano il tasto Alt+freccia → non toccarli. Si disabilita solo il line-move via Alt+freccia.
+**Dialog di reload** (`components/editorWithTabs/fileChangedDialog.vue`): box del **design system v2**
+(NON `el-dialog`), montato in `editorWithTabs/index.vue`. Bus `file-changed-externally`. Non-modale
+(backdrop trasparente), click-fuori/ESC/Annulla = annulla, solo "Ricarica" applica. In `onClosed`:
+- confermato → `loadChange`;
+- annullato → `markDivergedFromDisk(change)` = baseline al **nuovo disco** + `isSaved=false` → il bollino
+  compare e persiste (l'editor diverge dal disco), senza toccare contenuto/history (Opzione A, B12).
 
-### Stato funzioni in Muya (riferimento)
-- **Duplica:** `src/muya/lib/contentState/paragraphCtrl.js:700` (`duplicate`), comando `edit.duplicate` (Ctrl+Alt+D) — OK.
-- **Elimina:** `src/muya/lib/contentState/paragraphCtrl.js:725` (`deleteParagraph`), comando `edit.delete-paragraph` (Ctrl+Shift+D) — OK.
-- **Sposta su/giù:** da disabilitare (vedi sopra).
+**Reload manuale** (context menu tab "Reload"): `ipcRenderer.send('mt::request-file-reload', pathname)`
+→ handler in `windowManager.js` → `Watcher.reloadFile(win, pathname)` rilegge da disco (stesse prefs del
+watcher) e invia `mt::update-file` → rientra nel path sopra (dialog se modifiche non salvate).
 
-### Source mode (CodeMirror) — DA IMPLEMENTARE — solidità ~85%
-In source mode i comandi `edit.duplicate`/`edit.delete-paragraph` instradano via `bus.emit('duplicate')`
-verso Muya (non attivo) → in CodeMirror **non fanno nulla**. `sourceCode.vue` ascolta solo `undo/redo/selectAll`.
+## E. IPC patterns (vedi anche CLAUDE.md)
 
-### Shortcut Notepad++ richieste + conflitti MarkText
-| Azione | Tasto N++ | Stato in MarkText |
-|--------|-----------|-------------------|
-| Sposta riga su | `Alt+↑` | **libero in source** ✓ |
-| Sposta riga giù | `Alt+↓` | **libero in source** ✓ |
-| Duplica riga | `Ctrl+D` | occupato: `format.strike` ✗ |
-| Elimina riga | `Ctrl+L` | occupato: `format.hyperlink` ✗ |
-| Split lines | `Ctrl+I` | occupato: `format.emphasis` ✗ |
-| Join lines | `Ctrl+J` | occupato: `view.toggle-sidebar` ✗ |
+- Canali con prefisso **`mt::`** → chiamati dal renderer via `ipcRenderer.send` → nel main usare
+  `BrowserWindow.fromWebContents(e.sender)`.
+- Canali **senza** prefisso (watcher-*) → chiamati dal main via `ipcMain.emit(channel, browserWindow, …)`
+  → 1° arg è già il `BrowserWindow`. Firma `(win, …)`.
+- Prima di cambiare la firma di un handler, grep **entrambi** i pattern (`ipcMain.emit('canale'` e
+  `ipcRenderer.send('canale'`). Una firma sola non può servire i due chiamanti.
 
-**Problema chiave:** i tasti occupati sono accelerator di menu Electron → scattano a livello app e
-**precedono** gli `extraKeys` di CodeMirror. Quindi `extraKeys` da solo NON basta per i tasti in conflitto.
+## F. Colori selezione
 
-### DECISIONE PRESA (utente): line-ops SOLO in source mode, mode-aware
-Le operazioni riga sono comode solo nella vista simil-Notepad++. Quindi:
-- **In markdown (Muya):** i tasti in conflitto mantengono la funzione ORIGINALE (strike, hyperlink, emphasis, sidebar) — invariati.
-- **In source (CodeMirror):** gli stessi tasti eseguono la funzione Notepad++.
-- I tasti **liberi** (`Ctrl+Shift+↑/↓`) → line-move attivo **solo in source**; in markdown restano inattivi
-  (NON riabilitare il move in Muya: ha il bug distruttivo, vedi sopra → resta disabilitato).
+- **`--selectionColor`** (per tema, in `assets/themes/*.theme.css`): usata da **Muya** (WYSIWYG). NON
+  toccarla per cambiare la source.
+- **`--cmSelectionColor`** (B4-bis): dedicata a **CodeMirror**, default `rgba(56,139,253,0.6)` in
+  `codeMirror/index.css`. Disaccoppia la selezione source da Muya. Override per railscasts
+  (`.CodeMirror.cm-s-railscasts div.CodeMirror-selected`, specificità alta perché node_modules forza
+  `#272935 !important`) e one-dark.
 
-Implementazione mode-aware: i comandi controllano `preferences.sourceCode`; se source → eseguono il comando
-CodeMirror, altrimenti lasciano passare l'azione markdown originale. Comandi CM5 da usare:
-- sposta su/giù → built-in `swapLineUp` / `swapLineDown` (`cm.execCommand(...)`)
-- duplica riga:
-  ```javascript
-  const cur = cm.getCursor()
-  const line = cm.getLine(cur.line)
-  cm.replaceRange(line + '\n', { line: cur.line, ch: 0 })
-  ```
-- elimina riga → built-in `deleteLine`
+## G. Zoom testo
 
-**Split (`Ctrl+I`) / Join (`Ctrl+J`): NON implementare ora** — spostati in `TODO.md` (CodeMirror non ha
-comandi built-in, vanno scritti a mano). Qui si implementano solo sposta/duplica/elimina.
+Zoom **solo del testo** (non title/tab bar). Riusa la preferenza `zoom` esistente (significato cambiato).
+Vedi Task 6 per il dettaglio dei file.
 
-NB: poiché in markdown questi tasti restano sulle funzioni originali, NON serve liberare i binding;
-il routing mode-aware intercetta solo quando la vista è source.
+## H. Shortcut: mode-aware + conflitti
+
+- **Case (Ctrl+U / Ctrl+Shift+U) = GLOBALE** in entrambe le viste → `format.underline` e
+  `paragraph.horizontal-line` hanno perso questi accelerator (liberati nei `keybindings*.js`).
+- **Line-ops (Ctrl+D / Ctrl+L / Ctrl+I / Ctrl+J, Ctrl+Shift+↑/↓) = MODE-AWARE, solo source** → in
+  markdown i tasti restano sulla funzione originale (strike/hyperlink/emphasis/sidebar), nessun binding
+  da liberare.
+- Gli accelerator di menu Electron **precedono** gli `extraKeys` di CodeMirror → per i tasti in conflitto
+  `extraKeys` da solo non basta; il routing mode-aware passa per il `bus`.
+- `extraKeys` CM: usare `codeMirror.normalizeKeyMap({...})` (CM al dispatch costruisce `Shift-Ctrl-Up`,
+  non `Ctrl-Shift-Up`).
+- `Ctrl+0` è `tabs.switchToTenth` → NON usarlo per reset zoom.
+- Su Windows evitare combo `Ctrl+Alt` (= AltGr).
+
+## Mappa file chiave
+
+| Area | File |
+|---|---|
+| Store editor (dirty, save, reload, tab) | `src/renderer/src/store/editor.js` |
+| Default stato tab | `src/renderer/src/store/help.js` |
+| Source editor (CodeMirror) | `src/renderer/src/components/editorWithTabs/sourceCode.vue` |
+| WYSIWYG editor (Muya wrapper) | `src/renderer/src/components/editorWithTabs/editor.vue` |
+| Layout tab + container | `src/renderer/src/components/editorWithTabs/index.vue` |
+| Dialog reload esterno | `src/renderer/src/components/editorWithTabs/fileChangedDialog.vue` |
+| Banner notifiche tab | `src/renderer/src/components/editorWithTabs/notifications.vue` |
+| Context menu tab | `src/renderer/src/components/contextMenu/TabContextMenu.vue` (+ `icons.js`) |
+| CSS selezione CM | `src/renderer/src/codeMirror/index.css` + `assets/themes/codemirror/one-dark.css` |
+| Token design system v2 | `src/renderer/src/assets/styles/v2-tokens.css` |
+| Watcher file | `src/main/filesystem/watcher.js` |
+| IPC main/window | `src/main/app/windowManager.js`, `src/main/windows/editor.js` |
+| Encoding/EOL | `src/main/filesystem/encoding.js`, `markdown.js` |
+| Locales | `static/locales/*.json` (base/fallback = `en.json`; **non esiste `it.json`**) |
 
 ---
 
-## 5. Copia percorso file dal tab
-**Stato: FATTO** — context menu sul tab funziona correttamente.
+# Funzionalità implementate (Task 1–10) — stato finale
+
+## 1. Conversione EOL ✅
+Supporta CRLF (`\r\n`), LF (`\n`), CR (`\r`). `loadMarkdownFile` (`main/filesystem/markdown.js`) rileva
+l'EOL realmente presente nel file e lo preserva; `preferredEol` solo come fallback se non rilevabile.
+Comportamento voluto: non forza l'EOL dell'OS (non "sporca" un file Unix aperto su Windows).
+
+## 2. Conversione/rilevamento encoding ✅
+`ced` + `iconv-lite` (`main/filesystem/encoding.js`, `markdown.js`). Flusso gerarchico: BOM →
+deterministico; solo-ASCII → indistinguibile, default `utf8`; byte > 0x7F → euristica `ced`.
+Scrittura: `iconv.encode(..., {addBOM})`. Per il fix del falso-UTF-8 su ANSI vedi **B3**.
+(Finding minore non bloccante: `encoding.js` regex `replace(/-_/g,'')` dovrebbe essere `/[-_]/g`.)
+
+## 3. UPPERCASE / lowercase ✅
+`Ctrl+Shift+U` = MAIUSCOLO, `Ctrl+U` = minuscolo. **Globale** in entrambe le viste (eccezione voluta).
+Niente Title/Proper Case. Source: `cm.replaceSelections(map(toUpper/Lower), 'around')`. Muya:
+`ContentState.prototype.changeSelectionCase` (single-block). Wiring: `common/commands/constants.js`,
+`menu/templates/edit.js` + `menu/actions/edit.js`, `keybindings{Windows,Linux,Darwin}.js` (liberati
+underline/HR), `renderer/commands/index.js`+`descriptions.js`, `muya/lib/index.js`, `static/locales/`.
+
+## 4. Operazioni riga (sposta su/giù, duplica, elimina) ✅ — solo source
+Mode-aware (`handleFormatInSource` in `sourceCode.vue`, gira solo se `sourceCode.value`):
+- **Sposta riga** `Ctrl+Shift+↑/↓` → `swapLineUp`/`swapLineDown`. Bug 4a: questi NON sono built-in CM5
+  → registrati su `codeMirror.commands` in `codeMirror/index.js` (copiati da sublime.js, senza importare
+  l'addon che porterebbe ~40 binding in conflitto). `extraKeys` via `normalizeKeyMap`.
+- **Duplica** `Ctrl+D` → duplica riga corrente o, con selezione, tutte le righe coperte (edge `to.ch===0`
+  esclude l'ultima riga). Bug 4b risolto nel ramo `'del'`.
+- **Elimina** `Ctrl+L` → `deleteLine`.
+- **Muya**: line-move via Alt+frecce **disabilitato** (era distruttivo: cancellava la selezione —
+  `moveLineCtrl.js` non controllava la selezione). `duplicate` (Ctrl+Alt+D) e `deleteParagraph`
+  (Ctrl+Shift+D) in Muya restano OK.
+- Split (`Ctrl+I`) / Join (`Ctrl+J`): **non** implementati (in `TODO.md`, CM5 non ha built-in).
+
+## 5. Copia percorso file dal tab ✅
+Context menu sul tab (`TabContextMenu.vue`) → `clipboard.writeText(pathname)`.
+
+## 6. Zoom testo Ctrl+rotella ✅
+Zoom limitato al testo. Listener `wheel {passive:false}` su `.container` (`editorWithTabs/index.vue`):
+con `ctrlKey` → `preventDefault()` (sopprime lo zoom nativo Chromium di tutta la pagina) + aggiorna il
+fattore. Muya: `fontSize` di `.editor-wrapper`. CodeMirror: `font-size` su `.CodeMirror` + `cm.refresh()`.
+Reset via bottone status bar (`Ctrl+0` non usabile = switchToTenth). Voci menu `window.zoomIn/zoomOut`
+e la preferenza `zoom` riusate col nuovo significato (solo testo). Vecchio percorso `webFrame.setZoomFactor`
+neutralizzato. Vedi anche **B5** (Ctrl+Plus / Ctrl+-).
+
+## 7. Word Wrap toggling ✅
+Disabilitato in Muya; in source `lineWrapping` pilotato da `preferences.wordWrap`
+(`sourceCode.vue`, `statusBar/index.vue`).
+
+## 8. Selezione visibile in source mode ✅
+Vedi **B4** (alpha temi scuri) e **B4-bis** (variabile dedicata `--cmSelectionColor`, blu saturo).
+
+## 9. Ricarica file modificato esternamente ✅
+Watcher + dialog. Tutta la meccanica è descritta nella sez. D (Architettura). Bug correlati: B2 (watcher
+non partiva per non-md), B11 (contenuto non aggiornava + UX dialog), B12 (UX/Annulla), B14 (tab background).
+
+## 10. Pulizia console.log di debug ✅
+Rimossi tutti i prefissi diagnostici temporanei. Mantenuti i log gated `MARKTEXT_DEBUG_VERBOSE` in
+`watcher.js`.
 
 ---
 
-## 6. Zoom testo Ctrl+rotella
-**Stato: DA IMPLEMENTARE (correzione comportamento) — solidità ~80%, complessità media**
+# Storico bug & fix (ordine numerico)
 
-### Come funziona ORA (perché zooma tutto)
-- Chromium emette l'evento nativo `zoom-changed` su Ctrl+rotella → gestito in
-  `src/main/windows/editor.js:154` → chiama `zoomIn/zoomOut` (`src/main/windows/utils.js`) →
-  invia IPC `mt::window-zoom` → store renderer `EDIT_ZOOM` (`src/renderer/src/store/editor.js:1468`) →
-  `window.electron.webFrame.setZoomFactor(...)`.
-- `webFrame.setZoomFactor` scala **l'intera pagina del renderer** → title bar + tab bar + editor.
+## B1 — Bollino su tab non modificate all'apertura ✅
+**Sintomo:** aprendo un file la tab mostra subito il bollino senza modifiche.
+**Root cause:** Muya fa ≥2 pass di normalizzazione all'init; il meccanismo `justLoaded` era one-shot
+(booleano) e catturava solo il 1° pass.
+**Fix:** `justLoaded` da booleano a **timestamp** + finestra `LOAD_SETTLE_MS=400ms`: durante la finestra i
+content-change aggiornano `originalMarkdown` senza marcare dirty.
+**File:** `store/editor.js` (`LISTEN_FOR_CONTENT_CHANGE`, `NEW_TAB_WITH_CONTENT`).
 
-### Struttura DOM (chiave per lo scope)
-`src/renderer/src/components/editorWithTabs/index.vue`:
-```
-.editor-with-tabs
-  <tabs />            ← tab bar (NON deve zoomare)
-  .container          ← AVVOLGE entrambi gli editor → punto giusto per lo scope
-    <editor />        ← Muya: .editor-wrapper ha GIÀ :style="{ fontSize }" (editor.vue:7)
-    <source-code />   ← CodeMirror
-```
-La title bar è ancora più in alto (fuori da questo componente). Quindi limitare lo zoom a `.container`
-esclude automaticamente title bar e tab bar.
+## B2 — Prompt ricarica file esterno non compariva ✅
+**Sintomo:** modifica esterna a un file aperto → nessun prompt.
+**Root cause:** `watcher.js` filtrava markdown-only (`ignored` + ramo `change`), così chokidar ignorava i
+file non-`.md` aperti come tab singola.
+**Fix:** per `type === 'file'` non filtrare per estensione (`ignored` → `return false`; rimosso
+`if (isMarkdown)` nel `change`).
+**File:** `main/filesystem/watcher.js`.
+**Nota crash collaterali (Task 9):** gli handler watcher erano stati cambiati a
+`BrowserWindow.fromWebContents(event.sender)` ma sono chiamati dal main via `ipcMain.emit` → `event.sender`
+undefined → crash. Ripristinata firma `(win, filePath)`; rimossi `ipcRenderer.send('watcher-unwatch-file')`
+ridondanti dal renderer (l'unwatch lo fa già il main via `removeFromOpenedFiles`).
 
-### Fix proposto
-1. **Bloccare lo zoom nativo dell'intera pagina:** aggiungere in `index.vue` un listener `wheel`
-   con `{ passive: false }` su `.container`; se `event.ctrlKey` → `event.preventDefault()`
-   (impedisce a Chromium di emettere `zoom-changed` e scalare tutta la pagina) e aggiornare un fattore di scala.
-2. **Applicare lo zoom solo al testo:**
-   - Muya: pilotare il `fontSize` esistente di `.editor-wrapper` (moltiplicatore di zoom).
-   - CodeMirror: impostare `font-size` su `.source-code .CodeMirror` (via variabile CSS) e chiamare `cm.refresh()`.
-3. **Reset:** la status bar ha già il bottone "reset zoom" (`statusBar/index.vue:158`). NB: `Ctrl+0`
-   **NON** è utilizzabile come shortcut di reset perché è già `tabs.switchToTenth`
-   (`keybindingsWindows.js:121`) → conflitto. Usare solo il bottone o un'altra combo.
-4. **Disattivare/reindirizzare il vecchio percorso:** rimuovere o neutralizzare l'handler `zoom-changed`
-   in `editor.js:154` e far sì che `EDIT_ZOOM` non chiami più `webFrame.setZoomFactor` (o crearne uno
-   nuovo dedicato all'editor), altrimenti i due meccanismi si sovrappongono.
+## B3 — File ANSI con accenti → mojibake (encoding errato UTF-8) ✅
+**Sintomo:** file ANSI con "è" → testo corrotto + status bar mostra UTF-8.
+**Root cause:** `ced` su file piccoli/ASCII restituisce `ASCII`/`ASCII-7-bit` → mappati a `utf8` → byte
+Windows-1252 decodificati come UTF-8.
+**Fix:** `isValidUtf8(buffer)` in `encoding.js`; dopo ced→utf8, se ci sono byte > 0x7F **e** UTF-8 non
+valido → `windows-1252`. BOM ha sempre precedenza.
+**File:** `main/filesystem/encoding.js`.
 
-### DECISIONI PRESE (utente)
-1. **Riuso della preferenza `zoom` esistente** (non se ne crea una nuova). Cambia il suo significato:
-   da "zoom intera finestra" a "zoom del solo testo". È mostrata solo nel footer (`statusBar/index.vue` `zoomDisplay`),
-   quindi il cambio di significato è sicuro: basta aggiornare quel punto se serve.
-2. **Anche le voci di menu `window.zoomIn/zoomOut`** (`menu/templates/window.js`) devono agire sullo
-   zoom-testo (coerenti con la rotella), NON più sullo zoom-finestra via `webFrame`.
+## B4 — Selezione temi scuri poco visibile ✅
+**Fix base:** alzato alpha `--selectionColor` (`dark` 0.3→0.55, `one-dark` 60→bb, `material-dark` 0.2→0.45).
 
-**Perché ~80% e non di più:** il fix è tecnicamente solido (lo `fontSize` scoped esiste già), ma tocca
-4-5 file; va testato che `preventDefault` sopprima davvero lo zoom nativo di Chromium su tutte le piattaforme target.
+### B4-bis — Selezione SOURCE MODE molto più evidente
+**Root cause residua:** railscasts (temi `dark`/`material-dark`) forza
+`div.CodeMirror-selected {#272935 !important}` da node_modules → quasi invisibile.
+**Fix:** variabile dedicata **`--cmSelectionColor`** (default `rgba(56,139,253,0.6)`), disaccoppiata da
+Muya. Override a specificità alta per railscasts + one-dark.
+**File:** `codeMirror/index.css`, `assets/themes/codemirror/one-dark.css`.
 
----
+## B5 — Zoom Ctrl+Plus / Ctrl+- non funzionanti ✅
+**Fix:** aggiunti accelerator `Ctrl+Plus` / `Ctrl+-` per `window.zoomIn`/`zoomOut` in
+`keybindingsWindows.js` e `keybindingsLinux.js` (erano vuoti).
 
-## 7. Word Wrap toggling
-**Stato: FATTO**
-Disabilitato in visualizzazione markdown (Muya); abilitabile in source mode (CodeMirror,
-`lineWrapping` pilotato da `preferences.wordWrap`, vedi `sourceCode.vue:379` e `statusBar/index.vue:150`).
+## B6 — Ctrl+Z cross-tab + contaminazione source/history su close ✅
+**Sintomi:** chiudendo una tab source senza salvare → Untitled passa a source, Ctrl+Z ripristina testo
+della tab chiusa, bollino su Untitled.
+**Root cause (3):** (1) `CLOSE_TABS` non chiamava `_applySourceCodeForFile` sul nuovo currentFile;
+(2) `sourceCode.vue handleFileChange` processava eventi anche con `sourceCode=false` (smontaggio);
+(3) Muya usava `id:'muya'` fisso bypassando il guard cross-tab.
+**Fix:** (1) `_applySourceCodeForFile` in `CLOSE_TABS`; (2) guard `if (!sourceCode.value) return`;
+(3) emit `file-changed` in `onBeforeUnmount` solo se stesso tab + `cmStatePerTab.delete`;
+(4) `currentMuyaTabId` invece di `'muya'` fisso + check `justLoaded` su background tab.
+**File:** `store/editor.js`, `sourceCode.vue`, `editor.vue`.
 
----
+## B7 — Spazio vuoto a destra nelle tab con filename corto ✅
+**Root cause:** `.v2-tab` ha `min-width:88px` ma `.v2-tab-name` non aveva `flex-grow` → spazio vuoto dopo
+la X per nomi corti.
+**Fix:** `flex-grow:1` su `.v2-tab-name` (`tabs.vue`). `min-width:0` preesistente preserva l'ellipsis.
 
-## 8. Selezione poco visibile in source mode con tema scuro
-**Stato: BUG confermato — fix CSS, solidità ~90%, bassa complessità**
+## B8 — Bollino riappare ~1s dopo Ctrl+S in source ✅
+**Root cause:** `FILE_SAVE` legge `tab.markdown` ma in source è debounced 1s; Ctrl+S entro 1s salva
+contenuto stale, poi il commitTimer riscatta e rimarca dirty.
+**Fix:** `pre-save` flush — `FILE_SAVE`/`FILE_SAVE_AS` emettono `bus.emit('pre-save')`; `handlePreSave`
+(`sourceCode.vue`) cancella il commitTimer e committa sincrono il contenuto CM reale.
+**File:** `store/editor.js`, `sourceCode.vue`. **Vedi anche B13** (la guardia di handlePreSave rompeva
+questo fix nel caso "una sola tab mai cambiata").
 
-In source mode (CodeMirror) la selezione con Shift/Ctrl+Shift+frecce **funziona**, ma con tema scuro
-l'evidenziazione è quasi invisibile (con tema chiaro si vede bene).
+## B9 — Bollino riappare al click cursore dopo save ✅
+**Root cause:** con lightTouch ON, `savedMarkdown` (mergeWithOriginal) ≠ `tab.markdown` in formattazione;
+`originalMarkdown` veniva impostato a `savedMarkdown` → N12/LFC confrontavano valori diversi → falso-dirty,
+con autoSave anche loop.
+**Fix:** in `mt::tab-saved`/`mt::set-pathname`, se `normalizeBlock(tab.markdown)===normalizeBlock(savedMarkdown)`
+→ `isSaved=true` e `originalMarkdown = tab.markdown`. N12 normalizza i trailing newline.
+**File:** `store/editor.js`, `sourceCode.vue`.
 
-**Causa:**
-- `src/renderer/src/codeMirror/index.css:5-9` imposta solo la `::selection` nativa a azzurro fisso `rgb(178, 215, 254)`.
-- `src/renderer/src/assets/themes/codemirror/one-dark.css:37` imposta `.cm-s-one-dark .CodeMirror-selected`
-  a `#3e4451`, troppo simile allo sfondo `#282c34` → contrasto insufficiente.
-- I temi MarkText definiscono già una variabile `--selectionColor` (usata da Muya), ma **CodeMirror non la usa**:
-  - `dark.theme.css:15` → `rgba(102, 177, 255, 0.3)` (blu visibile)
-  - `one-dark.theme.css:16` → `#67769660`
-  - `material-dark.theme.css:15` → `rgba(255, 255, 255, 0.2)`
-- Temi scuri (da `src/renderer/src/config.js:17-18`): `railscastsThemes = ['dark', 'material-dark']`, `oneDarkThemes = ['one-dark']`.
+## B10 — Ctrl+Shift+↑/↓ non estende selezione in Muya ✅
+**Root cause:** `arrowHandler` (`arrowCtrl.js`) usciva early per ogni `shiftKey` senza preventDefault →
+il browser non sa saltare tra i blocchi separati di Muya.
+**Fix:** handler esplicito per `ctrl+shift+ArrowUp/Down` prima dell'early-return: trova blocco prec/succ
+(`findPreBlockInLocation`/`findNextBlockInLocation`), aggiorna selezione DOM + `dispatchSelectionChange`.
+**File:** `src/muya/lib/contentState/arrowCtrl.js`.
 
-**Fix proposto:** far usare a CodeMirror la stessa variabile tema `--selectionColor` (coerenza con Muya, visibilità su tutti i temi).
-- In `src/renderer/src/codeMirror/index.css`: impostare `.CodeMirror-selected { background: var(--selectionColor); }`
-  e le regole `::selection` su `var(--selectionColor)`.
-- Sovrascrivere la regola scura specifica `.cm-s-one-dark .CodeMirror-selected` (in `one-dark.css:37`)
-  affinché usi `var(--selectionColor)` invece di `#3e4451` (la sua specificità batte la regola base).
-- Per railscasts (CSS dentro `node_modules/codemirror/theme/railscasts.css`, non editabile): aggiungere
-  una regola di override in CSS applicativo `.cm-s-railscasts .CodeMirror-selected { background: var(--selectionColor); }`.
+## B11 — Reload esterno: contenuto non aggiorna + UX dialog ✅
+**Sintomi:** barra blu in fondo; OK non aggiornava il contenuto (source); bollino verde dopo OK.
+**Root cause A (source):** `handleFileChange` early-return su `id===tabId.value` saltava `setValue`.
+**Root cause B:** `loadChange` non impostava `justLoaded` → normalizzazione post-reload marcava dirty;
+inoltre la detection marcava `isSaved=false` prima della scelta utente.
+**Fix:** nuovo `fileChangedDialog.vue` (floating box centrale al posto della barra); `LISTEN_FOR_FILE_CHANGE`
+emette `file-changed-externally` (no più dirty in detection); `loadChange` → `isSaved=true` + `justLoaded` +
+`forceReload:true`; `handleFileChange` ramo `forceReload` → `setValue`+`refresh`. Locale keys in `en.json`.
+**File:** `fileChangedDialog.vue` (nuovo), `editorWithTabs/index.vue`, `store/editor.js`, `sourceCode.vue`,
+`static/locales/en.json`. (Nota: in questa fase il dialog usava ancora `el-dialog`, sostituito in B12.)
 
-**Side-effect:** verificare che `--selectionColor` con alpha sia sufficientemente visibile su ogni tema scuro;
-se `one-dark` (`#67769660`) risultasse ancora debole, aumentare l'alpha nel relativo `.theme.css`.
+## B12 — Reload UX follow-up (4 interventi) ✅
+1. **N12 false-dirty** dopo edit→cursore→save→cursore: normalizzare entrambi i lati (vedi sez. B).
+2. **Annulla → bollino (Opzione A):** action `markDivergedFromDisk(change)` = baseline al nuovo disco +
+   `isSaved=false`; il bollino persiste senza toccare contenuto/history. Chiamata da `onClosed` se non confermato.
+3. **Stile dialog v2:** rimpiazzato `el-dialog` con box `--v2-surface` (#27272a) / `--v2-shadow-lg` /
+   `--v2-text`, backdrop trasparente, fade `v2dropIn`/`v2fadeIn`, ESC/click-fuori = Annulla.
+4. **Context menu "Reload":** voce in `TabContextMenu.vue` (icona `refresh`, disabilitata su Untitled) →
+   `mt::request-file-reload` → `Watcher.reloadFile` (rilegge da disco) → path esistente.
+**File:** `store/editor.js`, `fileChangedDialog.vue`, `TabContextMenu.vue`, `contextMenu/icons.js`,
+`main/filesystem/watcher.js`, `main/app/windowManager.js`, `static/locales/en.json`.
 
----
+## B13 — Ctrl+S in source salva contenuto stale ✅
+**Sintomo:** salvo ma su disco resta il vecchio; bollino riappare; al 2° salvataggio appare; intermittente.
+**Root cause:** `handlePreSave` aveva la guardia `&& !isFirstLoad.value`. `isFirstLoad` resta `true` per
+una tab aperta e mai cambiata (azzerato solo in `prepareTabSwitch`, saltato al primo load) → il flush non
+avveniva mai e il commitTimer veniva cancellato → `FILE_SAVE` leggeva `tab.markdown` stale.
+**Fix:** rimossa la guardia `!isFirstLoad.value` da `handlePreSave` (un Ctrl+S è sempre esplicito; se non
+ci sono modifiche reali il commit è no-op). Muya non è interessato (commit sincrono).
+**File:** `sourceCode.vue` (`handlePreSave`).
 
-## 9. Ricarica file modificato da altro programma (stile Notepad++)
-**Stato: PARZIALE — la logica esiste ma il watcher non viene mai avviato (root cause del "non compare")**
-
-Comportamento desiderato: se un file aperto viene modificato da un altro programma, mostrare un prompt
-"Il file è stato modificato da un altro programma. Ricaricarlo? Sì / No".
-
-### Cosa esiste GIÀ
-- **Watcher** completo: `src/main/filesystem/watcher.js` (chokidar). Su modifica esterna chiama `change()`
-  → invia IPC `mt::update-file` con `{ type: 'change', change: { pathname, data } }`.
-  Ha già `_shouldIgnoreEvent` per ignorare le modifiche fatte da MarkText stesso.
-- **Handler renderer**: `src/renderer/src/store/editor.js:1398` (`LISTEN_FOR_FILE_CHANGE`). Su `change`:
-  - se `autoSave` ON e tab salvato → ricarica in automatico (`loadChange`);
-  - altrimenti → `pushTabNotification(..., showConfirm: true, action)` con messaggio
-    `store.editor.fileChangedOnDisk`: una **notifica nel tab** con conferma; su "Sì" chiama `loadChange(change)`.
-- **IPC watch**: `src/main/app/windowManager.js:411-422` espone `watcher-watch-file` / `watcher-watch-directory` / relativi unwatch.
-
-### ROOT CAUSE (analisi iniziale — CORRETTA dalla verifica del codice)
-~~Il renderer non emette mai `watcher-watch-file`~~ → **ERRATO**: è il **main process** che avvia il
-watcher, non il renderer. `EditorWindow._doOpenTab` (`src/main/windows/editor.js:502`) chiama direttamente
-`ipcMain.emit('watcher-watch-file', browserWindow, pathname)` passando il `BrowserWindow` come primo arg
-(pattern `ipcMain.emit` diretto, non IPC renderer→main). Il watcher partiva già correttamente.
-
-Il vero problema era negli handler `windowManager.js:411-422`: usavano `(win, filePath)` dove `win`
-era il `BrowserWindow` passato da `ipcMain.emit` — funzionava per watch, ma per unwatch (chiamato
-dal renderer via `ipcRenderer.send`) il primo arg è un `IpcMainEvent`, non un `BrowserWindow`.
-
-### Fix implementato
-- `watcher-watch-file` / `watcher-watch-directory`: firma originale `(win, filePath)` mantenuta —
-  chiamati da main process via `ipcMain.emit` con `BrowserWindow` come primo arg.
-- `watcher-unwatch-file` / `watcher-unwatch-directory`: firma originale `(win, filePath)` ripristinata —
-  anch'essi chiamati **esclusivamente** da main process (via `removeFromOpenedFiles`, `changeOpenedFilePath`, ecc.).
-- `NEW_TAB_WITH_CONTENT` nel renderer: **non** invia `watcher-watch-file` (ridondante, già fatto da `_doOpenTab`).
-- `CLOSE_TAB` / `CLOSE_TABS` nel renderer: inviano **solo** `mt::window-tab-closed` —
-  il main process gestisce già l'unwatch via `removeFromOpenedFiles`.
-
-### BUG 1 — crash apertura file (FIXATO)
-`ipcMain.emit('watcher-watch-file', browserWindow, pathname)` in `_doOpenTab` → handler usava
-`BrowserWindow.fromWebContents(event.sender)` dove `event` = BrowserWindow → `event.sender` = `undefined`
-→ crash `TypeError: Cannot read properties of undefined (reading 'getOwnerBrowserWindow')`.
-**Fix**: tutti gli handler `watch-file/dir` + `unwatch-file/dir` usano firma `(win, filePath)` originale.
-
-### BUG 2 — crash cambio tab (FIXATO)
-`mt::window-tab-closed` → `removeFromOpenedFiles` in `editor.js` → `ipcMain.emit('watcher-unwatch-file', browserWindow, pathname)`
-→ handler con `BrowserWindow.fromWebContents(event.sender)` → stesso crash.
-**Causa**: anche gli unwatch sono chiamati da main, non dal renderer. Il renderer inviava `watcher-unwatch-file`
-ridondante che aggiungeva confusione sulla firma attesa.
-**Fix**:
-- `watcher-unwatch-file/dir` ripristinati a `(win, filePath)` in `windowManager.js`.
-- Rimossi `ipcRenderer.send('watcher-unwatch-file', ...)` ridondanti da `FORCE_CLOSE_TAB` e `CLOSE_TABS`
-  in `src/renderer/src/store/editor.js`.
-
-**Parte B (opzionale, per stile Notepad++): dialog modale invece della notifica nel tab.**
-La logica attuale usa `pushTabNotification` (banner nel tab). Per un dialog modale "Sì/No" come Notepad++,
-sostituire/affiancare con un `el-dialog` (Element Plus, già usato altrove) o `dialog` Electron, mantenendo
-la stessa `action(status)` → `loadChange(change)`. Decidere se notifica nel tab (già pronta) basta o serve il modale.
-
-**Side-effect da gestire:**
-- File con modifiche non salvate: il prompt deve avvertire che ricaricando si perdono le modifiche locali.
-- `_shouldIgnoreEvent` evita falsi positivi sui salvataggi di MarkText: verificare che il timing regga.
-- Performance: con molti file aperti, attenzione al numero di watcher (limiti inotify su Linux già gestiti con notifica ENOSPC).
-- Unwatch alla chiusura tab/finestra per non lasciare watcher orfani (`watcher-unwatch-file`, `watcher-unwatch-all-by-id`).
-
-**Verifica preliminare consigliata:** confermare che aprendo una cartella/progetto il watch parta o meno
-(anche `watcher-watch-directory` risulta non chiamato dal renderer → probabile che pure il watch di progetto sia inattivo).
+## B14 — Dialog reload appariva per tab in background ✅
+**Sintomo:** modifica esterna a una tab non attiva → dialog comunque; "Ricarica" non applicava (loadChange
+ricarica l'editor solo per la currentFile).
+**Fix:** `LISTEN_FOR_FILE_CHANGE` mostra il dialog solo se la tab è la `currentFile`; altrimenti memorizza
+`tab.pendingExternalChange`. `UPDATE_CURRENT_FILE`, allo switch, consuma il pending (nel `nextTick`, dopo
+`file-changed`) ed emette il dialog → ora la tab è attiva e il reload si applica.
+**File:** `store/editor.js` (`LISTEN_FOR_FILE_CHANGE`, `UPDATE_CURRENT_FILE`).
+**Edge:** i percorsi di chiusura tab non passano da `UPDATE_CURRENT_FILE` → se chiudendo si atterra su una
+tab con pending, il dialog esce al successivo switch esplicito (edge minore noto).
 
 ---
 
-## 10. Pulizia codice — rimuovere console.log di debug
-**Stato: TODO manutenzione**
+# Riferimenti shortcut
 
-`src/renderer/src/components/editorWithTabs/sourceCode.vue` contiene numerosi `console.log('[UNDO-DBG] ...')`
-residui dal debug del Ctrl+Z (presenti in: `prepareTabSwitch`, `handleFileChange`, gli handler `handleUndo`,
-l'`on('change')`, il blocco `onMounted` e `onBeforeUnmount`). Eliminarli tutti (cercare la stringa `[UNDO-DBG]`).
-
-NB: NON toccare i `console.log` in `src/main/filesystem/watcher.js` — sono protetti da
-`global.MARKTEXT_DEBUG_VERBOSE >= 3` (debug volontario), non rumore.
-
----
-
-## Tabella conflitti shortcut (riferimento per task 3 e 4)
-Mappa shortcut Notepad++ richieste vs binding MarkText esistenti (`keybindingsWindows.js`):
-| Tasto N++ | Azione N++ | Occupato in MarkText da |
-|-----------|-----------|--------------------------|
-| `Ctrl+Shift+U` | UPPERCASE | `paragraph.horizontal-line` |
-| `Ctrl+U` | lowercase | `format.underline` |
-| `Ctrl+D` | duplica riga | `format.strike` |
-| `Ctrl+L` | elimina riga | `format.hyperlink` |
-| `Ctrl+I` | split lines | `format.emphasis` |
-| `Ctrl+J` | join lines | `view.toggle-sidebar` |
-| `Ctrl+Shift+↑` | sposta riga su | **libero** |
-| `Ctrl+Shift+↓` | sposta riga giù | **libero** |
-
-Altri riferimenti:
-- `Ctrl+0` → `tabs.switchToTenth` (NON usare per reset zoom)
-- `Ctrl+Shift+K` → `paragraph.code-fence`
-- `Ctrl+Alt+D` → `edit.duplicate` | `Ctrl+Shift+D` → `edit.delete-paragraph`
-- Su Windows evitare combo `Ctrl+Alt` (= AltGr, producono caratteri alternativi)
-
-**DECISIONE FINALE (utente):**
-- **Case (Ctrl+U / Ctrl+Shift+U) = GLOBALE** in entrambe le viste → underline e horizontal-line perdono questi tasti (da liberare/riassegnare).
-- **Tutto il resto (Ctrl+D / Ctrl+L / Ctrl+I / Ctrl+J e Ctrl+Shift+↑/↓) = MODE-AWARE, solo source** → in markdown i tasti occupati restano sulla funzione originale (nessun binding da liberare); i tasti liberi agiscono solo in source.
+| Tasto | Markdown (Muya) | Source (CodeMirror) |
+|---|---|---|
+| `Ctrl+Shift+U` | MAIUSCOLO (era `paragraph.horizontal-line`) | MAIUSCOLO |
+| `Ctrl+U` | minuscolo (era `format.underline`) | minuscolo |
+| `Ctrl+D` | `format.strike` (invariato) | duplica riga/blocco |
+| `Ctrl+L` | `format.hyperlink` (invariato) | elimina riga |
+| `Ctrl+I` | `format.emphasis` (invariato) | — (split, in TODO) |
+| `Ctrl+J` | `view.toggle-sidebar` (invariato) | — (join, in TODO) |
+| `Ctrl+Shift+↑/↓` | estende selezione cross-block (B10) | sposta riga |
+| `Alt+↑/↓` | line-move disabilitato (era distruttivo) | (libero) |
+| `Ctrl+Alt+D` / `Ctrl+Shift+D` | duplica / elimina paragrafo | — |
+| `Ctrl+0` | `tabs.switchToTenth` (NON usare per reset zoom) | idem |
 
 ---
 
-# Sezione Test
-
-## Task 1 — EOL (verifica)
-- [x] Aprire un file con EOL LF → la status bar mostra "LF"
-- [x] Aprire un file con EOL CRLF → la status bar mostra "CRLF"
-- [x] Aprire un file con EOL CR → la status bar mostra "CR"
-- [x] Cambiare EOL dalla status bar e salvare → riaprire in Notepad++ e verificare l'EOL corretto
-- [x] Confermare che aprendo un file Unix (LF) su Windows l'EOL resta LF (non forzato a CRLF)
-
-## Task 2 — Encoding (verifica regressioni, comportamento OK)
-- [ ] File con SOLO ASCII salvato ANSI da Notepad++ → aprire in MarkText mostra "UTF-8" (ambiguità attesa, OK)
-- [ ] File con accenti ("àèìòù") in ANSI → testo corretto, nessun mojibako
-- [ ] File con BOM (UTF-8/UTF-16) → rilevato correttamente in apertura
-- [ ] (Se si corregge la regex `/[-_]/g`) verificare encoding con trattino/underscore ancora riconosciuti da iconv-lite
-
-## Task 3 — Case transform (solo UPPERCASE / lowercase, GLOBALE)
-- [x] Source mode: selezione + `Ctrl+Shift+U` → tutto maiuscolo, resta selezionato
-- [x] Source mode: selezione + `Ctrl+U` → tutto minuscolo
-- [x] Source mode: selezione multipla (multi-cursore) → tutte trasformate
-- [x] Markdown (Muya): selezione + `Ctrl+Shift+U` / `Ctrl+U` → maiuscolo/minuscolo (funziona anche qui)
-- [x] Markdown: `Ctrl+U` NON fa più underline, `Ctrl+Shift+U` NON fa più HR (atteso dopo la liberazione tasti)
-- [x] Selezione vuota (solo cursore) → nessun crash, nessuna modifica
-- [x] Nessun errore "duplicate shortcut" all'avvio (binding underline/HR liberati correttamente)
-
-## Task 4 — Operazioni riga + disabilitazione Alt in Muya
-- [x] Markdown (Muya): selezionare testo + Alt+↑/↓ → il testo NON viene più cancellato (line-move disabilitato)
-- [x] Markdown (Muya): Ctrl+Alt+D (duplica) e Ctrl+Shift+D (elimina paragrafo) continuano a funzionare
-- [x] **[DA TESTARE]** Source mode `Alt+↑` / `Alt+↓` → riga si sposta su/giù
-- [x] **[DA TESTARE]** Source mode `Ctrl+Shift+↑` / `Ctrl+Shift+↓` → estende selezione (comportamento default CM)
-- [x] **[DA TESTARE]** Source mode `Ctrl+D` senza selezione → duplica la riga del cursore
-- [x] **[DA TESTARE]** Source mode `Ctrl+D` con selezione multi-riga → duplica TUTTE le righe selezionate
-- [x] **[DA TESTARE]** Source mode `Ctrl+D` con selezione che finisce a ch=0 → non include l'ultima riga vuota
-- [x] Source mode elimina riga (`Ctrl+L`) → riga rimossa
-- [x] Markdown (Muya): `Ctrl+D`=strike, `Ctrl+L`=hyperlink, `Ctrl+I`=emphasis, `Ctrl+J`=sidebar restano INVARIATI
-- [x] Markdown (Muya): `Alt+↑/↓` non sposta righe (line-move Muya disabilitato, funziona solo in source)
-
-## Task 8 — Selezione CodeMirror tema scuro
-- [ ] Tema one-dark: Shift+frecce / Ctrl+Shift+frecce → selezione ben visibile
-- [ ] Tema dark e material-dark: selezione ben visibile
-- [ ] Tema chiaro: selezione ancora corretta (nessuna regressione)
-- [ ] Selezione coerente con quella della vista markdown (stessa `--selectionColor`)
-
-## Task 9 — Ricarica file modificato esternamente
-- [ ] Aprire un file, modificarlo da un altro programma, salvare → compare il prompt di ricarica
-- [ ] Confermare "Sì" → il contenuto si aggiorna con la versione su disco
-- [ ] Confermare "No" → resta la versione corrente in editor
-- [ ] File con modifiche NON salvate + modifica esterna → l'utente è avvertito della perdita modifiche
-- [ ] Salvare da MarkText NON deve auto-triggerare il prompt (verifica `_shouldIgnoreEvent`)
-- [ ] Chiudere la tab → watcher rimosso (nessun watcher orfano)
-- [ ] Con autoSave ON e tab salvato → ricarica automatica senza prompt (comportamento esistente)
-
-## Task 10 — Pulizia console.log ✅ COMPLETATO
-- [x] Nessuna occorrenza di `[UNDO-DBG]` in `sourceCode.vue`
-- [x] Rimossi `[DOT-DBG]` da `editor.js` (3 occorrenze)
-- [x] Rimossi `[WATCH-DBG]` da `editor.js`, `windowManager.js`, `watcher.js`
-- [x] Rimossi `[ENC-DBG]` da `encoding.js` (anche i blocchi `else` vuoti risultanti)
-- [x] I log gated da `MARKTEXT_DEBUG_VERBOSE` in `watcher.js` restano intatti
-- [x] **[DA TESTARE]** Funzionalità Ctrl+Z / cambio tab invariate dopo la rimozione dei log
-
----
-
-## Bug B1 — Bollino verde su tab non modificate all'apertura ✅ FIXATO
-
-**Sintomo:** aprire un file → la tab mostra subito il bollino "non salvato" senza che l'utente abbia modificato nulla.
-
-**Diagnosi con log:** `[DOT-DBG] isSaved=false da CONTENT_CHANGE su tab: C:\Projects\TEST\test.js | originalMarkdown null: false` → il tab APERTO riceve `isSaved=false` subito dopo apertura, non un altro tab.
-
-**Root cause:** Muya esegue ≥2 pass di normalizzazione all'inizializzazione (aggiunge `\n` finale, normalizza spazi, ecc.). Il meccanismo B8 esistente era **one-shot** (flag booleano `justLoaded`): catturava solo il PRIMO pass. Il secondo pass trovava `justLoaded = false` → path normale → `isUnchangedFromDisk = false` → `isSaved=false`.
-
-**Fix:** `justLoaded` cambiato da `boolean` a `timestamp` (`Date.now()`). Finestra di 400ms dopo caricamento: qualsiasi content change aggiorna `originalMarkdown` senza marcare come dirty (`isSaved` resta `true`). Dopo 400ms, logica normale. 400ms è ampiamente sufficiente per i pass di normalizzazione Muya e trascurabile per l'utente (impossibile digitare in < 400ms dall'apertura).
-
-**File:** `src/renderer/src/store/editor.js` (funzione `LISTEN_FOR_CONTENT_CHANGE` + `NEW_TAB_WITH_CONTENT`)
-
-**⚠️ Da testare:**
-- Aprire un file → bollino NON compare.
-- Aprire un file, aspettare 1 secondo, digitare qualcosa → bollino compare (dirty normale).
-- Ctrl+Z completo dopo modifica → bollino scompare (B9 path: `isSaved=true` se torna identico a disco).
-- Log `[DOT-DBG]` ancora attivi — rimuovere dopo verifica.
-
----
-
-## Bug B2 — Prompt ricarica file esterno non compare ✅ FIXATO
-
-**Sintomo:** modificare un file aperto in MarkText con Notepad++ e salvare → MarkText non mostra il prompt "file modificato su disco".
-
-**Chain attesa:** `_doOpenTab` → `ipcMain.emit('watcher-watch-file', win, path)` → `Watcher.watch()` → chokidar → evento `change` → `mt::update-file` → `LISTEN_FOR_FILE_CHANGE` → prompt con "Sì/No".
-
-**Diagnosi con log:** confermato tramite `[WATCH-DBG]` che il watcher SI avvia (`watcher-watch-file avviato per: test.js`), ma chokidar non emette mai l'evento `change` per `test.js`.
-
-**Root cause:** `watcher.js` aveva due filtri markdown-only:
-1. **`ignored` function** (riga ~171): `return !hasMarkdownExtension(pathname)` → chokidar ignorava il file prima ancora di watcharlo.
-2. **`change` function** (riga ~73): `if (isMarkdown) { ... }` → anche se il change fosse arrivato, veniva ignorato.
-
-Il design originale era pensato per watcher di *directory* (dove filtrare i non-markdown ha senso per non spammare eventi). Ma per file singoli (`type === 'file'`) bisogna watchare qualsiasi estensione, perché l'utente può aprire `.js`, `.txt`, `.json`, ecc.
-
-**Fix applicato:**
-- `ignored`: aggiunto `if (type === 'file') return false` → file singoli non filtrati per estensione.
-- `change`: rimosso `if (isMarkdown)` → qualsiasi file di testo viene caricato e inviato via `mt::update-file`.
-
-**File:** `src/main/filesystem/watcher.js`
-
-**⚠️ Da testare:** il prompt funziona ora per file `.js`/`.txt`? Testare anche con file `.md` per non regressioni. Log diagnostici `[WATCH-DBG]` ancora attivi in `watcher.js` e `windowManager.js` — rimuovere dopo verifica.
-
----
-
-## Bug B3 — File ANSI con accenti → mojibake + encoding errato (UTF-8) ✅ FIXATO
-
-**Sintomo:** file salvato da Notepad++ come ANSI con carattere accentato (es. "è") → aperto in MarkText → testo corrotto (`?`) e status bar mostra UTF-8 invece di ANSI/windows-1252.
-
-**Diagnosi con log (console processo main, NON DevTools):**
-```
-[ENC-DBG] ced loaded: true           ← ced carica correttamente su Windows
-[ENC-DBG] ced raw result: ASCII       ← PROBLEMA: ced dice ASCII anche con byte > 0x7F
-[ENC-DBG] ced raw result: ASCII-7-bit ← stessa cosa su file leggermente diverso
-[ENC-DBG] final encoding: utf8        ← fallback a utf8 → mojibake
-```
-
-**Root cause:** `ced` (Compact Encoding Detection di Google) usa rilevamento statistico su un campione di byte. Per file molto piccoli (< ~100 byte, come file di test con "ciao\nciao2è") non ha abbastanza dati → si arrende e restituisce `ASCII` o `ASCII-7-bit`. La mappatura in `CED_ICONV_ENCODINGS` converte `ASCII` e `ASCII-7-bit` a `utf8`. Risultato: `iconv-lite` decodifica byte Windows-1252 come UTF-8 → caratteri corrotti.
-
-**Fix applicato in `encoding.js`:**
-1. Aggiunta funzione `isValidUtf8(buffer)` — scansiona il buffer e verifica che ogni sequenza di byte sia UTF-8 legale.
-2. Dopo che ced restituisce un encoding mappato a `utf8`: se il buffer contiene byte > 0x7F (`hasNonAscii`) **e** `isValidUtf8` restituisce `false` → encoding cambiato a `windows-1252` (ANSI Western Europe, il caso più comune su Windows).
-
-**Logica:** se ced non ha abbastanza byte per decidere (dice ASCII ma ci sono byte alti) → l'unica discriminante affidabile è la validità UTF-8. UTF-8 valido → utf8. UTF-8 non valido → windows-1252 (assunzione ragionevole su Windows).
-
-**File:** `src/main/filesystem/encoding.js`
-
-**⚠️ Da testare:**
-- File ANSI con "è" (Windows-1252 0xE8) → MarkText mostra "è" correttamente, status bar mostra `windows-1252`.
-- File UTF-8 senza BOM con accenti → ancora decodificato come UTF-8 (non regressione).
-- File UTF-8 con BOM → BOM detection ha precedenza, non influenzato.
-- Log `[ENC-DBG]` ancora attivi — rimuovere dopo verifica.
-
----
-
-## Bug B4 — Selezione temi scuri poco visibile ✅ FIXATO
-
-**Fix:** aumentato alpha `--selectionColor` nei temi scuri:
-- `dark.theme.css`: `0.3` → `0.55`
-- `one-dark.theme.css`: `60` (hex) → `bb`
-- `material-dark.theme.css`: `0.2` → `0.45`
-
----
-
-## Bug B5 — Zoom Ctrl+Plus / Ctrl+- non funzionano ✅ FIXATO
-
-**Fix:** aggiunti acceleratori `Ctrl+Plus` e `Ctrl+-` per `window.zoomIn` e `window.zoomOut`
-in `keybindingsWindows.js` e `keybindingsLinux.js` (erano vuoti `''`).
-
----
-
-## Bug B6 — Ctrl+Z cross-tab + contaminazione source mode / history su close ✅ FIXATO
-
-**Sintomi (correlati, stessa root cause):**
-1. Premere Ctrl+Z in Untitled dopo aver chiuso una tab source mode → ripristina il testo della tab chiusa.
-2. Chiudere una tab in source mode (file .js, ecc.) senza salvare → Untitled passa a source mode.
-3. Bollino "non salvato" compare su Untitled dopo la chiusura.
-
-**Root cause 1 — `CLOSE_TABS` senza `_applySourceCodeForFile`:**
-`CLOSE_TABS` (path reale per "Discard" su unsaved close: `mt::save-and-close-tabs` → main dialog → `mt::force-close-tabs-by-id` → `CLOSE_TABS`) non chiamava `_applySourceCodeForFile` sul nuovo `currentFile`. Risultato: `sourceCode` restava `true` (dal file chiuso) → Untitled apriva in CodeMirror, `editor.vue` skippava il caricamento Muya, la history CM della tab chiusa finiva in Untitled.
-
-**Root cause 2 — `sourceCode.vue` `handleFileChange` senza guard `sourceCode=false`:**
-Con `sourceCode=false` già impostato ma Vue non ancora smontato (DOM update asincrono), il `bus.emit('file-changed', ...)` per la nuova tab arrivava a `sourceCode.vue` ancora montato. `handleFileChange` lo processava, cambiava `tabId` e salvava contenuto errato in `cmStatePerTab`, causando poi un emit spurio in `onBeforeUnmount`.
-
-**Root cause 3 — Muya usava `id: 'muya'` fisso:**
-`editor.vue` passava sempre `id: 'muya'` al listener `on('change')` di Muya. Il guard in `LISTEN_FOR_CONTENT_CHANGE` (`id !== 'muya' && currentId !== id`) veniva bypassato → la dirty logic girava su `this.currentFile` anche se era una tab diversa da quella Muya stava processando → bollino su Untitled.
-
-**Fix 1** — `src/renderer/src/store/editor.js` (`CLOSE_TABS`, riga ~930):
-Aggiunto `this._applySourceCodeForFile(this.currentFile)` prima di `bus.emit('file-changed', ...)`, identico a `FORCE_CLOSE_TAB` e `UPDATE_CURRENT_FILE`.
-
-**Fix 2** — `src/renderer/src/components/editorWithTabs/sourceCode.vue` (`handleFileChange`, riga ~145):
-Aggiunto `if (!sourceCode.value) return` all'inizio — impedisce di processare eventi quando `sourceCode=false` (componente in smontaggio).
-
-**Fix 3** — `src/renderer/src/components/editorWithTabs/sourceCode.vue` (`onBeforeUnmount`, riga ~572):
-`bus.emit('file-changed', ...)` emesso solo se `currentTab.value?.id === tabId.value` (view switch: stesso file, toggle source↔markdown). Per tab close/switch, l'emit è soppresso.
-Aggiunto anche `cmStatePerTab.delete(tabId.value)` per tab chiuse (cleanup memoria).
-
-**Fix 4** — `src/renderer/src/components/editorWithTabs/editor.vue` + `src/renderer/src/store/editor.js`:
-- `editor.vue`: aggiunto `currentMuyaTabId = ref(null)`, aggiornato in `setMarkdownToEditor` e `handleFileChange`; il listener Muya `on('change')` usa `currentMuyaTabId.value || 'muya'` invece di `'muya'` fisso.
-- `editor.js` (`LISTEN_FOR_CONTENT_CHANGE`): spostato `LOAD_SETTLE_MS = 400` all'inizio funzione; nel path "background tab" aggiunto check `justLoaded` per aggiornare `tab.originalMarkdown` durante la finestra di settle.
-
----
-
-## Bug B8 — Bollino "non salvato" riappare ~1s dopo Ctrl+S in source mode ✅ FIXATO
-
-**Sintomo:** Ctrl+S in source mode → bollino scompare → riappare dopo ~1s e non va più via.
-
-**Root cause:** `FILE_SAVE` legge `this.currentFile.markdown` dal Pinia store, aggiornato da
-`LISTEN_FOR_CONTENT_CHANGE` con debounce di 1s (commitTimer in `listenChange`). Se Ctrl+S viene
-premuto entro 1s dall'ultimo keystroke, lo store ha contenuto stale M (non ancora aggiornato con M+X).
-Il salvataggio avviene su M → `originalMarkdown = M`, `isSaved = true` → bollino scompare.
-1s dopo, il commitTimer scatta con il contenuto CM reale (M+X) → `M+X ≠ originalMarkdown (M)` →
-`isSaved = false` → bollino riappare.
-
-**Fix:** `FILE_SAVE` e `FILE_SAVE_AS` emettono `bus.emit('pre-save')` prima di leggere `tab.markdown`.
-`sourceCode.vue` ascolta `pre-save` con `handlePreSave`: cancella il commitTimer e chiama
-`LISTEN_FOR_CONTENT_CHANGE` sincronamente con il contenuto CM corrente. mitt è sincrono →
-quando `FILE_SAVE` legge `tab.markdown`, il valore è già quello reale.
-
-**File:** `src/renderer/src/store/editor.js` (FILE_SAVE, FILE_SAVE_AS),
-`src/renderer/src/components/editorWithTabs/sourceCode.vue` (handlePreSave)
-
----
-
-## Bug B9 — Bollino riappare al click cursore in source mode (senza modifiche) ✅ FIXATO
-
-**Sintomo:** in source mode, dopo aver salvato, cliccare su una riga diversa fa ricomparire il bollino
-"non salvato" anche senza aver modificato nulla. A volte non si azzera più.
-
-**Root cause:** check N12 in `cursorActivity` confronta `cm.getValue()` (raw, con trailing newlines)
-con `currentTab.value.originalMarkdown` (già normalizzato da `adjustTrailingNewlines` in editor.js).
-Quando `trimTrailingNewline=1` (singolo `\n` finale) o `=0` (nessun `\n` finale), il CM ha contenuto
-grezzo (es. `"foo\n\n"`) ma `originalMarkdown` ha il valore normalizzato (`"foo\n"` o `"foo"`).
-N12 vede divergenza anche senza modifiche → `isSaved=false` immediato.
-
-**Fix (aggiornato dopo debug):** root cause reale = lightTouch (`default=true`). `getMarkdownForSave`
-restituisce `mergeWithOriginal(tab.markdown, OLD)` = M (preserva formattazione originale). M ≠ tab.markdown
-in contenuto interno (blank lines, spazi). `mt::tab-saved` impostava `originalMarkdown = M`. N12 e LFC
-confrontavano `normalizeMarkdown(cm.getValue()) = tab.markdown` vs `M` → mismatch → `isSaved=false` →
-autoSave → loop infinito.
-
-**Fix reale:** in `mt::tab-saved` e `mt::set-pathname`, quando `tab.markdown ≠ savedMarkdown` ma
-`normalizeBlock(tab.markdown) === normalizeBlock(savedMarkdown)` (lightTouch ha solo cambiato
-formattazione, non contenuto semantico): `isSaved=true` e `originalMarkdown = tab.markdown`
-(non savedMarkdown). N12 e LFC confrontano contro tab.markdown → sempre apples-to-apples.
-
-Fix N12 con `normalizeMarkdown` mantenuto (risolve anche edge case trailing newlines).
-
-**File:** `src/renderer/src/store/editor.js` (mt::tab-saved, mt::set-pathname),
-`src/renderer/src/components/editorWithTabs/sourceCode.vue` (normalizeMarkdown + N12)
-
-**✅ Testato e verificato (2026-05-30):**
-- [x] Salvare file → cliccare su righe diverse → bollino NON ricompare
-- [x] Digitare testo, Ctrl+S immediatamente (< 1s) → bollino NON riappare
-- [x] Digitare testo, aspettare 2s, Ctrl+S → bollino scompare e non riappare
-- [x] lightTouch ON (default): nessun loop autoSave
-
----
-
-## Bug B10 — Ctrl+Shift+↑/↓ non estende la selezione in Muya ✅ FIXATO
-
-**Sintomo:** in modalità Muya (WYSIWYG), `Shift+↑/↓` estende correttamente la selezione, ma
-`Ctrl+Shift+↑/↓` non fa nulla (nessuna estensione cross-block).
-
-**Comportamento atteso (standard Windows):** `Ctrl+Shift+↑` estende la selezione al blocco/paragrafo
-precedente; `Ctrl+Shift+↓` al blocco/paragrafo successivo.
-
-**Root cause:** `arrowHandler` in `arrowCtrl.js` esce early per qualsiasi `event.shiftKey` (incluso
-`Ctrl+Shift`) senza `preventDefault`, lasciando al browser la gestione. Il browser gestisce `Shift+↑/↓`
-natively ma `Ctrl+Shift+↑/↓` cerca di saltare al paragrafo precedente via API nativa, che non funziona
-tra i blocchi separati di Muya.
-
-**Fix:** aggiunto handler esplicito in `arrowHandler` PRIMA dell'early return per `shiftKey`:
-- Intercetta `event.ctrlKey && event.shiftKey && (ArrowUp | ArrowDown)`
-- Legge `anchor` e `focus` correnti da `selection.getCursorRange()`
-- Trova il blocco precedente/successivo partendo dal focus corrente (`findPreBlockInLocation` / `findNextBlockInLocation`)
-- Chiama `selection.setCursorRange({ anchor, focus: newFocus })` per aggiornare la selezione DOM
-- Aggiorna `this.cursor` e chiama `this.muya.dispatchSelectionChange()`
-
-**File:** `src/muya/lib/contentState/arrowCtrl.js`
-
-**✅ Testato e verificato:**
-- [x] Muya: cursore in un paragrafo, `Ctrl+Shift+↑` → selezione si estende al paragrafo precedente
-- [x] Muya: cursore in un paragrafo, `Ctrl+Shift+↓` → selezione si estende al paragrafo successivo
-- [x] Muya: da metà riga, `Ctrl+Shift+↑` → seleziona testo rimanente riga corrente + riga sopra
-- [x] Muya: con selezione esistente via `Shift+←/→`, poi `Ctrl+Shift+↑/↓` → concatenazione funziona (fix shownFloat intercept)
-- [x] Muya: a inizio documento, `Ctrl+Shift+↑` → nessun crash
-- [x] Muya: a fine documento, `Ctrl+Shift+↓` → nessun crash
-- [x] `Shift+↑/↓` normale continua a funzionare (no regressione)
-
----
-
-## Bug B7 — Spazio vuoto a destra nelle tab con filename corto ✅ FIXATO
-
-**Sintomo:** le tab con filename corto (es. "a.md", "test.js") mostrano spazio vuoto a destra della X. Le tab Untitled ("Untitled" ≈ 8 char) non mostrano il problema.
-
-**Causa:** `.v2-tab` ha `min-width: 88px` ma `.v2-tab-name` non aveva `flex-grow`. Se il contenuto della tab (left-pad + nome + gap + X + right-pad) è inferiore a 88px, lo spazio eccedente restava vuoto a destra — `justify-content: flex-start` accumula lo spazio dopo l'ultimo elemento (la X). "Untitled" (≈91px) supera la soglia; filename corti no.
-
-**Fix** — `src/renderer/src/components/editorWithTabs/tabs.vue` (riga ~823):
-Aggiunto `flex-grow: 1` su `.v2-tab-name`. Il nome riempie lo spazio disponibile → X sempre al bordo destro del tab pill, nessuno spazio vuoto. Il `min-width: 0` preesistente garantisce che il nome possa anche ridursi (ellipsis) quando il tab è a `max-width: 172px`.
-
----
-
-## Bug B6 — Test ✅ verificati
-
-- [x] Chiudere tab source mode (file .js) senza salvare → Untitled resta in markdown mode
-- [x] Bollino NON compare su Untitled dopo la chiusura
-- [x] Ctrl+Z in Untitled NON ripristina testo della tab chiusa
-- [x] Tab switch source→markdown sullo stesso file (view switch) ancora funzionante
-
-## Bug B7 — Test ✅ verificati
-
-- [x] Tab con filename corto ("a.md", "t.js") → X al bordo destro, nessuno spazio vuoto
-- [x] Tab Untitled → invariata
-- [x] Tab con filename lungo (max-width 172px) → ellipsis ancora funzionante
-
-## Task 6 — Zoom solo testo
-- [ ] Ctrl+rotella sull'editor → cambia SOLO la dimensione del testo
-- [ ] La title bar NON cambia dimensione
-- [ ] La tab bar NON cambia dimensione
-- [ ] Funziona sia in markdown (Muya) sia in source mode (CodeMirror)
-- [ ] Bottone "reset zoom" della status bar riporta lo zoom al 100%
-- [ ] La status bar mostra la percentuale di zoom coerente
-- [ ] Dopo lo zoom in source mode, il cursore/click su riga resta allineato (CodeMirror refresh ok)
-- [ ] Verificare che lo zoom nativo di pagina sia davvero soppresso (nessun doppio scaling)
+# Funzionalità ancora aperte
+Vedi `TODO.md` nella root del progetto (es. selezione a colonna, find&replace potenziato, split/join,
+toggle Muya↔source, multi-cursore, session restore, ecc.).

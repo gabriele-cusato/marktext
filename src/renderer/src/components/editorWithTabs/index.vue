@@ -20,6 +20,7 @@
       />
     </div>
     <tab-notifications />
+    <file-changed-dialog />
   </div>
 </template>
 
@@ -31,6 +32,7 @@ import Tabs from './tabs.vue'
 import Editor from './editor.vue'
 import SourceCode from './sourceCode.vue'
 import TabNotifications from './notifications.vue'
+import FileChangedDialog from './fileChangedDialog.vue'
 
 defineProps({
   markdown: {
