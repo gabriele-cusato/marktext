@@ -99,7 +99,8 @@ const arrowCtrl = (ContentState) => {
     const block = this.getBlock(id)
     const preBlock = this.findPreBlockInLocation(block)
     const nextBlock = this.findNextBlockInLocation(block)
-    const { start, end } = selection.getCursorRange()
+    const cursorRange = selection.getCursorRange()
+    const { start, end, anchor, focus } = cursorRange
     const { topOffset, bottomOffset } = selection.getCursorYOffset(paragraph)
     if (!start || !end) {
       return
@@ -117,6 +118,51 @@ const arrowCtrl = (ContentState) => {
         // It's not recommended to use such lower API, but it's work well.
         return selection.select(node.parentNode.nextElementSibling, 0)
       }
+    }
+
+    // Ctrl+Shift+↑/↓: estende la selezione al blocco precedente/successivo.
+    // Usa sel.extend() direttamente per non resettare l'anchor browser (bug offset > 0).
+    if (
+      event.ctrlKey &&
+      event.shiftKey &&
+      (event.key === EVENT_KEYS.ArrowUp || event.key === EVENT_KEYS.ArrowDown)
+    ) {
+      if (!anchor || !focus) return
+      const focusBlock = this.getBlock(focus.key)
+      if (!focusBlock) return
+      event.preventDefault()
+      event.stopPropagation()
+
+      const sel = window.getSelection()
+      if (!sel) return
+
+      if (event.key === EVENT_KEYS.ArrowUp) {
+        const prevBlock = this.findPreBlockInLocation(focusBlock)
+        // Se non c'è blocco precedente resta sul corrente (vai a inizio)
+        const targetEl = document.querySelector(`#${(prevBlock || focusBlock).key}`)
+        if (targetEl) {
+          // Primo text node del blocco target (offset 0 = inizio)
+          const walker = document.createTreeWalker(targetEl, NodeFilter.SHOW_TEXT)
+          const firstText = walker.nextNode()
+          sel.extend(firstText || targetEl, 0)
+        }
+      } else {
+        const nextBlock = this.findNextBlockInLocation(focusBlock)
+        // Se non c'è blocco successivo resta sul corrente (vai a fine)
+        const targetEl = document.querySelector(`#${(nextBlock || focusBlock).key}`)
+        if (targetEl) {
+          // Ultimo text node del blocco target (offset = lunghezza = fine)
+          const walker = document.createTreeWalker(targetEl, NodeFilter.SHOW_TEXT)
+          let lastText = null
+          let n
+          while ((n = walker.nextNode())) lastText = n
+          const tNode = lastText || targetEl
+          sel.extend(tNode, tNode.length || 0)
+        }
+      }
+
+      this.muya.dispatchSelectionChange()
+      return
     }
 
     // Just do nothing if the cursor is not collapsed or `shiftKey` pressed

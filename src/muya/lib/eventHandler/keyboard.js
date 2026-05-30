@@ -141,8 +141,11 @@ class Keyboard {
         return
       }
 
+      // Con shiftKey l'utente vuole estendere la selezione: non intercettare ArrowUp/Down
+      // per il float (format picker etc.), altrimenti preventDefault blocca l'estensione.
       if (
         this.shownFloat.size > 0 &&
+        !event.shiftKey &&
         (event.key === EVENT_KEYS.Enter ||
           event.key === EVENT_KEYS.Escape ||
           event.key === EVENT_KEYS.Tab ||

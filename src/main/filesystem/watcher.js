@@ -83,7 +83,6 @@ const change = async (win, pathname, type, endOfLine, autoGuessEncoding, trimTra
       pathname,
       data
     }
-    console.log('[WATCH-DBG] invio mt::update-file change a renderer per:', pathname)
     win.webContents.send('mt::update-file', {
       type: 'change',
       change: file
@@ -203,9 +202,7 @@ class Watcher {
         }
       })
       .on('change', async (pathname) => {
-        console.log('[WATCH-DBG] change event ricevuto per:', pathname)
         const ignored = await this._shouldIgnoreEvent(win.id, pathname, type, usePolling)
-        console.log('[WATCH-DBG] _shouldIgnoreEvent =', ignored)
         if (!ignored) {
           const { _preferences } = this
           const eol = _preferences.getPreferredEol()

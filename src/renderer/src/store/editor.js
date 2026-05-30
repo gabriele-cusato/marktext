@@ -283,6 +283,11 @@ export const useEditorStore = defineStore('editor', {
     },
 
     FILE_SAVE() {
+      // Flush CM content to store before reading: in source mode il commitTimer ha debounce 1s.
+      // Se Ctrl+S arriva prima che scada, tab.markdown è stale → si salverebbe contenuto vecchio.
+      // mitt è sincrono → il listener in sourceCode.vue chiama LISTEN_FOR_CONTENT_CHANGE prima
+      // che la riga successiva legga this.currentFile.markdown.
+      bus.emit('pre-save')
       const projectStore = useProjectStore()
       const preferencesStore = usePreferencesStore()
       const { id, filename, pathname, markdown, originalMarkdown } = this.currentFile
@@ -325,6 +330,7 @@ export const useEditorStore = defineStore('editor', {
     },
 
     FILE_SAVE_AS() {
+      bus.emit('pre-save')
       const projectStore = useProjectStore()
       const { id, filename, pathname, markdown } = this.currentFile
       const options = getOptionsFromState(this.currentFile)
@@ -390,13 +396,15 @@ export const useEditorStore = defineStore('editor', {
           // matches what was saved (no concurrent edits during save operation)
           if (savedMarkdown) {
             if (tab.markdown === savedMarkdown) {
-              // Success: what we saved matches current content
               tab.isSaved = true
               tab.originalMarkdown = savedMarkdown
+            } else if (normalizeBlock(tab.markdown) === normalizeBlock(savedMarkdown)) {
+              // lightTouch: formattazione diversa, contenuto semantico identico
+              tab.isSaved = true
+              tab.originalMarkdown = tab.markdown
             } else {
-              // User edited during save - keep unsaved state
+              // Modifica concorrente durante il salvataggio
               tab.isSaved = false
-              // Still update baseline to what was actually written to disk
               tab.originalMarkdown = savedMarkdown
             }
           } else {
@@ -427,13 +435,19 @@ export const useEditorStore = defineStore('editor', {
           // 2. Current content matches what we saved (no concurrent edits)
           if (savedMarkdown) {
             if (tab.markdown === savedMarkdown) {
-              // Success: what we asked to save matches current content
+              // Success: content in store matches what was saved
               tab.isSaved = true
               tab.originalMarkdown = savedMarkdown
+            } else if (normalizeBlock(tab.markdown) === normalizeBlock(savedMarkdown)) {
+              // lightTouch ha prodotto savedMarkdown con formattazione diversa da tab.markdown
+              // (blank lines preservati, spazi, ecc.) ma il contenuto semantico è identico.
+              // Usare tab.markdown come baseline evita false-dirty in N12 e LISTEN_FOR_CONTENT_CHANGE
+              // (entrambi confrontano contro originalMarkdown usando il contenuto CM grezzo/normalizzato).
+              tab.isSaved = true
+              tab.originalMarkdown = tab.markdown
             } else {
-              // User edited during save - keep unsaved state
+              // Modifica concorrente durante il salvataggio — contenuto effettivamente cambiato
               tab.isSaved = false
-              // Still update baseline to what was actually written to disk
               tab.originalMarkdown = savedMarkdown
             }
           } else {
@@ -1136,7 +1150,6 @@ export const useEditorStore = defineStore('editor', {
     },
 
     SET_SAVE_STATUS_WHEN_REMOVE({ pathname }) {
-      console.log('[DOT-DBG] SET_SAVE_STATUS_WHEN_REMOVE chiamato per:', pathname)
       this.tabs.forEach((f) => {
         if (f.pathname === pathname) {
           f.isSaved = false
@@ -1231,7 +1244,6 @@ export const useEditorStore = defineStore('editor', {
             this.currentFile.originalMarkdown !== null &&
             markdown === this.currentFile.originalMarkdown
           if (!isUnchangedFromDisk) {
-            console.log('[DOT-DBG] isSaved=false da CONTENT_CHANGE su tab:', this.currentFile.pathname, '| originalMarkdown null:', this.currentFile.originalMarkdown === null)
             this.currentFile.isSaved = false
             if (pathname && autoSave) {
               const options = getOptionsFromState(this.currentFile)
@@ -1419,13 +1431,9 @@ export const useEditorStore = defineStore('editor', {
     LISTEN_FOR_FILE_CHANGE() {
       const preferencesStore = usePreferencesStore()
       window.electron.ipcRenderer.on('mt::update-file', (_, { type, change }) => {
-        console.log('[WATCH-DBG] renderer ricevuto mt::update-file type:', type, 'path:', change.pathname)
         const { tabs } = this
         const { pathname } = change
         const tab = tabs.find((t) => window.fileUtils.isSamePathSync(t.pathname, pathname))
-        if (!tab) {
-          console.warn('[WATCH-DBG] tab NON trovato per pathname:', pathname, '| tabs aperti:', tabs.map(t => t.pathname))
-        }
         if (tab) {
           const { id, isSaved, filename } = tab
           switch (type) {
@@ -1456,7 +1464,6 @@ export const useEditorStore = defineStore('editor', {
                 }
               }
 
-              console.log('[DOT-DBG] isSaved=false da FILE_CHANGED_ON_DISK su tab:', filename, pathname)
               tab.isSaved = false
               this.pushTabNotification({
                 tabId: id,

@@ -9,6 +9,7 @@
 - [ ] **Operazioni riga** (sposta su/giù, duplica, elimina) — vedi `EASY-TASK.md` per analisi dettagliata e decisioni shortcut. Split/Join spostati sotto (Medio-facile).
 - [x] **Copia percorso file dal tab** — aggiungere voci context menu al componente tab (`src/renderer/components`). `clipboard.writeText()` con path/filename/directory del file corrente. **FATTO: funziona correttamente.**
 - [ ] **Zoom testo Ctrl+rotella** — lo zoom Ctrl+rotella funziona già, ma agisce su tutta l'app (incluse title bar e tab bar). Da limitare allo zoom solo nella sezione testuale (markdown/simil notepad++), lasciando invariate title bar e tab bar.
+- [ ] **Bug: Ctrl+Shift+↑/↓ non seleziona in Muya** — in source mode funziona (Alt+↑/↓ sposta riga, Shift+↑/↓ seleziona). In Muya: Shift+↑/↓ funziona, ma Ctrl+Shift+↑/↓ non estende la selezione. Comportamento standard Windows = estende selezione per paragrafo/blocco. Investigare in `src/muya/lib/eventHandler/` se il tasto Ctrl viene intercettato senza implementare selezione estesa. Fix atteso: piccola aggiunta alla keymap Muya.
 - [x] **Word Wrap toggling** — **FATTO:** disabilitato nella visualizzazione markdown (Muya), abilitabile nella visualizzazione simil notepad++ (CodeMirror source mode).
 
 ### Medio-facile
@@ -19,6 +20,8 @@
 - [ ] **Rimuovi dialog "vuoi salvare?"** — intercettare `before-close` in `src/main/`, salvare contenuto silenziosamente in `app.getPath('userData')` invece di mostrare dialog. ~20-30 righe.
 - [ ] **Stile UI più professionale** — modificare variabili CSS (`border-radius`, font, spacing) nei file tema in `static/`. Solo CSS.
 - [ ] **Split / Join righe** (source mode, stile Notepad++ `Ctrl+I` / `Ctrl+J`) — CodeMirror NON ha comandi built-in: implementare a mano, solo in source mode. **Join** (`Ctrl+J`): unire la riga corrente con la successiva via `replaceRange`. **Split** (`Ctrl+I`): dividere le righe lunghe al margine della finestra (più complesso, dipende dalla larghezza del wrap). Rendere mode-aware: in markdown `Ctrl+I`=emphasis e `Ctrl+J`=sidebar restano invariati.
+
+- [ ] **Toggle rapido Muya ↔ source mode** — shortcut (es. Ctrl+Alt+S o bottone in toolbar) per passare al volo da modalità WYSIWYG (Muya) a source mode (CodeMirror) e viceversa, senza dover usare il menu File. Utile per vedere/modificare il markdown grezzo e poi tornare alla vista renderizzata. Verificare se lo store già ha un flag `sourceMode` per tab; in caso aggiungere shortcut che lo togla e rimonta il componente corretto preservando posizione cursore.
 
 ### Medio (~50-150 righe)
 

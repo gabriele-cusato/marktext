@@ -260,15 +260,65 @@ const handleToLowerCase = () => {
   editor.value.replaceSelections(updated, 'around')
 }
 
+// Replica di adjustTrailingNewlines (editor.js, privata) per normalizzare cm.getValue()
+// prima del confronto N12. Senza questo, trailing newline presenti in CM ma strippate
+// dallo store causano false-dirty su ogni click cursore dopo il salvataggio.
+const normalizeMarkdown = (md, trimOption) => {
+  if (!md) return ''
+  const trimEnd = (s) => s.replace(/[\r?\n]+$/, '')
+  if (trimOption === 0) return trimEnd(md)
+  if (trimOption === 1) {
+    if (md[md.length - 1] === '\n') {
+      if (md.length === 1) return ''
+      if (md[md.length - 2] !== '\n') return md
+    }
+    const trimmed = trimEnd(md)
+    return trimmed.length === 0 ? '' : trimmed + '\n'
+  }
+  return md
+}
+
+// Flush sincronizzato CM→store prima del salvataggio (Ctrl+S / Save As).
+// FILE_SAVE emette 'pre-save' via bus (mitt = sincrono) PRIMA di leggere tab.markdown.
+// Qui cancelliamo il commitTimer e committiamo subito il contenuto CM reale,
+// così FILE_SAVE legge il valore aggiornato invece dello stale da 1s di debounce.
+const handlePreSave = () => {
+  if (commitTimer.value) {
+    clearTimeout(commitTimer.value)
+    commitTimer.value = null
+  }
+  if (editor.value && tabId.value && !isFirstLoad.value) {
+    const { cursor, markdown: newMarkdown } = getMarkdownAndCursor(editor.value)
+    editorStore.LISTEN_FOR_CONTENT_CHANGE({
+      id: tabId.value,
+      markdown: newMarkdown,
+      muyaIndexCursor: cursor
+    })
+  }
+}
+
 // Intercetta eventi format in source mode per operazioni riga (Ctrl+D / Ctrl+L)
 const handleFormatInSource = (type) => {
   if (!sourceCode.value || !editor.value) return
   if (type === 'del') {
-    // Ctrl+D in source = duplica riga corrente
-    const cur = editor.value.getCursor()
-    const line = editor.value.getLine(cur.line)
-    editor.value.replaceRange(line + '\n', { line: cur.line, ch: 0 })
-    editor.value.focus()
+    // Ctrl+D in source = duplica. Con selezione → duplica tutte le righe coperte.
+    const cm = editor.value
+    const from = cm.getCursor('from')
+    const to = cm.getCursor('to')
+    const hasSel = from.line !== to.line || from.ch !== to.ch
+    if (!hasSel) {
+      // nessuna selezione → duplica la riga corrente
+      const line = cm.getLine(from.line)
+      cm.replaceRange(line + '\n', { line: from.line, ch: 0 })
+    } else {
+      // selezione attiva → duplica l'intero blocco di righe coperte
+      // edge case: selezione finisce a ch=0 → l'ultima riga non è realmente toccata → escludila
+      const endLine = (to.ch === 0 && to.line > from.line) ? to.line - 1 : to.line
+      const lines = []
+      for (let i = from.line; i <= endLine; i++) lines.push(cm.getLine(i))
+      cm.replaceRange(lines.join('\n') + '\n', { line: from.line, ch: 0 })
+    }
+    cm.focus()
   } else if (type === 'link') {
     // Ctrl+L in source = elimina riga corrente
     editor.value.execCommand('deleteLine')
@@ -356,12 +406,14 @@ const listenChange = () => {
     }
 
     // N12: check immediato isSaved (no debounce) per feedback bollino istantaneo dopo Ctrl+Z.
-    // Non passa da LISTEN_FOR_CONTENT_CHANGE (pesante, 1s di debounce).
+    // Normalizza cm.getValue() con la stessa logica di adjustTrailingNewlines prima di
+    // confrontare con originalMarkdown (già normalizzato). Senza, differenze di trailing
+    // newline causano false-dirty su ogni click cursore anche senza modifiche al contenuto.
     if (currentTab.value && currentTab.value.originalMarkdown !== null) {
-      if (newMarkdown === currentTab.value.originalMarkdown && !currentTab.value.isSaved) {
+      const normalizedNew = normalizeMarkdown(newMarkdown, currentTab.value.trimTrailingNewline)
+      if (normalizedNew === currentTab.value.originalMarkdown && !currentTab.value.isSaved) {
         currentTab.value.isSaved = true
-      } else if (newMarkdown !== currentTab.value.originalMarkdown && currentTab.value.isSaved) {
-        // Bug 1: flip isSaved=false immediato quando utente modifica (no debounce 1s)
+      } else if (normalizedNew !== currentTab.value.originalMarkdown && currentTab.value.isSaved) {
         currentTab.value.isSaved = false
       }
     }
@@ -413,10 +465,12 @@ onMounted(() => {
     direction: textDirection,
     undoDepth: 10000,
     // Ctrl+Shift+↑/↓ liberi → sposta riga su/giù solo in source mode
-    extraKeys: {
-      'Ctrl-Shift-Up': 'swapLineUp',
-      'Ctrl-Shift-Down': 'swapLineDown'
-    }
+    // Alt+↑/↓ in source mode = sposta riga su/giù (come Notepad++).
+    // Ctrl+Shift+↑/↓ torna al default CM (estensione selezione).
+    extraKeys: codeMirror.normalizeKeyMap({
+      'Alt-Up': 'swapLineUp',
+      'Alt-Down': 'swapLineDown'
+    })
     // Bug 6: rimosso `viewportMargin: Infinity`. Con scroll interno CM (default)
     // è inutile e rendere tutte le righe DOM-side è uno spreco di performance.
   }
@@ -439,6 +493,7 @@ onMounted(() => {
   bus.on('toUpperCase', handleToUpperCase)
   bus.on('toLowerCase', handleToLowerCase)
   bus.on('format', handleFormatInSource)
+  bus.on('pre-save', handlePreSave)
   // v2: toggle word wrap dalla status bar
   bus.on('mt::wordwrap-change', (value) => {
     if (editor.value) {
@@ -570,6 +625,7 @@ onBeforeUnmount(() => {
   bus.off('toUpperCase', handleToUpperCase)
   bus.off('toLowerCase', handleToLowerCase)
   bus.off('format', handleFormatInSource)
+  bus.off('pre-save', handlePreSave)
 
   // Emette file-changed SOLO per view switch (stesso file, source→markdown).
   // Per tab close/switch il contenuto della tab uscente non deve sovrascrivere

@@ -411,7 +411,6 @@ class WindowManager extends EventEmitter {
     // Chiamati da main process via ipcMain.emit(channel, browserWindow, path)
     // → primo arg è BrowserWindow, NON un IpcMainEvent
     ipcMain.on('watcher-watch-file', (win, filePath) => {
-      console.log('[WATCH-DBG] watcher-watch-file avviato per:', filePath)
       this._watcher.watch(win, filePath, 'file')
     })
     ipcMain.on('watcher-watch-directory', (win, pathname) => {

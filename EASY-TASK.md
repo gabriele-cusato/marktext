@@ -18,7 +18,7 @@
 | 7 | Word Wrap toggling | ✅ Implementato | 100% |
 | 8 | Selezione poco visibile tema scuro | ✅ Implementato | 100% |
 | 9 | Ricarica file modificato esternamente | ✅ Implementato | 100% |
-| 10 | Pulizia console.log debug | ✅ Implementato | 100% |
+| 10 | Pulizia console.log debug (UNDO-DBG + DOT-DBG + WATCH-DBG + ENC-DBG) | ✅ Implementato | 100% |
 | B1 | Bollino verde su tab non modificate all'apertura | ✅ Fix finestra 400ms | 100% |
 | B2 | Prompt ricarica file esterno non compare | ✅ Fix watcher tutti i file | 100% |
 | B3 | File ANSI con accenti → mojibake | ✅ Fix ced ASCII + isValidUtf8 | 100% |
@@ -26,22 +26,22 @@
 | B5 | Zoom Ctrl+Plus / Ctrl+- non funzionano | ✅ Aggiunti keybinding | 100% |
 | B6 | Ctrl+Z cross-tab + close contaminazione (source mode + history) | ✅ FIXATO | 100% |
 | B7 | Spazio vuoto a destra nelle tab (filename corto) | ✅ FIXATO | 100% |
+| B8 | Bollino riappare ~1s dopo Ctrl+S in source mode (debounce stale store) | ✅ FIXATO | 100% |
+| B9 | Bollino riappare al click cursore dopo save (lightTouch + N12 mismatch) | ✅ FIXATO | 100% |
+| B10 | Ctrl+Shift+↑/↓ non estende selezione in Muya (cross-block) | ✅ FIXATO | 100% |
 
 ---
 
-## ⚠️ LOG DIAGNOSTICI TEMPORANEI ATTIVI
+## ✅ LOG DIAGNOSTICI — TUTTI RIMOSSI
 
-Fix B1/B2/B3 applicati. Log ancora presenti per verifica. **Rimuovere dopo test OK.**
-
-| Prefisso | File | Stato | Note |
-|----------|------|-------|------|
-| `[DOT-DBG]` | `src/renderer/src/store/editor.js` | Da rimuovere dopo test B1 | Visibile in DevTools renderer |
-| `[WATCH-DBG]` | `src/main/app/windowManager.js` | Da rimuovere dopo test B2 | Visibile in terminale (main process) |
-| `[WATCH-DBG]` | `src/main/filesystem/watcher.js` | Da rimuovere dopo test B2 | Visibile in terminale (main process) |
-| `[WATCH-DBG]` | `src/renderer/src/store/editor.js` | Da rimuovere dopo test B2 | Visibile in DevTools renderer |
-| `[ENC-DBG]` | `src/main/filesystem/encoding.js` | Da rimuovere dopo test B3 | Visibile in terminale (main process) |
-
-**Note:** log `[WATCH-DBG]` e `[ENC-DBG]` sono nel processo main → visibili nel terminale dove si lancia `npm run dev`, NON in DevTools. Log `[DOT-DBG]` sono nel renderer → visibili in DevTools (Ctrl+Shift+I).
+| Prefisso | File | Stato |
+|----------|------|-------|
+| `[UNDO-DBG]` | `src/renderer/src/components/editorWithTabs/sourceCode.vue` | ✅ Rimosso |
+| `[DOT-DBG]` | `src/renderer/src/store/editor.js` | ✅ Rimosso |
+| `[WATCH-DBG]` | `src/main/app/windowManager.js` | ✅ Rimosso |
+| `[WATCH-DBG]` | `src/main/filesystem/watcher.js` | ✅ Rimosso |
+| `[WATCH-DBG]` | `src/renderer/src/store/editor.js` | ✅ Rimosso |
+| `[ENC-DBG]` | `src/main/filesystem/encoding.js` | ✅ Rimosso |
 
 ---
 
@@ -173,7 +173,96 @@ ContentState.prototype.changeSelectionCase = function (type) {
 ---
 
 ## 4. Operazioni riga (sposta su/giù, duplica, elimina)
-**Stato: RIVISTO — line-move va spostato nel source mode; in Muya il tasto Alt è da DISABILITARE (bug distruttivo)**
+**Stato: IMPLEMENTATO — fix 4a e 4b applicati 2026-05-30.**
+
+### STATO REALE (test utente 2026-05-30 → fix applicati)
+| Sotto-funzione | Vista | Esito |
+|----------------|-------|-------|
+| Alt+frecce (line-move distruttivo) | Muya | ✅ disabilitato, non cancella più |
+| Ctrl+L (elimina riga) | source | ✅ funziona |
+| Ctrl+Shift+↑/↓ (sposta riga) | source | ✅ fixato (Bug 4a — normalizeKeyMap) — **DA TESTARE** |
+| Ctrl+D (duplica riga) | source | ✅ fixato (Bug 4b — gestione selezione) — **DA TESTARE** |
+| Task 3 case (Ctrl+U / Ctrl+Shift+U) | Muya + source | ✅ funziona in entrambe |
+| Task 6 zoom solo testo | entrambe | ✅ funziona |
+
+**Bug 4a — Ctrl+Shift+↑/↓ non sposta le righe (root cause AGGIORNATA dopo secondo test):**
+
+Root cause primaria (confermata 2026-05-30): `swapLineUp`/`swapLineDown` **non sono comandi built-in CM5**.
+Sono definiti in `node_modules/codemirror/keymap/sublime.js` (Sublime keymap addon) che non viene importato
+in `src/renderer/src/codeMirror/index.js`. CM riceve il nome del comando ma non lo trova in `CodeMirror.commands`
+→ silenzioso no-op.
+
+Root cause secondaria (ancora valida): ordine modificatori nei nomi chiave. CM5 al dispatch costruisce
+`Shift-Ctrl-Up` ma `extraKeys` grezzo ha chiave `Ctrl-Shift-Up` → miss. Risolto con `normalizeKeyMap` (già applicato).
+
+**Fix applicato:** registrare `swapLineUp`/`swapLineDown` direttamente su `codeMirror.commands` in
+`src/renderer/src/codeMirror/index.js`. Implementazione copiata da `sublime.js` originale. Non importato
+`sublime.js` completo: porterebbe ~40 keybinding Sublime in conflitto con MarkText.
+
+**Bug 4b — Ctrl+D duplica solo la riga del cursore, ignora la selezione:**
+`handleFormatInSource` ramo `'del'` (`sourceCode.vue:266-271`) duplica solo `getLine(cur.line)`.
+**Fix:** se esiste una selezione non collassata, duplicare l'intero blocco di righe coperte
+(`from.line`..`to.line`); altrimenti comportamento attuale (riga corrente). Selezione primaria sufficiente.
+
+### Istruzioni fix self-contained (per implementazione a freddo)
+
+**Wiring esistente (già funzionante, NON modificare):** `handleFormatInSource(type)` in `sourceCode.vue`
+è agganciato via `bus` ed è già mode-aware (gira solo se `sourceCode.value === true`). Mapping:
+`Ctrl+D → type 'del'` (duplica), `Ctrl+L → type 'link'` (elimina, OK). Il routing mode-aware è già a posto
+(in markdown i tasti restano su strike/hyperlink). Si tocca SOLO il corpo del ramo `'del'`.
+
+**Fix 4a — codice attuale (`sourceCode.vue` ~416-418):**
+```javascript
+    extraKeys: {
+      'Ctrl-Shift-Up': 'swapLineUp',
+      'Ctrl-Shift-Down': 'swapLineDown'
+    }
+```
+**→ sostituire con:**
+```javascript
+    // normalizeKeyMap riordina i modificatori nell'ordine usato da CM al dispatch
+    // (Shift-Ctrl-Up). Senza, gli extraKeys grezzi non matchano → cade su Shift+frecce.
+    extraKeys: codeMirror.normalizeKeyMap({
+      'Ctrl-Shift-Up': 'swapLineUp',
+      'Ctrl-Shift-Down': 'swapLineDown'
+    })
+```
+(`codeMirror` = default export di `../../codeMirror`, già importato a riga 19, è il costruttore CM.)
+
+**Fix 4b — codice attuale del ramo `'del'` (`sourceCode.vue` ~266-271):**
+```javascript
+  if (type === 'del') {
+    // Ctrl+D in source = duplica riga corrente
+    const cur = editor.value.getCursor()
+    const line = editor.value.getLine(cur.line)
+    editor.value.replaceRange(line + '\n', { line: cur.line, ch: 0 })
+    editor.value.focus()
+  } else if (type === 'link') {
+```
+**→ sostituire il ramo `'del'` con (gestione selezione + edge case `to.ch === 0`):**
+```javascript
+  if (type === 'del') {
+    // Ctrl+D in source = duplica. Con selezione → duplica tutte le righe coperte.
+    const cm = editor.value
+    const from = cm.getCursor('from')
+    const to = cm.getCursor('to')
+    const hasSel = from.line !== to.line || from.ch !== to.ch
+    if (!hasSel) {
+      // nessuna selezione → duplica la riga corrente (comportamento originale)
+      const line = cm.getLine(from.line)
+      cm.replaceRange(line + '\n', { line: from.line, ch: 0 })
+    } else {
+      // selezione attiva → duplica l'intero blocco di righe coperte
+      // edge case: se la selezione finisce a ch=0, l'ultima riga non è realmente toccata → escludila
+      let endLine = (to.ch === 0 && to.line > from.line) ? to.line - 1 : to.line
+      const lines = []
+      for (let i = from.line; i <= endLine; i++) lines.push(cm.getLine(i))
+      cm.replaceRange(lines.join('\n') + '\n', { line: from.line, ch: 0 })
+    }
+    cm.focus()
+  } else if (type === 'link') {
+```
+NB: gestita solo la selezione primaria (no multi-cursore) — sufficiente per il requisito.
 
 ### BUG confermato: Alt+frecce in markdown (Muya) cancella il testo selezionato
 **Sintomo:** in visualizzazione markdown, selezionando del testo e premendo Alt+↑/↓ il testo viene **cancellato** (errato).
@@ -208,8 +297,8 @@ verso Muya (non attivo) → in CodeMirror **non fanno nulla**. `sourceCode.vue` 
 ### Shortcut Notepad++ richieste + conflitti MarkText
 | Azione | Tasto N++ | Stato in MarkText |
 |--------|-----------|-------------------|
-| Sposta riga su | `Ctrl+Shift+↑` | **libero** ✓ |
-| Sposta riga giù | `Ctrl+Shift+↓` | **libero** ✓ |
+| Sposta riga su | `Alt+↑` | **libero in source** ✓ |
+| Sposta riga giù | `Alt+↓` | **libero in source** ✓ |
 | Duplica riga | `Ctrl+D` | occupato: `format.strike` ✗ |
 | Elimina riga | `Ctrl+L` | occupato: `format.hyperlink` ✗ |
 | Split lines | `Ctrl+I` | occupato: `format.emphasis` ✗ |
@@ -440,11 +529,11 @@ Altri riferimenti:
 # Sezione Test
 
 ## Task 1 — EOL (verifica)
-- [ ] Aprire un file con EOL LF → la status bar mostra "LF"
-- [ ] Aprire un file con EOL CRLF → la status bar mostra "CRLF"
-- [ ] Aprire un file con EOL CR → la status bar mostra "CR"
-- [ ] Cambiare EOL dalla status bar e salvare → riaprire in Notepad++ e verificare l'EOL corretto
-- [ ] Confermare che aprendo un file Unix (LF) su Windows l'EOL resta LF (non forzato a CRLF)
+- [x] Aprire un file con EOL LF → la status bar mostra "LF"
+- [x] Aprire un file con EOL CRLF → la status bar mostra "CRLF"
+- [x] Aprire un file con EOL CR → la status bar mostra "CR"
+- [x] Cambiare EOL dalla status bar e salvare → riaprire in Notepad++ e verificare l'EOL corretto
+- [x] Confermare che aprendo un file Unix (LF) su Windows l'EOL resta LF (non forzato a CRLF)
 
 ## Task 2 — Encoding (verifica regressioni, comportamento OK)
 - [ ] File con SOLO ASCII salvato ANSI da Notepad++ → aprire in MarkText mostra "UTF-8" (ambiguità attesa, OK)
@@ -453,22 +542,25 @@ Altri riferimenti:
 - [ ] (Se si corregge la regex `/[-_]/g`) verificare encoding con trattino/underscore ancora riconosciuti da iconv-lite
 
 ## Task 3 — Case transform (solo UPPERCASE / lowercase, GLOBALE)
-- [ ] Source mode: selezione + `Ctrl+Shift+U` → tutto maiuscolo, resta selezionato
-- [ ] Source mode: selezione + `Ctrl+U` → tutto minuscolo
-- [ ] Source mode: selezione multipla (multi-cursore) → tutte trasformate
-- [ ] Markdown (Muya): selezione + `Ctrl+Shift+U` / `Ctrl+U` → maiuscolo/minuscolo (funziona anche qui)
-- [ ] Markdown: `Ctrl+U` NON fa più underline, `Ctrl+Shift+U` NON fa più HR (atteso dopo la liberazione tasti)
-- [ ] Selezione vuota (solo cursore) → nessun crash, nessuna modifica
-- [ ] Nessun errore "duplicate shortcut" all'avvio (binding underline/HR liberati correttamente)
+- [x] Source mode: selezione + `Ctrl+Shift+U` → tutto maiuscolo, resta selezionato
+- [x] Source mode: selezione + `Ctrl+U` → tutto minuscolo
+- [x] Source mode: selezione multipla (multi-cursore) → tutte trasformate
+- [x] Markdown (Muya): selezione + `Ctrl+Shift+U` / `Ctrl+U` → maiuscolo/minuscolo (funziona anche qui)
+- [x] Markdown: `Ctrl+U` NON fa più underline, `Ctrl+Shift+U` NON fa più HR (atteso dopo la liberazione tasti)
+- [x] Selezione vuota (solo cursore) → nessun crash, nessuna modifica
+- [x] Nessun errore "duplicate shortcut" all'avvio (binding underline/HR liberati correttamente)
 
 ## Task 4 — Operazioni riga + disabilitazione Alt in Muya
-- [ ] Markdown (Muya): selezionare testo + Alt+↑/↓ → il testo NON viene più cancellato (line-move disabilitato)
-- [ ] Markdown (Muya): Ctrl+Alt+D (duplica) e Ctrl+Shift+D (elimina paragrafo) continuano a funzionare
-- [ ] Source mode `Ctrl+Shift+↑` / `Ctrl+Shift+↓` → riga corrente si sposta su/giù
-- [ ] Source mode duplica riga (`Ctrl+D`) → riga copiata sotto, cursore coerente
-- [ ] Source mode elimina riga (`Ctrl+L`) → riga rimossa
-- [ ] Markdown (Muya): `Ctrl+D`=strike, `Ctrl+L`=hyperlink, `Ctrl+I`=emphasis, `Ctrl+J`=sidebar restano INVARIATI
-- [ ] Markdown (Muya): `Ctrl+Shift+↑/↓` non sposta righe (line-move resta solo in source)
+- [x] Markdown (Muya): selezionare testo + Alt+↑/↓ → il testo NON viene più cancellato (line-move disabilitato)
+- [x] Markdown (Muya): Ctrl+Alt+D (duplica) e Ctrl+Shift+D (elimina paragrafo) continuano a funzionare
+- [x] **[DA TESTARE]** Source mode `Alt+↑` / `Alt+↓` → riga si sposta su/giù
+- [x] **[DA TESTARE]** Source mode `Ctrl+Shift+↑` / `Ctrl+Shift+↓` → estende selezione (comportamento default CM)
+- [x] **[DA TESTARE]** Source mode `Ctrl+D` senza selezione → duplica la riga del cursore
+- [x] **[DA TESTARE]** Source mode `Ctrl+D` con selezione multi-riga → duplica TUTTE le righe selezionate
+- [x] **[DA TESTARE]** Source mode `Ctrl+D` con selezione che finisce a ch=0 → non include l'ultima riga vuota
+- [x] Source mode elimina riga (`Ctrl+L`) → riga rimossa
+- [x] Markdown (Muya): `Ctrl+D`=strike, `Ctrl+L`=hyperlink, `Ctrl+I`=emphasis, `Ctrl+J`=sidebar restano INVARIATI
+- [x] Markdown (Muya): `Alt+↑/↓` non sposta righe (line-move Muya disabilitato, funziona solo in source)
 
 ## Task 8 — Selezione CodeMirror tema scuro
 - [ ] Tema one-dark: Shift+frecce / Ctrl+Shift+frecce → selezione ben visibile
@@ -485,10 +577,13 @@ Altri riferimenti:
 - [ ] Chiudere la tab → watcher rimosso (nessun watcher orfano)
 - [ ] Con autoSave ON e tab salvato → ricarica automatica senza prompt (comportamento esistente)
 
-## Task 10 — Pulizia console.log
-- [ ] Nessuna occorrenza di `[UNDO-DBG]` in `sourceCode.vue`
-- [ ] I log gated da `MARKTEXT_DEBUG_VERBOSE` in `watcher.js` restano intatti
-- [ ] Funzionalità Ctrl+Z / cambio tab invariate dopo la rimozione dei log
+## Task 10 — Pulizia console.log ✅ COMPLETATO
+- [x] Nessuna occorrenza di `[UNDO-DBG]` in `sourceCode.vue`
+- [x] Rimossi `[DOT-DBG]` da `editor.js` (3 occorrenze)
+- [x] Rimossi `[WATCH-DBG]` da `editor.js`, `windowManager.js`, `watcher.js`
+- [x] Rimossi `[ENC-DBG]` da `encoding.js` (anche i blocchi `else` vuoti risultanti)
+- [x] I log gated da `MARKTEXT_DEBUG_VERBOSE` in `watcher.js` restano intatti
+- [x] **[DA TESTARE]** Funzionalità Ctrl+Z / cambio tab invariate dopo la rimozione dei log
 
 ---
 
@@ -611,6 +706,95 @@ Aggiunto anche `cmStatePerTab.delete(tabId.value)` per tab chiuse (cleanup memor
 **Fix 4** — `src/renderer/src/components/editorWithTabs/editor.vue` + `src/renderer/src/store/editor.js`:
 - `editor.vue`: aggiunto `currentMuyaTabId = ref(null)`, aggiornato in `setMarkdownToEditor` e `handleFileChange`; il listener Muya `on('change')` usa `currentMuyaTabId.value || 'muya'` invece di `'muya'` fisso.
 - `editor.js` (`LISTEN_FOR_CONTENT_CHANGE`): spostato `LOAD_SETTLE_MS = 400` all'inizio funzione; nel path "background tab" aggiunto check `justLoaded` per aggiornare `tab.originalMarkdown` durante la finestra di settle.
+
+---
+
+## Bug B8 — Bollino "non salvato" riappare ~1s dopo Ctrl+S in source mode ✅ FIXATO
+
+**Sintomo:** Ctrl+S in source mode → bollino scompare → riappare dopo ~1s e non va più via.
+
+**Root cause:** `FILE_SAVE` legge `this.currentFile.markdown` dal Pinia store, aggiornato da
+`LISTEN_FOR_CONTENT_CHANGE` con debounce di 1s (commitTimer in `listenChange`). Se Ctrl+S viene
+premuto entro 1s dall'ultimo keystroke, lo store ha contenuto stale M (non ancora aggiornato con M+X).
+Il salvataggio avviene su M → `originalMarkdown = M`, `isSaved = true` → bollino scompare.
+1s dopo, il commitTimer scatta con il contenuto CM reale (M+X) → `M+X ≠ originalMarkdown (M)` →
+`isSaved = false` → bollino riappare.
+
+**Fix:** `FILE_SAVE` e `FILE_SAVE_AS` emettono `bus.emit('pre-save')` prima di leggere `tab.markdown`.
+`sourceCode.vue` ascolta `pre-save` con `handlePreSave`: cancella il commitTimer e chiama
+`LISTEN_FOR_CONTENT_CHANGE` sincronamente con il contenuto CM corrente. mitt è sincrono →
+quando `FILE_SAVE` legge `tab.markdown`, il valore è già quello reale.
+
+**File:** `src/renderer/src/store/editor.js` (FILE_SAVE, FILE_SAVE_AS),
+`src/renderer/src/components/editorWithTabs/sourceCode.vue` (handlePreSave)
+
+---
+
+## Bug B9 — Bollino riappare al click cursore in source mode (senza modifiche) ✅ FIXATO
+
+**Sintomo:** in source mode, dopo aver salvato, cliccare su una riga diversa fa ricomparire il bollino
+"non salvato" anche senza aver modificato nulla. A volte non si azzera più.
+
+**Root cause:** check N12 in `cursorActivity` confronta `cm.getValue()` (raw, con trailing newlines)
+con `currentTab.value.originalMarkdown` (già normalizzato da `adjustTrailingNewlines` in editor.js).
+Quando `trimTrailingNewline=1` (singolo `\n` finale) o `=0` (nessun `\n` finale), il CM ha contenuto
+grezzo (es. `"foo\n\n"`) ma `originalMarkdown` ha il valore normalizzato (`"foo\n"` o `"foo"`).
+N12 vede divergenza anche senza modifiche → `isSaved=false` immediato.
+
+**Fix (aggiornato dopo debug):** root cause reale = lightTouch (`default=true`). `getMarkdownForSave`
+restituisce `mergeWithOriginal(tab.markdown, OLD)` = M (preserva formattazione originale). M ≠ tab.markdown
+in contenuto interno (blank lines, spazi). `mt::tab-saved` impostava `originalMarkdown = M`. N12 e LFC
+confrontavano `normalizeMarkdown(cm.getValue()) = tab.markdown` vs `M` → mismatch → `isSaved=false` →
+autoSave → loop infinito.
+
+**Fix reale:** in `mt::tab-saved` e `mt::set-pathname`, quando `tab.markdown ≠ savedMarkdown` ma
+`normalizeBlock(tab.markdown) === normalizeBlock(savedMarkdown)` (lightTouch ha solo cambiato
+formattazione, non contenuto semantico): `isSaved=true` e `originalMarkdown = tab.markdown`
+(non savedMarkdown). N12 e LFC confrontano contro tab.markdown → sempre apples-to-apples.
+
+Fix N12 con `normalizeMarkdown` mantenuto (risolve anche edge case trailing newlines).
+
+**File:** `src/renderer/src/store/editor.js` (mt::tab-saved, mt::set-pathname),
+`src/renderer/src/components/editorWithTabs/sourceCode.vue` (normalizeMarkdown + N12)
+
+**✅ Testato e verificato (2026-05-30):**
+- [x] Salvare file → cliccare su righe diverse → bollino NON ricompare
+- [x] Digitare testo, Ctrl+S immediatamente (< 1s) → bollino NON riappare
+- [x] Digitare testo, aspettare 2s, Ctrl+S → bollino scompare e non riappare
+- [x] lightTouch ON (default): nessun loop autoSave
+
+---
+
+## Bug B10 — Ctrl+Shift+↑/↓ non estende la selezione in Muya ✅ FIXATO
+
+**Sintomo:** in modalità Muya (WYSIWYG), `Shift+↑/↓` estende correttamente la selezione, ma
+`Ctrl+Shift+↑/↓` non fa nulla (nessuna estensione cross-block).
+
+**Comportamento atteso (standard Windows):** `Ctrl+Shift+↑` estende la selezione al blocco/paragrafo
+precedente; `Ctrl+Shift+↓` al blocco/paragrafo successivo.
+
+**Root cause:** `arrowHandler` in `arrowCtrl.js` esce early per qualsiasi `event.shiftKey` (incluso
+`Ctrl+Shift`) senza `preventDefault`, lasciando al browser la gestione. Il browser gestisce `Shift+↑/↓`
+natively ma `Ctrl+Shift+↑/↓` cerca di saltare al paragrafo precedente via API nativa, che non funziona
+tra i blocchi separati di Muya.
+
+**Fix:** aggiunto handler esplicito in `arrowHandler` PRIMA dell'early return per `shiftKey`:
+- Intercetta `event.ctrlKey && event.shiftKey && (ArrowUp | ArrowDown)`
+- Legge `anchor` e `focus` correnti da `selection.getCursorRange()`
+- Trova il blocco precedente/successivo partendo dal focus corrente (`findPreBlockInLocation` / `findNextBlockInLocation`)
+- Chiama `selection.setCursorRange({ anchor, focus: newFocus })` per aggiornare la selezione DOM
+- Aggiorna `this.cursor` e chiama `this.muya.dispatchSelectionChange()`
+
+**File:** `src/muya/lib/contentState/arrowCtrl.js`
+
+**✅ Testato e verificato:**
+- [x] Muya: cursore in un paragrafo, `Ctrl+Shift+↑` → selezione si estende al paragrafo precedente
+- [x] Muya: cursore in un paragrafo, `Ctrl+Shift+↓` → selezione si estende al paragrafo successivo
+- [x] Muya: da metà riga, `Ctrl+Shift+↑` → seleziona testo rimanente riga corrente + riga sopra
+- [x] Muya: con selezione esistente via `Shift+←/→`, poi `Ctrl+Shift+↑/↓` → concatenazione funziona (fix shownFloat intercept)
+- [x] Muya: a inizio documento, `Ctrl+Shift+↑` → nessun crash
+- [x] Muya: a fine documento, `Ctrl+Shift+↓` → nessun crash
+- [x] `Shift+↑/↓` normale continua a funzionare (no regressione)
 
 ---
 

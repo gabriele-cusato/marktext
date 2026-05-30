@@ -115,11 +115,9 @@ export const guessEncoding = async (buffer, autoGuessEncoding) => {
   // Auto guess encoding, otherwise use UTF8.
   if (autoGuessEncoding) {
     const cedModule = await getCed()
-    console.log('[ENC-DBG] ced loaded:', !!cedModule)
     if (cedModule) {
       try {
         const raw = cedModule(buffer)
-        console.log('[ENC-DBG] ced raw result:', raw)
         if (CED_ICONV_ENCODINGS[raw]) {
           encoding = CED_ICONV_ENCODINGS[raw]
         } else {
@@ -134,21 +132,14 @@ export const guessEncoding = async (buffer, autoGuessEncoding) => {
           const hasNonAscii = buffer.some((b) => b > 0x7f)
           if (hasNonAscii && !isValidUtf8(buffer)) {
             encoding = 'windows-1252'
-            console.log('[ENC-DBG] ced → ASCII ma byte non-ASCII presenti e UTF-8 non valido → windows-1252')
           }
         }
-
-        console.log('[ENC-DBG] final encoding:', encoding)
       } catch (error) {
         console.warn('Failed to detect encoding using ced:', error.message)
         // Fall back to UTF-8
         encoding = 'utf8'
       }
-    } else {
-      console.warn('[ENC-DBG] ced non disponibile → fallback UTF-8')
     }
-  } else {
-    console.log('[ENC-DBG] autoGuessEncoding disabilitato → UTF-8 fisso')
   }
   return { encoding, isBom }
 }
