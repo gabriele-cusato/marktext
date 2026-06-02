@@ -40,7 +40,10 @@ export const useEditorStore = defineStore('editor', {
     tabs: [],
     listToc: [], // Used for equal check and for searching for the correct github-slug to jump to
     toc: [],
-    isSaving: false // Tracks when a manual save is in progress
+    isSaving: false, // Tracks when a manual save is in progress
+    // Testo attualmente selezionato nell'editor attivo (Muya o CodeMirror). Aggiornato dai
+    // due editor; usato dai trigger Ctrl+F / Ctrl+Shift+F per cercare sulla selezione.
+    currentSelection: ''
   }),
 
   actions: {
@@ -1338,6 +1341,11 @@ export const useEditorStore = defineStore('editor', {
       autoSaveTimers.set(id, timer)
     },
 
+    // Aggiorna il testo selezionato corrente (chiamata da Muya e CodeMirror).
+    SET_SELECTION(text) {
+      this.currentSelection = typeof text === 'string' ? text : ''
+    },
+
     SELECTION_CHANGE(changes) {
       const { start, end } = changes
       if (start.key === end.key && start.block.text) {
@@ -1347,6 +1355,11 @@ export const useEditorStore = defineStore('editor', {
           index: -1,
           value
         }
+        // Traccia selezione Muya (singolo blocco) per i trigger di ricerca.
+        this.currentSelection = value
+      } else {
+        // Selezione cross-block o nessuna selezione → niente testo utilizzabile.
+        this.currentSelection = ''
       }
 
       const { windowId } = global.marktext.env

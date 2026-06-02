@@ -3,8 +3,6 @@
     class="editor-container"
     @contextmenu="handleEditorContextMenu"
   >
-    <side-bar v-if="init" />
-
     <div class="editor-middle">
       <!-- v2: title-bar legacy nascosta via CSS in v2-tokens.css.
            Rimane montata per non rompere refs/eventi esistenti. -->
@@ -66,7 +64,6 @@ import { addStyles, addThemeStyle, addCustomStyle } from '@/util/theme'
 import Recent from '@/components/recent'
 import EditorWithTabs from '@/components/editorWithTabs'
 import TitleBar from '@/components/titleBar'
-import SideBar from '@/components/sideBar'
 import AboutDialog from '@/components/about'
 import CommandPalette from '@/components/commandPalette'
 import ExportSettingDialog from '@/components/exportSettings'

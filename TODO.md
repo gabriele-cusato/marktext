@@ -11,16 +11,15 @@
 - [x] **Zoom testo Ctrl+rotella** — **FATTO** (vedi EASY-TASK Task 6): lo zoom agisce solo sul testo (markdown + source), title bar e tab bar invariate.
 - [x] **Bug: Ctrl+Shift+↑/↓ non seleziona in Muya** — **FATTO** (vedi EASY-TASK B10): handler esplicito in `arrowCtrl.js` estende la selezione al blocco precedente/successivo via `findPreBlockInLocation`/`findNextBlockInLocation`.
 - [x] **Word Wrap toggling** — **FATTO:** disabilitato nella visualizzazione markdown (Muya), abilitabile nella visualizzazione simil notepad++ (CodeMirror source mode).
+- [x] **Selezione a blocco/colonna** (Alt+drag) — CodeMirror ha addon `rectangular-selection` nativo, abilitarlo in source mode. Per Muya molto più complesso: considerare solo source mode. (il fix non è presente in easy fix, ma le altre modifiche apportate hanno implementato anche questa feature)
 
 ### Medio-facile
 
-- [ ] **Selezione a blocco/colonna** (Alt+drag) — CodeMirror ha addon `rectangular-selection` nativo, abilitarlo in source mode. Per Muya molto più complesso: considerare solo source mode.
-- [ ] **Evidenzia occorrenze parola selezionata** — CodeMirror: addon `matchHighlighter`. Per Muya: listener su `selectionchange`, cercare occorrenze nel DOM, applicare classe CSS highlight.
+- [ ] **Evidenzia occorrenze parola selezionata** — CodeMirror: addon `matchHighlighter`. Per Muya: listener su `selectionchange`, cercare occorrenze nel DOM, applicare classe CSS highlight. (attenzione che l'evidenziazione delle altre parole uguali deve avere meno opacità, quindi essere meno evidente)
 - [ ] **Context menu tasto destro Windows** — in `package.json` sezione `build.nsis` aggiungere chiave registro `HKCR\*\shell\MarkText`. ~10 righe.
-- [ ] **Rimuovi dialog "vuoi salvare?"** — intercettare `before-close` in `src/main/`, salvare contenuto silenziosamente in `app.getPath('userData')` invece di mostrare dialog. ~20-30 righe.
-- [ ] **Stile UI più professionale** — modificare variabili CSS (`border-radius`, font, spacing) nei file tema in `static/`. Solo CSS.
-- [ ] **Split / Join righe** (source mode, stile Notepad++ `Ctrl+I` / `Ctrl+J`) — CodeMirror NON ha comandi built-in: implementare a mano, solo in source mode. **Join** (`Ctrl+J`): unire la riga corrente con la successiva via `replaceRange`. **Split** (`Ctrl+I`): dividere le righe lunghe al margine della finestra (più complesso, dipende dalla larghezza del wrap). Rendere mode-aware: in markdown `Ctrl+I`=emphasis e `Ctrl+J`=sidebar restano invariati.
-
+- [ ] **Stile UI più professionale** — modificare variabili CSS (`border-radius`, font, spacing) nei file tema in `static/`. Solo CSS. (da definire)
+- [ ] **Split / Join righe** (source mode, stile Notepad++ `Ctrl+I` / `Ctrl+J`) — CodeMirror NON ha comandi built-in: implementare a mano, solo in source mode. - [ - [ ] **Join** (`Ctrl+J`): unire la riga corrente con la successiva via `replaceRange`. **Split** (`Ctrl+I`): dividere le righe lunghe al margine della finestra (più complesso, dipende dalla larghezza del wrap). Rendere mode-aware: in markdown `Ctrl+I`=emphasis e `Ctrl+J`=sidebar restano invariati.
+in realtà adesso c'è un bug se premo ctrl j si apre una sidebar a destra vuota, e se premo ctrl i si chiude in entrambe le visualizzazioni, secondo me questo bug potrebbe venire risolto senza implementare l'unione di righe che reputo inutile. vorrei solo capire cosa dovrei vedere in quella side bar che ora è vuota
 - [ ] **Toggle rapido Muya ↔ source mode** — shortcut (es. Ctrl+Alt+S o bottone in toolbar) per passare al volo da modalità WYSIWYG (Muya) a source mode (CodeMirror) e viceversa, senza dover usare il menu File. Utile per vedere/modificare il markdown grezzo e poi tornare alla vista renderizzata. Verificare se lo store già ha un flag `sourceMode` per tab; in caso aggiungere shortcut che lo togla e rimonta il componente corretto preservando posizione cursore.
 
 ### Medio (~50-150 righe)
@@ -39,6 +38,7 @@
 
 - [ ] **Multi-cursore / multi-selezione** — CodeMirror supporta multi-cursor nativo (Ctrl+click), abilitare in source mode. Per Muya: richiede modifiche profonde al data model blocchi, valutare solo source mode.
 - [ ] **File non salvati NON in temp** — autosave attuale salta untitled (controlla `pathname && autoSave` in `src/renderer/src/store/editor.js:1149`). Trovare tutti gli usi di `os.tmpdir()`, spostare storage in `app.getPath('userData')`. Garantire cleanup corretto alla chiusura.
+- [ ] **Rimuovi dialog "vuoi salvare?"** — intercettare `before-close` in `src/main/`, salvare contenuto silenziosamente in `app.getPath('userData')` invece di mostrare dialog. ~20-30 righe. (questo task sarebbe medio facile ma va fatto solamente quando anche i file non salvati sono ripristinati, altrimenti ci sarebbe il rischio di perdita dati)
 - [ ] **Session restore** — autosave attuale non persiste untitled né ripristina sessione. Alla chiusura: serializzare tab aperti (path + contenuto non salvato) in JSON su `userData`. All'avvio: riaprire tab. Logica split main process (IO) e renderer (restore stato editor).
 - [ ] **Cronologia undo persistente** — serializzare stack undo di Muya/CodeMirror su `userData` alla chiusura, deserializzare all'apertura. Studiare formato interno undo di Muya prima di procedere.
 - [ ] **Numeri di riga** — presenti solo per code block in Muya (`renderLineNumber.js`, `codeBlockCtrl.js`), NON per editor generico. CodeMirror: `lineNumbers: true`. Per Muya: colonna CSS con contatore righe sincronizzato allo scroll. Complessità nel sync scroll e calcolo altezze blocchi variabili.

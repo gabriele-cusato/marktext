@@ -36,6 +36,7 @@ export default function (keybindings, userPreference, recentlyUsedFiles) {
       {
         label: t('menu.file.openFolder'),
         accelerator: keybindings.getAccelerator('file.open-folder'),
+        visible: false,
         click(menuItem, browserWindow) {
           actions.openFolder(browserWindow)
         }

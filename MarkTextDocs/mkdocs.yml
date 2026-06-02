@@ -1,0 +1,140 @@
+# ============================================================
+# MarkTextDocs — configurazione MkDocs + Material
+# ------------------------------------------------------------
+# Questo file controlla tutto: nome, tema, ricerca, l'indice
+# di navigazione (nav) e le estensioni Markdown abilitate.
+# ============================================================
+
+site_name: MarkTextDocs
+site_description: Documentazione del fork MarkText (Electron + Vue3 + Pinia + Muya)
+
+# Link al repo: abilita l'icona in alto a destra e gli autolink alle issue (#123)
+repo_url: https://github.com/peterjthomson/marktext
+repo_name: peterjthomson/marktext
+
+# Necessario per navigare il sito aprendo i file in locale (file://) senza server.
+# Con false ogni pagina diventa un .html "vero" invece di una cartella/index.html.
+use_directory_urls: false
+
+theme:
+  name: material
+  language: it
+  features:
+    - navigation.instant     # navigazione SPA: cambio pagina senza reload completo
+    - navigation.tracking    # l'URL segue la sezione visibile mentre scorri
+    # navigation.tabs NON usato: vogliamo UN albero a cartelle nella sidebar (niente barra
+    # di tab in alto), che parte chiuso e si espande esplorando.
+    # navigation.sections NON usato: renderebbe i gruppi sempre aperti e piatti.
+    - navigation.path        # breadcrumb: percorso ad albero sopra il titolo (free da 9.7.0)
+    - navigation.top         # bottone "torna su"
+    - navigation.indexes     # una cartella può avere la sua pagina index (landing del livello)
+    - toc.follow             # l'indice laterale segue lo scroll
+    - search.suggest         # completa la parola mentre digiti
+    - search.highlight       # evidenzia il termine trovato nella pagina
+    - content.code.copy      # bottone "copia" sui blocchi di codice
+  palette:
+    # Toggle chiaro / scuro (il tuo requisito "leggibile da PC e smartphone")
+    - scheme: default
+      toggle:
+        icon: material/weather-night
+        name: Passa al tema scuro
+    - scheme: slate
+      toggle:
+        icon: material/weather-sunny
+        name: Passa al tema chiaro
+
+# Foglio di stile aggiuntivo: i badge di livello (👤/🔰/💻/🔧).
+extra_css:
+  - stylesheets/extra.css
+
+# Pagine del vecchio modello: PARCHEGGIATE (non cancellate), escluse dal build per ora.
+# Verranno ricollocate nei livelli L3/L4 dei rispettivi argomenti.
+exclude_docs: |
+  architettura/
+  funzionalita/
+  design/
+  bug/
+  guida/
+  codice/
+
+# Ricerca full-text integrata: è un plugin, qui lo attiviamo esplicitamente.
+plugins:
+  - search:
+      lang: it
+
+# Estensioni Markdown: aggiungono sintassi oltre il Markdown base.
+markdown_extensions:
+  - admonition            # box colorati !!! note / warning / tip
+  - attr_list             # attributi inline su elementi
+  - md_in_html            # consente Markdown dentro tag HTML (grid cards)
+  # Converte le scorciatoie :material-...: nelle icone vere di Material
+  # (senza questa estensione restano testo grezzo nella pagina).
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - tables                # tabelle
+  - footnotes             # apici [^x] → sezione "Dizionario" in fondo, numerati in automatico
+  - toc:
+      permalink: true     # ancora cliccabile accanto ai titoli
+  - pymdownx.details      # box collassabili (livelli di approfondimento)
+  - pymdownx.superfences  # blocchi di codice annidati / diagrammi
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+  - pymdownx.tabbed:
+      alternate_style: true   # contenuti a schede (es. esempio cliente / esempio dev)
+  - pymdownx.magiclink:       # trasforma #123 e Fixes #45 in link alle issue del repo
+      repo_url_shorthand: true
+      user: peterjthomson
+      repo: marktext
+  # --- Snippets: include codice REALE dal repo senza copia-incolla ---
+  # base_path è relativo alla cartella da cui lanci mkdocs (MarkTextDocs/).
+  # '..' = la root del repo (marktext/), così "--8<-- src/..." pesca da marktext/src/.
+  - pymdownx.snippets:
+      base_path:
+        - ..
+      check_paths: true   # errore esplicito se un file incluso non esiste
+
+# ============================================================
+# nav = l'INDICE. L'ordine qui = ordine in sidebar/tab.
+# Strutturato dal generale (cliente) allo specifico (codice).
+# ============================================================
+nav:
+  - Home: index.md
+  - Salvataggio:                                          # L1 👤
+      - Panoramica (cliente): lvl1-salvataggio/index.md
+      - Il pallino "non salvato":                         # L2 🔰
+          - Cos'è: lvl1-salvataggio/lvl2-bollino/index.md
+          - Come funziona:                                # L3 💻
+              - Logica del dirty flag: lvl1-salvataggio/lvl2-bollino/lvl3-come-funziona/index.md
+              - Implementazione: lvl1-salvataggio/lvl2-bollino/lvl3-come-funziona/lvl4-implementazione.md   # L4 🔧
+      - Formato e fine riga:                              # L2 🔰
+          - Cos'è: lvl1-salvataggio/lvl2-formato-eol/index.md
+          - Implementazione: lvl1-salvataggio/lvl2-formato-eol/lvl4-implementazione.md   # L4 🔧 (salta L3)
+  - Finestre e schede:                                    # L1 👤
+      - Panoramica (cliente): lvl1-finestre/index.md
+      - Gestione delle schede:                            # L2 🔰
+          - Cos'è: lvl1-finestre/lvl2-gestione-tab/index.md
+          - Implementazione: lvl1-finestre/lvl2-gestione-tab/lvl4-implementazione.md   # L4 🔧 (salta L3)
+      - Trascinare la finestra:                           # L2 🔰
+          - Cos'è: lvl1-finestre/lvl2-drag-finestra/index.md
+          - Come funziona:                                # L3 💻
+              - Spiegazione: lvl1-finestre/lvl2-drag-finestra/lvl3-come-funziona/index.md
+              - Implementazione: lvl1-finestre/lvl2-drag-finestra/lvl3-come-funziona/lvl4-implementazione.md   # L4 🔧
+  - Editing testo:                                        # L1 👤
+      - Panoramica (cliente): lvl1-editing/index.md
+      - Zoom del testo:                                   # L2 🔰
+          - Cos'è: lvl1-editing/lvl2-zoom/index.md
+          - Implementazione: lvl1-editing/lvl2-zoom/lvl4-implementazione.md   # L4 🔧 (salta L3)
+      - Operazioni sulle righe:                           # L2 🔰
+          - Cos'è: lvl1-editing/lvl2-operazioni-riga/index.md
+          - Come funziona:                                # L3 💻
+              - Spiegazione: lvl1-editing/lvl2-operazioni-riga/lvl3-come-funziona/index.md
+              - Implementazione: lvl1-editing/lvl2-operazioni-riga/lvl3-come-funziona/lvl4-implementazione.md   # L4 🔧
+  - Ricarica file esterni:                                # L1 👤
+      - Panoramica (cliente): lvl1-ricarica/index.md
+      - Il dialogo di ricarica:                           # L2 🔰
+          - Cos'è: lvl1-ricarica/lvl2-dialog/index.md
+          - Come funziona:                                # L3 💻
+              - Spiegazione: lvl1-ricarica/lvl2-dialog/lvl3-come-funziona/index.md
+              - Implementazione: lvl1-ricarica/lvl2-dialog/lvl3-come-funziona/lvl4-implementazione.md   # L4 🔧

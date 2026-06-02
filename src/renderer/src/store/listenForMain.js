@@ -1,18 +1,47 @@
 import { defineStore } from 'pinia'
 import bus from '../bus'
 import { useLayoutStore } from './layout'
+import { useEditorStore } from './editor'
 
 export const useListenForMainStore = defineStore('listenForMain', {
   state: () => ({}),
   actions: {
     EDITOR_EDIT_ACTION(type) {
       const layoutStore = useLayoutStore()
+      const editorStore = useEditorStore()
+      const sidebarOpen = layoutStore.showSideBar && layoutStore.rightColumn === 'search'
+      const sel = editorStore.currentSelection || ''
+
+      // Ctrl+Shift+F: apri / chiudi / aggiorna la sidebar di ricerca in tutte le tab.
       if (type === 'findInFolder') {
-        layoutStore.SET_LAYOUT({
-          rightColumn: 'search',
-          showSideBar: true
-        })
+        // Se il riquadro flottante Ctrl+F è aperto, chiudilo prima di gestire la sidebar.
+        bus.emit('search-blur')
+        if (sidebarOpen) {
+          // Già aperta: con selezione aggiorna la ricerca, senza selezione chiude.
+          if (sel) bus.emit('sidebar-search-set', sel)
+          else layoutStore.SET_LAYOUT({ rightColumn: '', showSideBar: false })
+        } else {
+          // Chiusa: apri e (se c'è selezione) cerca subito su di essa.
+          layoutStore.SET_LAYOUT({ rightColumn: 'search', showSideBar: true })
+          bus.emit('findInFolder')
+          if (sel) bus.emit('sidebar-search-set', sel)
+        }
+        return
       }
+
+      // Ctrl+F: se la sidebar è aperta NON aprire il riquadro flottante.
+      if (type === 'find') {
+        if (sidebarOpen) {
+          // Solo con selezione aggiorna la ricerca nella sidebar; altrimenti non fa nulla.
+          if (sel) bus.emit('sidebar-search-set', sel)
+          return
+        }
+        // Sidebar chiusa → find singola tab (Muya: riquadro flottante; source: Stage 2).
+        bus.emit('find', 'find')
+        return
+      }
+
+      // Altri (replace, findNext, findPrev, ...) invariati.
       bus.emit(type, type)
     },
 

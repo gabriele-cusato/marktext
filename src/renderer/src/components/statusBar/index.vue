@@ -9,6 +9,15 @@
     <!-- Destra: Wrap / Zoom / EOL / Encoding -->
     <div class="v2-status-r">
       <button
+        class="v2-chip"
+        :class="{ 'v2-chip-on': sourceCode, 'v2-chip-disabled': !canToggleMode }"
+        :disabled="!canToggleMode"
+        :title="!canToggleMode
+          ? 'Solo source: file non-markdown'
+          : t('statusBar.toggleSource', 'Toggle Source / Markdown (Ctrl+E)')"
+        @click="toggleSourceMode"
+      >{{ sourceCode ? 'Source' : 'MD' }}</button>
+      <button
         :class="['v2-chip', { 'v2-chip-on': wordWrap, 'v2-chip-disabled': !sourceCode }]"
         :title="!sourceCode ? 'Wrap non disponibile in modalità markdown' : t('statusBar.toggleWrap', 'Toggle Word Wrap')"
         :disabled="!sourceCode"
@@ -146,6 +155,21 @@ const wordWrap = computed(() => {
   // Se non esiste in preferences, default true
   return preferencesStore.wordWrap !== false
 })
+
+// Bottone Source attivo solo per untitled + file markdown. Per altre estensioni
+// (.js, .txt…) _applySourceCodeForFile (editor.js) forza già sourceCode=true → qui
+// disabilitiamo il bottone (come Wrap in markdown mode). Stessa regola estensione di editor.js.
+const canToggleMode = computed(() => {
+  const pathname = currentFile.value?.pathname
+  if (!pathname) return true // file untitled → toggle permesso
+  const ext = (window.path.extname(pathname) || '').toLowerCase()
+  return ext === '' || ['.md', '.markdown', '.mdown', '.mkd', '.mkdn', '.mdwn'].includes(ext)
+})
+
+const toggleSourceMode = () => {
+  if (!canToggleMode.value) return
+  bus.emit('view:toggle-view-entry', 'sourceCode')
+}
 
 const toggleWrap = () => {
   const next = !wordWrap.value

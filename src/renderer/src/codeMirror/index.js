@@ -1,4 +1,7 @@
 import { filter } from 'fuzzaldrin'
+import 'codemirror/addon/search/matchesonscrollbar'
+import 'codemirror/addon/search/match-highlighter'
+import 'codemirror/addon/search/searchcursor'
 import 'codemirror/addon/edit/closebrackets'
 import 'codemirror/addon/edit/closetag'
 import 'codemirror/addon/selection/active-line'

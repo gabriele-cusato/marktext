@@ -30,14 +30,7 @@
       v-show="rightColumn"
       class="right-column"
     >
-      <tree
-        v-if="rightColumn === 'files'"
-        :project-tree="projectTree"
-        :opened-files="openedFiles"
-        :tabs="tabs"
-      />
-      <side-bar-search v-else-if="rightColumn === 'search'" />
-      <toc v-else-if="rightColumn === 'toc'" />
+      <side-bar-search />
     </div>
     <div
       v-show="rightColumn"
@@ -51,28 +44,20 @@
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useLayoutStore } from '@/store/layout'
 import { useProjectStore } from '@/store/project'
-import { useEditorStore } from '@/store/editor'
 
 import { sideBarIcons, sideBarBottomIcons } from './help'
-import Tree from './tree.vue'
 import SideBarSearch from './search.vue'
-import Toc from './toc.vue'
 import { storeToRefs } from 'pinia'
 
 const layoutStore = useLayoutStore()
 const projectStore = useProjectStore()
-const editorStore = useEditorStore()
 
 const sideBar = ref(null)
 const dragBar = ref(null)
 
-const openedFiles = ref([])
 const sideBarViewWidth = ref(280)
 
 const { rightColumn, showSideBar, sideBarWidth } = storeToRefs(layoutStore)
-
-const { projectTree } = storeToRefs(projectStore)
-const { tabs } = storeToRefs(editorStore)
 
 const finalSideBarWidth = computed(() => {
   if (!showSideBar.value) return 0
@@ -96,8 +81,10 @@ onMounted(() => {
     }
 
     const mouseMoveHandler = (event) => {
+      // Sidebar a destra con handle a sinistra: trascinare verso sinistra (clientX cala)
+      // deve AUMENTARE la larghezza → offset invertito.
       const offset = event.clientX - startX
-      currentSideBarWidth = startWidth + offset
+      currentSideBarWidth = startWidth - offset
       sideBarViewWidth.value = currentSideBarWidth
     }
 
@@ -113,16 +100,12 @@ onMounted(() => {
 })
 
 const handleLeftIconClick = (name) => {
-  if (rightColumn.value === name) {
-    layoutStore.SET_LAYOUT({ rightColumn: '' })
-    layoutStore.CHANGE_SIDE_BAR_WIDTH(finalSideBarWidth.value)
+  if (showSideBar.value && rightColumn.value === name) {
+    // secondo click sulla stessa icona → chiude del tutto la sidebar
+    layoutStore.SET_LAYOUT({ rightColumn: '', showSideBar: false })
   } else {
-    const needDispatch = rightColumn.value === ''
-    layoutStore.SET_LAYOUT({ rightColumn: name })
+    layoutStore.SET_LAYOUT({ rightColumn: name, showSideBar: true })
     sideBarViewWidth.value = +sideBarWidth.value
-    if (needDispatch) {
-      layoutStore.CHANGE_SIDE_BAR_WIDTH(finalSideBarWidth.value)
-    }
   }
 }
 
@@ -139,13 +122,14 @@ const handleLeftBottomClick = (name) => {
   flex-shrink: 0;
   flex-grow: 0;
   width: 280px;
-  height: 100vh;
+  height: 100%;
   min-width: 220px;
   position: relative;
   color: var(--sideBarColor);
   user-select: none;
   background: var(--sideBarBgColor);
-  border-right: 1px solid var(--itemBgColor);
+  /* Sidebar ora ancorata a DESTRA → bordo sul lato sinistro (verso l'editor) */
+  border-left: 1px solid var(--itemBgColor);
 }
 
 .side-bar .left-column svg {
@@ -158,7 +142,6 @@ const handleLeftBottomClick = (name) => {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding-top: 40px;
   box-sizing: border-box;
 }
 
@@ -208,9 +191,10 @@ const handleLeftBottomClick = (name) => {
 }
 
 .drag-bar {
+  /* Sidebar a destra → handle di resize sul bordo SINISTRO */
   position: absolute;
   top: 0;
-  right: 0;
+  left: 0;
   bottom: 0;
   height: 100%;
   width: 3px;
@@ -218,6 +202,6 @@ const handleLeftBottomClick = (name) => {
 }
 
 .drag-bar:hover {
-  border-right: 2px solid var(--iconColor);
+  border-left: 2px solid var(--iconColor);
 }
 </style>

@@ -126,11 +126,11 @@ const ellipsisText = (text) => {
 
 const handleSearchResultClick = (searchMatch) => {
   const { range } = searchMatch
-  const { filePath } = props.searchResult
+  const { filePath, tabId } = props.searchResult
 
-  const openedTab = tabs.value.find((file) =>
-    window.fileUtils.isSamePathSync(file.pathname, filePath)
-  )
+  // Prefer matching by tabId (works for Untitled tabs without pathname)
+  const openedTab = tabs.value.find((f) => f.id === tabId)
+    || tabs.value.find((f) => window.fileUtils.isSamePathSync(f.pathname, filePath))
   const cursor = {
     isCollapsed: range[0][0] !== range[1][0],
     anchor: {

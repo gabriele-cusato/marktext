@@ -48,6 +48,14 @@ const viewDestroyed = ref(false)
 const tabId = ref(null)
 const isFirstLoad = ref(true) // P6: evita LISTEN_FOR_CONTENT_CHANGE al primo handleFileChange
 let containerResizeObs = null  // P-DF8-6: ResizeObserver per refresh CodeMirror su resize container
+
+// Stato ricerca CodeMirror (Ctrl+F in source). Transitorio per-mount del componente.
+let searchMarks = []        // TextMarker delle occorrenze (evidenza tenue)
+let currentMark = null      // mark del match corrente (evidenza forte, niente setSelection)
+let searchPositions = []    // posizioni {from,to} di tutti i match
+let searchIndex = -1        // indice del match corrente
+let lastSearchValue = ''    // ultimo termine cercato (per replace + navigazione)
+let lastSearchOpt = {}      // ultime opzioni (case/word/regex)
 // cmStatePerTab è a livello modulo (vedi <script> sopra) → non ridichiarare qui
 
 const { theme, sourceCode, zoom } = storeToRefs(preferencesStore)
@@ -138,7 +146,7 @@ const scrollToCords = (y) => {
   })
 }
 
-const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop, forceReload }) => {
+const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop, forceReload, renderCursor }) => {
   // sourceCode=false significa che il componente sta per smontarsi (tab close o switch).
   // Non processare eventi: evita di caricare contenuto/history di tab estranee in CM
   // e di cambiare tabId (che poi causerebbe emit spurio in onBeforeUnmount).
@@ -169,6 +177,20 @@ const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop, forceR
     if (currentTab.value && currentTab.value.justLoaded) {
       currentTab.value.justLoaded = false
     }
+    // Jump a riga richiesto dalla sidebar di ricerca (click su match nella tab già attiva).
+    // Solo setSelection, nessun setValue → la history undo resta intatta.
+    if (renderCursor && cursor && editor.value) {
+      const { anchor, focus } = cursor
+      try {
+        const lineCount = editor.value.lineCount()
+        const clampLine = (l) => Math.max(0, Math.min(typeof l === 'number' ? l : 0, lineCount - 1))
+        editor.value.setSelection(
+          { line: clampLine(anchor?.line), ch: anchor?.ch ?? 0 },
+          { line: clampLine(focus?.line), ch: focus?.ch ?? 0 },
+          { scroll: true }
+        )
+      } catch {}
+    }
     return
   }
 
@@ -184,8 +206,14 @@ const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop, forceR
   if (cmStatePerTab.has(id)) {
     // Tab già visitata: ripristina content dallo snapshot. History ripristinata dopo il cursore.
     const { content, history } = cmStatePerTab.get(id)
-    editor.value.setValue(content)
-    historyToRestore = history
+    if (typeof newMarkdown === 'string' && newMarkdown !== content) {
+      // FIX: snapshot stale rispetto allo store (modifiche in Muya nel frattempo) →
+      // usa il contenuto dello store, history azzerata.
+      editor.value.setValue(newMarkdown)
+    } else {
+      editor.value.setValue(content)
+      historyToRestore = history
+    }
   } else if (typeof newMarkdown === 'string') {
     // Prima visita: carica dal store, history parte da zero.
     editor.value.setValue(newMarkdown)
@@ -347,6 +375,133 @@ const handleFormatInSource = (type) => {
   }
 }
 
+// ---- Ricerca CodeMirror (Ctrl+F in source) ----------------------------------
+// Costruisce la query per getSearchCursor rispettando le opzioni del riquadro find.
+const buildSearchQuery = (value, opt) => {
+  if (opt && opt.isRegexp) {
+    return new RegExp(value, opt.isCaseSensitive ? 'g' : 'gi') // può lanciare → try/catch nel chiamante
+  }
+  if (opt && opt.isWholeWord) {
+    const esc = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    return new RegExp(`\\b${esc}\\b`, opt.isCaseSensitive ? 'g' : 'gi')
+  }
+  return value // stringa semplice: getSearchCursor gestisce caseFold
+}
+
+// Rimuove tutte le evidenziazioni (match tenui + match corrente) e azzera lo stato.
+const clearSearchHighlight = () => {
+  searchMarks.forEach((m) => m.clear())
+  if (currentMark) {
+    currentMark.clear()
+    currentMark = null
+  }
+  searchMarks = []
+  searchPositions = []
+  searchIndex = -1
+}
+
+// Aggiorna il contatore nel riquadro find (stessa shape di Muya: {value,index,matches}).
+const pushSearchMatchesToStore = () => {
+  editorStore.SEARCH({ value: lastSearchValue, index: searchIndex, matches: searchPositions })
+}
+
+// Evidenzia in modo forte il match corrente SENZA usare setSelection: così il
+// match-highlighter (basato sulla selezione) NON aggiunge l'evidenza blu. Scrolla per renderlo visibile.
+const markCurrentMatch = () => {
+  if (currentMark) {
+    currentMark.clear()
+    currentMark = null
+  }
+  if (searchIndex < 0 || searchIndex >= searchPositions.length || !editor.value) return
+  const pos = searchPositions[searchIndex]
+  currentMark = editor.value.markText(pos.from, pos.to, { className: 'cm-search-match-current' })
+  editor.value.scrollIntoView({ from: pos.from, to: pos.to }, 60)
+}
+
+// Core ricerca: trova ed evidenzia leggermente tutte le occorrenze (.cm-search-match).
+// jump=true → evidenzia anche il match corrente e ci scrolla (Ctrl+F flottante).
+// jump=false → solo highlight, nessuno spostamento cursore (ricerca sidebar tutte-le-tab).
+const highlightSourceMatches = (value, opt, jump) => {
+  if (!sourceCode.value || !editor.value) return
+  clearSearchHighlight()
+  lastSearchValue = value || ''
+  lastSearchOpt = opt || {}
+  if (!value) {
+    pushSearchMatchesToStore()
+    return
+  }
+  let query
+  try {
+    query = buildSearchQuery(value, opt)
+  } catch {
+    pushSearchMatchesToStore() // regex non valida → nessun match, nessun crash
+    return
+  }
+  const cm = editor.value
+  const caseFold = !(opt && opt.isCaseSensitive)
+  const cursor = cm.getSearchCursor(query, { line: 0, ch: 0 }, { caseFold })
+  while (cursor.findNext()) {
+    const from = cursor.from()
+    const to = cursor.to()
+    if (from.line === to.line && from.ch === to.ch) break // match a lunghezza zero → stop
+    searchPositions.push({ from, to })
+    searchMarks.push(cm.markText(from, to, { className: 'cm-search-match' }))
+  }
+  if (searchPositions.length && jump) {
+    // Match corrente = primo a partire dal cursore (in avanti), altrimenti il primo.
+    const head = cm.getCursor('from')
+    let idx = searchPositions.findIndex(
+      (p) => p.from.line > head.line || (p.from.line === head.line && p.from.ch >= head.ch)
+    )
+    if (idx === -1) idx = 0
+    searchIndex = idx
+    markCurrentMatch()
+  }
+  pushSearchMatchesToStore()
+}
+
+// Ctrl+F (riquadro flottante): ricerca + salto al match corrente.
+const handleSourceSearch = ({ value, opt }) => {
+  highlightSourceMatches(value, opt, true)
+}
+
+// Ricerca sidebar (tutte le tab): evidenzia i match nell'editor source SENZA spostare il cursore.
+const handleSidebarHighlight = ({ value, opt }) => {
+  highlightSourceMatches(value, opt, false)
+}
+
+// Naviga tra i match (frecce su/giù del riquadro find).
+const handleSourceFindAction = (action) => {
+  if (!sourceCode.value || !editor.value || !searchPositions.length) return
+  if (action === 'next') searchIndex = (searchIndex + 1) % searchPositions.length
+  else if (action === 'prev') searchIndex = (searchIndex - 1 + searchPositions.length) % searchPositions.length
+  markCurrentMatch()
+  pushSearchMatchesToStore()
+}
+
+// Sostituisce il match corrente (isSingle) o tutti. Il contenuto cambia → passa per
+// cursorActivity/commit (dirty flag gestito normalmente).
+const handleSourceReplace = ({ value: replacement, opt }) => {
+  if (!sourceCode.value || !editor.value || !searchPositions.length) return
+  const cm = editor.value
+  const repl = replacement || ''
+  if (opt && opt.isSingle) {
+    if (searchIndex < 0 || searchIndex >= searchPositions.length) return
+    const pos = searchPositions[searchIndex]
+    cm.replaceRange(repl, pos.from, pos.to)
+  } else {
+    // Replace all: dall'ultimo al primo per non invalidare le posizioni precedenti.
+    cm.operation(() => {
+      for (let i = searchPositions.length - 1; i >= 0; i--) {
+        const pos = searchPositions[i]
+        cm.replaceRange(repl, pos.from, pos.to)
+      }
+    })
+  }
+  // Ri-cerca per aggiornare evidenziazioni e indice sul testo modificato.
+  handleSourceSearch({ value: lastSearchValue, opt: lastSearchOpt })
+}
+
 const handleSelectAll = () => {
   if (!sourceCode.value) {
     return
@@ -417,6 +572,8 @@ const handleImageAction = ({ id, result, alt }) => {
 const listenChange = () => {
   editor.value.on('cursorActivity', (cm) => {
     const { cursor, markdown: newMarkdown } = getMarkdownAndCursor(cm)
+    // Traccia la selezione CM per i trigger di ricerca (Ctrl+F / Ctrl+Shift+F su selezione).
+    editorStore.SET_SELECTION(cm.getSelection())
     // v2: emette posizione cursor per status bar (Ln/Col)
     const cmCursor = cm.getCursor()
     if (cmCursor && typeof cmCursor.line === 'number') {
@@ -494,7 +651,18 @@ onMounted(() => {
     extraKeys: codeMirror.normalizeKeyMap({
       'Alt-Up': 'swapLineUp',
       'Alt-Down': 'swapLineDown'
-    })
+    }),
+    // Evidenzia le altre occorrenze della parola selezionata (solo source mode).
+    // showToken:false → evidenzia solo la selezione esplicita, non la parola sotto cursore.
+    // wordsOnly:true → evidenzia solo se la selezione è una parola intera (doppio-click):
+    // selezionando lettere interne a una parola l'addon (isWord) non evidenzia nulla.
+    highlightSelectionMatches: {
+      minChars: 2,
+      wordsOnly: true,
+      showToken: false,
+      annotateScrollbar: false,
+      style: 'matchhighlight'
+    }
     // Bug 6: rimosso `viewportMargin: Infinity`. Con scroll interno CM (default)
     // è inutile e rendere tutte le righe DOM-side è uno spreco di performance.
   }
@@ -518,6 +686,12 @@ onMounted(() => {
   bus.on('toLowerCase', handleToLowerCase)
   bus.on('format', handleFormatInSource)
   bus.on('pre-save', handlePreSave)
+  // Ricerca CodeMirror (Ctrl+F in source): il riquadro find emette questi eventi.
+  bus.on('searchValue', handleSourceSearch)
+  bus.on('find-action', handleSourceFindAction)
+  bus.on('replaceValue', handleSourceReplace)
+  // Highlight nell'editor dei match della ricerca sidebar (senza spostare il cursore).
+  bus.on('sidebar-highlight', handleSidebarHighlight)
   // v2: toggle word wrap dalla status bar
   bus.on('mt::wordwrap-change', (value) => {
     if (editor.value) {
@@ -568,13 +742,23 @@ onMounted(() => {
   // setHistory va DOPO setCursor per non lasciare un selection event in cima allo stack.
   if (cmStatePerTab.has(id)) {
     const { content, history, cursor: savedCursor } = cmStatePerTab.get(id)
-    codeMirrorInstance.setValue(content)
-    if (savedCursor) {
-      codeMirrorInstance.setCursor(savedCursor)
-    } else {
+    const storeMarkdown = props.markdown
+    if (typeof storeMarkdown === 'string' && storeMarkdown !== content) {
+      // FIX: snapshot stale (modifiche fatte in Muya dopo aver lasciato source mode).
+      // Lo store è la verità → carica il contenuto dello store; history azzerata perché
+      // l'undo dello snapshot sarebbe incoerente col nuovo contenuto.
+      codeMirrorInstance.setValue(storeMarkdown)
       setCursorAtFirstLine(codeMirrorInstance)
+    } else {
+      // snapshot allineato allo store → ripristina contenuto + history (preserva undo cross-tab)
+      codeMirrorInstance.setValue(content)
+      if (savedCursor) {
+        codeMirrorInstance.setCursor(savedCursor)
+      } else {
+        setCursorAtFirstLine(codeMirrorInstance)
+      }
+      codeMirrorInstance.setHistory(history)
     }
-    codeMirrorInstance.setHistory(history)
   } else {
     // Prima visita a questa tab: cursor da muyaIndexCursor (se disponibile)
     if (muyaIndexCursor && muyaIndexCursor.anchor && muyaIndexCursor.focus) {
@@ -606,6 +790,9 @@ onMounted(() => {
     cm.scrollTo(null, scrollTop)
     cm.refresh()
     cm.setHistory(savedHist)             // ripristina dopo setCursor per stack undo pulito
+    // Cambio tab: il componente si rimonta e il setValue qui sopra ha cancellato eventuali
+    // mark di ricerca → chiedi alla sidebar di ri-evidenziare se la ricerca è attiva.
+    bus.emit('request-search-highlight')
   }, 150)
   // Safety net: ResizeObserver per resize successivi (sidebar toggle, window resize)
   if (window.ResizeObserver && container) {
@@ -650,6 +837,11 @@ onBeforeUnmount(() => {
   bus.off('toLowerCase', handleToLowerCase)
   bus.off('format', handleFormatInSource)
   bus.off('pre-save', handlePreSave)
+  bus.off('searchValue', handleSourceSearch)
+  bus.off('find-action', handleSourceFindAction)
+  bus.off('replaceValue', handleSourceReplace)
+  bus.off('sidebar-highlight', handleSidebarHighlight)
+  clearSearchHighlight()
 
   // Emette file-changed SOLO per view switch (stesso file, source→markdown).
   // Per tab close/switch il contenuto della tab uscente non deve sovrascrivere
@@ -718,5 +910,15 @@ const handleScroll = debounce(() => {
 .source-code .CodeMirror-activeline-background,
 .source-code .CodeMirror-activeline-gutter {
   background: var(--floatHoverColor);
+}
+/* Evidenziazione delle occorrenze trovate dalla ricerca (Ctrl+F / sidebar) in source.
+   Colore giallo (coerente con il find di Muya, niente blu). Il match corrente è più marcato. */
+.source-code .cm-search-match {
+  background-color: rgba(255, 213, 0, 0.30);
+  border-radius: 2px;
+}
+.source-code .cm-search-match-current {
+  background-color: rgba(255, 160, 0, 0.75);
+  border-radius: 2px;
 }
 </style>

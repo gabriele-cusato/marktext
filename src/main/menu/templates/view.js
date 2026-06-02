@@ -54,6 +54,7 @@ export default function (keybindings) {
         accelerator: keybindings.getAccelerator('view.toggle-sidebar'),
         type: 'checkbox',
         checked: false,
+        visible: false,
         click(item, focusedWindow) {
           actions.toggleSidebar(focusedWindow)
         }

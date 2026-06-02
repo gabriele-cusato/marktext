@@ -79,7 +79,6 @@
         </div>
       </template>
     </el-dialog>
-    <editor-search v-if="!sourceCode" />
   </div>
 </template>
 
@@ -101,7 +100,6 @@ import LinkTools from 'muya/lib/ui/linkTools'
 import FootnoteTool from 'muya/lib/ui/footnoteTool'
 import TableBarTools from 'muya/lib/ui/tableTools'
 import FrontMenu from 'muya/lib/ui/frontMenu'
-import EditorSearch from '../search'
 import bus from '@/bus'
 import { DEFAULT_EDITOR_FONT_FAMILY } from '@/config'
 import notice from '@/services/notification'
@@ -707,15 +705,22 @@ const insertImage = (src) => {
 }
 
 const handleSearch = ({ value, opt }) => {
+  // In source mode la ricerca è gestita da sourceCode.vue (CodeMirror).
+  if (sourceCode.value) return
   const searchMatches = editor.value.search(value, opt)
   editorStore.SEARCH(searchMatches)
   scrollToHighlight()
 }
 
 const handReplace = ({ value, opt }) => {
+  if (sourceCode.value) return
   const searchMatches = editor.value.replace(value, opt)
   editorStore.SEARCH(searchMatches)
 }
+
+// NB: NON evidenziare la ricerca sidebar in Muya. Tentato con editor.value.search(), ma quello
+// mette Muya in "modalità ricerca" e DIROTTA il tasto Invio (non inserisce più il ritorno a capo).
+// L'highlight sidebar resta quindi solo in source mode (sourceCode.vue).
 
 const handleUploadedImage = (url, deletionUrl) => {
   insertImage(url)
@@ -773,6 +778,7 @@ const scrollToElement = (selector) => {
 }
 
 const handleFindAction = (action) => {
+  if (sourceCode.value) return
   const searchMatches = editor.value.find(action)
   editorStore.SEARCH(searchMatches)
   scrollToHighlight()

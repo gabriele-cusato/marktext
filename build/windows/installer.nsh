@@ -23,12 +23,21 @@
   WriteRegExpandStr HKCU "Software\Classes\MarkText.Document\shell\open\command" \
     "" '"$INSTDIR\marktext.exe" "%1"'
 
+  ; Voce context-menu "Open with MarkText" su qualsiasi file (*)
+  WriteRegStr       HKCU "Software\Classes\*\shell\MarkText" "" "Open with MarkText"
+  WriteRegExpandStr HKCU "Software\Classes\*\shell\MarkText" "Icon" "$INSTDIR\marktext.exe,0"
+  WriteRegExpandStr HKCU "Software\Classes\*\shell\MarkText\command" "" '"$INSTDIR\marktext.exe" "%1"'
+
 SkipAssoc:
 !macroend
 
 ;======================================================================
 ; customUnInstall macro cleans up on uninstall
 !macro customUnInstall
+  ; Delete context-menu entry (sub-key first, then parent)
+  DeleteRegKey HKCU "Software\Classes\*\shell\MarkText\command"
+  DeleteRegKey HKCU "Software\Classes\*\shell\MarkText"
+
   ; Delete the open command subtree
   DeleteRegKey HKCU "Software\Classes\MarkText.Document\shell\open\command"
   DeleteRegKey HKCU "Software\Classes\MarkText.Document\shell\open"

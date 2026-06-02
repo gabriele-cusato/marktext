@@ -134,10 +134,9 @@ html[data-v2-theme='dark'] {
   display: none !important;
 }
 
-/* Nasconde la sidebar legacy (v2 design non la prevede) */
-.side-bar {
-  display: none !important;
-}
+/* Task 4A: la sidebar è ora il pannello di ricerca (Ctrl+Shift+F). NON nasconderla con
+   display:none — la visibilità è gestita da v-show="showSideBar" in sideBar/index.vue
+   (default false all'avvio, true quando si apre la ricerca). */
 
 /* Quando titleBar è nascosta, lasciamo l'area editor allineata a top */
 .editor-middle {

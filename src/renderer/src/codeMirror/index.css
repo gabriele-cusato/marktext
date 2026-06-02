@@ -14,6 +14,12 @@
 .CodeMirror-line > span > span::selection {
   background: var(--cmSelectionColor, rgba(56, 139, 253, 0.6));
 }
+/* Occorrenze parola selezionata: più tenue della selezione attiva (~0.6 alpha) */
+.CodeMirror .cm-matchhighlight {
+  background-color: rgba(56, 139, 253, 0.18);
+  border-radius: 2px;
+}
+
 /* railscasts (temi dark / material-dark) forza `div.CodeMirror-selected {#272935 !important}`
    da node_modules → selezione quasi invisibile. Override a specificità superiore
    (.CodeMirror.cm-s-railscasts > 0,2,1) per imporre la selezione evidente. */

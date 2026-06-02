@@ -1,0 +1,35 @@
+/* ============================================================
+   LIVELLI — icona E nome definiti UNA volta sola qui (custom property).
+   Vuoi cambiare l'icona o il nome di un livello? Modifica solo --lvl-ico
+   / --lvl-name nella riga del livello: si aggiorna OVUNQUE (badge in cima,
+   link inline, bottoni). Nessuna modifica nelle pagine.
+   ============================================================ */
+.lvl-1 { --lvl-ico: "👤"; --lvl-name: "Livello 1 · per il cliente"; }
+.lvl-2 { --lvl-ico: "🔰"; --lvl-name: "Livello 2 · per chi conosce un po'"; }
+.lvl-3 { --lvl-ico: "💻"; --lvl-name: "Livello 3 · per sviluppatori esterni"; }
+.lvl-4 { --lvl-ico: "🔧"; --lvl-name: "Livello 4 · implementazione"; }
+
+/* Badge in cima a ogni pagina: icona (da CSS) + nome del livello (testo nella pagina). */
+.lvl-badge {
+  display: inline-block;
+  padding: 0.15rem 0.65rem;
+  margin: 0 0 1.2rem 0;
+  border-radius: 1rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
+}
+.lvl-badge::before { content: var(--lvl-ico) " " var(--lvl-name); }
+
+/* Colore del badge per livello (scopo: solo il badge, NON link/bottoni). */
+.lvl-badge.lvl-1 { background: #2e7d32; } /* verde  — cliente */
+.lvl-badge.lvl-2 { background: #1565c0; } /* blu    — poco esperto */
+.lvl-badge.lvl-3 { background: #6a1b9a; } /* viola  — sviluppatore esterno */
+.lvl-badge.lvl-4 { background: #b71c1c; } /* rosso  — implementazione/codice */
+
+/* Link inline verso un sotto-livello: icona del livello di destinazione davanti al testo. */
+a.lvl-link::before { content: var(--lvl-ico) " "; }
+
+/* Bottoni "vai al livello": icona davanti al testo del bottone. */
+.lvl-cta::before { content: var(--lvl-ico) " "; }
