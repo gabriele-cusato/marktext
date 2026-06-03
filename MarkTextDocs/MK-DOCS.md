@@ -228,6 +228,185 @@ Il commit è **debounced[^debounce] di 1 secondo**.
 
 > Ogni `[^slug]` usato nel testo deve avere la sua definizione, altrimenti resta testo grezzo.
 
+### Riferimento classi CSS
+
+Tutte le classi personalizzate vivono in `docs/stylesheets/extra.css`. Icone e nomi sono
+custom property CSS — per cambiarli basta modificare `extra.css`, non le pagine.
+
+**Livelli disponibili:**
+
+| Livello | Classe | Colore badge | Icona | Nome nel badge |
+|---|---|---|---|---|
+| L1 | `lvl-1` | verde `#2e7d32` | 👤 | Livello 1 · per il cliente |
+| L2 | `lvl-2` | blu `#1565c0` | 🔰 | Livello 2 · per chi conosce un po' |
+| L3 | `lvl-3` | viola `#6a1b9a` | 💻 | Livello 3 · per sviluppatori esterni |
+| L4 | `lvl-4` | rosso `#b71c1c` | 🔧 | Livello 4 · implementazione |
+
+**Combinazioni di classi per ogni contesto:**
+
+| Contesto | Classi | Codice |
+|---|---|---|
+| Badge in cima pagina | `lvl-badge lvl-N` | `<span class="lvl-badge lvl-2"></span>` |
+| Link inline nel testo | `lvl-link lvl-N` | `[parola](path/index.md){ .lvl-link .lvl-2 }` |
+| Bottone fine pagina | `md-button md-button--primary lvl-cta lvl-N` | `[Vai →](path){ .md-button .md-button--primary .lvl-cta .lvl-4 }` |
+
+Regola: la classe `lvl-N` va **sempre** accoppiata alla classe di contesto (`lvl-badge`,
+`lvl-link` o `lvl-cta`). Da sola non ha effetto visivo.
+
+### Template pagine complete
+
+Usare questi template come punto di partenza per ogni nuovo file.
+
+---
+
+**Pagina L0 — Home** (`docs/index.md`):
+
+```markdown
+# NomeProgetto
+
+Descrizione breve del progetto in una riga.
+
+!!! abstract "In una riga"
+    Riassunto tecnico sintetico: stack, scopo, cosa aggiunge rispetto all'originale.
+
+## Come è organizzata questa documentazione
+
+Ogni argomento è una **cartella esplorabile** nell'albero a sinistra. Più scendi, più la
+spiegazione diventa tecnica:
+
+👤 **L1 cliente** → 🔰 **L2 base** → 💻 **L3 sviluppatore** → 🔧 **L4 codice reale**
+
+## Funzioni principali (anteprima)
+
+<div class="grid cards" markdown>
+
+-   :material-icon-name: **Titolo funzione A**
+
+    Descrizione breve. → [Apri](lvl1-argomento-a/index.md)
+
+-   :material-icon-name: **Titolo funzione B**
+
+    Descrizione breve. → [Apri](lvl1-argomento-b/index.md)
+
+</div>
+
+## Stack tecnologico
+
+| Tecnologia | Ruolo |
+|---|---|
+| **Lib/Framework** | ruolo nel progetto |
+
+## Stato del progetto
+
+!!! success "Versione X — completata"
+    Breve nota sullo stato attuale.
+
+!!! warning "Da sapere prima di lavorare sul codice"
+    - Limitazione nota A
+    - Limitazione nota B
+```
+
+> Le grid cards richiedono `md_in_html` abilitato in `mkdocs.yml`.
+> Ogni card inizia con `-   :material-icon:` (trattino + tre spazi), con tre spazi di indentazione.
+> Icone disponibili: cerca su [Material Symbols](https://fonts.google.com/icons).
+
+---
+
+**Pagina L1** — panoramica cliente (`docs/lvl1-<argomento>/index.md`):
+
+```markdown
+<span class="lvl-badge lvl-1"></span>
+
+# Titolo argomento
+
+Descrizione breve in linguaggio cliente: cosa fa questa funzione, perché è utile.
+Niente tecnicismi.
+
+## Come si usa
+
+Passi concreti dal punto di vista dell'utente finale.
+
+## Approfondimenti
+
+- [**Sotto-argomento A**](lvl2-sotto-a/index.md){ .lvl-link .lvl-2 }
+- [**Sotto-argomento B**](lvl2-sotto-b/index.md){ .lvl-link .lvl-2 }
+```
+
+---
+
+**Pagina L2** — dettaglio per chi conosce le basi (`docs/lvl1-x/lvl2-<sottoarg>/index.md`):
+
+```markdown
+<span class="lvl-badge lvl-2"></span>
+
+# Titolo sotto-argomento
+
+Descrizione per chi conosce già le basi. Spiega il concetto con più dettaglio di L1,
+ma ancora senza entrare nel codice sorgente.
+
+## Sezione principale
+
+Contenuto con dettaglio tecnico moderato: comportamento, casi d'uso, effetti visibili.
+
+## Un dettaglio non ovvio (opzionale)
+
+Se c'è qualcosa di non intuitivo, spiegalo qui.
+
+[Approfondisci: come funziona →](lvl3-come-funziona/index.md){ .md-button .md-button--primary .lvl-cta .lvl-3 }
+```
+
+> Se il ramo **salta L3** (direttamente L2→L4), cambia il CTA in:
+> `[Vai all'implementazione →](lvl4-implementazione.md){ .md-button .md-button--primary .lvl-cta .lvl-4 }`
+
+---
+
+**Pagina L3** — spiegazione tecnica per sviluppatore esterno (`docs/.../lvl3-come-funziona/index.md`):
+
+```markdown
+<span class="lvl-badge lvl-3"></span>
+
+# Come funziona — Titolo argomento
+
+Spiegazione tecnica per uno sviluppatore esterno: logica, flusso, architettura.
+Senza codice sorgente diretto, ma con riferimenti a file e funzioni.
+
+## Flusso principale
+
+Descrizione del flusso logico e delle interazioni tra componenti.
+
+## Perché funziona così
+
+Motivazioni architetturali o vincoli che spiegano le scelte.
+
+[Vai all'implementazione →](lvl4-implementazione.md){ .md-button .md-button--primary .lvl-cta .lvl-4 }
+```
+
+---
+
+**Pagina L4** — implementazione/codice reale (`docs/.../lvl4-implementazione.md`):
+
+```markdown
+<span class="lvl-badge lvl-4"></span>
+
+# Implementazione — Titolo argomento
+
+Breve intro: cosa implementa questo modulo e dove si inserisce nel flusso.
+
+## File coinvolti
+
+- `src/percorso/del/file.js` — descrizione ruolo
+
+## Codice
+
+```javascript
+--8<-- "src/percorso/del/file.js:10:50"
+```
+
+## Dizionario
+
+[^termine]: Definizione del termine tecnico usato sopra.
+```
+
 ---
 
 ## 7. Cosa fa il `mkdocs.yml` (opzioni chiave)
@@ -291,10 +470,178 @@ Il commit è **debounced[^debounce] di 1 secondo**.
 
 ---
 
-## 10. Avvertenze
+## 10. Adattare questo modello a un altro progetto
+
+Questo documento descrive la documentazione di **MarkText** come caso concreto, ma il modello
+a livelli è riutilizzabile su qualsiasi progetto software. Passi per adattarlo:
+
+### 1. Scaffold del nuovo progetto
+
+Zensical ha un comando ufficiale per inizializzare un progetto:
+
+```powershell
+zensical new MioProgettoDocs
+```
+
+Crea automaticamente: `MioProgettoDocs/zensical.toml`, `docs/index.md`, `docs/markdown.md`,
+`.github/workflows/docs.yml`. Se la cartella non esiste la crea; non sovrascrive file esistenti.
+
+> **Per usare il modello di questo progetto** (badge livelli, nav gerarchico, snippet da repo)
+> conviene partire dal `mkdocs.yml` di MarkTextDocs invece del `zensical.toml` generato:
+>
+> 1. Dopo `zensical new`, elimina `zensical.toml` e crea `mkdocs.yml` copiando quello di
+>    `MarkTextDocs/` — adatta: `site_name`, `site_description`, `repo_url`, `repo_name`,
+>    `base_path` degli snippet, `nav`.
+> 2. Zensical legge `mkdocs.yml` nativamente (compatibilità garantita).
+
+Se non hai accesso al repo MarkTextDocs, usa questo template minimale come punto di partenza:
+
+```yaml
+site_name: NomeProgetto
+site_description: Descrizione del progetto
+repo_url: https://github.com/utente/repo
+repo_name: utente/repo
+use_directory_urls: false
+
+theme:
+  name: material
+  language: it
+  features:
+    - navigation.instant
+    - navigation.path
+    - navigation.top
+    - navigation.indexes
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+  palette:
+    - scheme: default
+      toggle: { icon: material/weather-night, name: Tema scuro }
+    - scheme: slate
+      toggle: { icon: material/weather-sunny, name: Tema chiaro }
+
+extra_css:
+  - stylesheets/extra.css
+
+plugins:
+  - search:
+      lang: it
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - footnotes
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.snippets:
+      base_path:
+        - ..
+      check_paths: true
+
+nav:
+  - Home: index.md
+  - Argomento A:
+      - Panoramica: lvl1-argomento-a/index.md
+```
+
+### 2. Crea `docs/stylesheets/extra.css`
+
+Crea il file `docs/stylesheets/extra.css` con questo contenuto esatto (identico per qualsiasi
+progetto — cambia solo i valori `--lvl-ico` e `--lvl-name` se vuoi icone o nomi diversi):
+
+```css
+/* ============================================================
+   LIVELLI — icona E nome definiti UNA volta sola qui.
+   Vuoi cambiare l'icona o il nome? Modifica --lvl-ico / --lvl-name
+   nella riga del livello: si aggiorna OVUNQUE (badge, link, bottoni).
+   ============================================================ */
+.lvl-1 { --lvl-ico: "👤"; --lvl-name: "Livello 1 · per il cliente"; }
+.lvl-2 { --lvl-ico: "🔰"; --lvl-name: "Livello 2 · per chi conosce un po'"; }
+.lvl-3 { --lvl-ico: "💻"; --lvl-name: "Livello 3 · per sviluppatori esterni"; }
+.lvl-4 { --lvl-ico: "🔧"; --lvl-name: "Livello 4 · implementazione"; }
+
+/* Badge in cima a ogni pagina. */
+.lvl-badge {
+  display: inline-block;
+  padding: 0.15rem 0.65rem;
+  margin: 0 0 1.2rem 0;
+  border-radius: 1rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
+}
+.lvl-badge::before { content: var(--lvl-ico) " " var(--lvl-name); }
+
+/* Colore badge per livello. */
+.lvl-badge.lvl-1 { background: #2e7d32; }
+.lvl-badge.lvl-2 { background: #1565c0; }
+.lvl-badge.lvl-3 { background: #6a1b9a; }
+.lvl-badge.lvl-4 { background: #b71c1c; }
+
+/* Link inline verso sotto-livello: icona del livello di destinazione davanti al testo. */
+a.lvl-link::before { content: var(--lvl-ico) " "; }
+
+/* Bottoni "vai al livello": icona davanti al testo del bottone. */
+.lvl-cta::before { content: var(--lvl-ico) " "; }
+```
+
+Assicurarsi che in `mkdocs.yml` sia presente:
+```yaml
+extra_css:
+  - stylesheets/extra.css
+```
+
+### 3. Definisci gli argomenti del tuo progetto
+
+Per ogni area funzionale del progetto:
+- Crea `docs/lvl1-<argomento>/index.md` (usa il template L1 di §6)
+- Aggiungi sotto-cartelle `lvl2-`, `lvl3-`, `lvl4-` solo dove servono (non sono obbligatori tutti i livelli)
+- Aggiungi ogni file al `nav:` di `mkdocs.yml`
+
+### 4. Adatta gli snippet al tuo repo
+
+Nel tuo `mkdocs.yml`, imposta `base_path` alla root del tuo repo:
+```yaml
+- pymdownx.snippets:
+    base_path:
+      - ..     # o il percorso relativo corretto per il tuo progetto
+    check_paths: true
+```
+
+Nei file L4, includi codice reale con `--8<-- "src/tuo/file.ext:rigaInizio:rigaFine"`.
+
+### Progetto di riferimento
+
+**MarkText** (`MarkTextDocs/`) è l'esempio pratico di questo modello:
+- 4 argomenti completi: Salvataggio, Finestre e schede, Editing testo, Ricarica file esterni
+- Struttura cartelle `lvlN-` con livelli L1→L4 (alcuni rami saltano L3)
+- Snippet di codice reale da `src/` del repo Electron/Vue3
+- Badge, link inline e bottoni CTA funzionanti
+
+---
+
+## 11. Avvertenze
 
 - Lancia i comandi da dentro `MarkTextDocs/` (per via del `base_path` degli snippet).
 - Non modificare a mano la cartella `site/`: è rigenerata a ogni `build`.
+- Aggiungi `site/` al `.gitignore` del repo (non va versionata — è output rigenerabile):
+  ```
+  site/
+  ```
 - Le pagine in `exclude_docs` esistono ancora su disco ma non sono pubblicate finché non le
   rimetti nel `nav` e le togli da `exclude_docs`.
 - Il file di config si chiama ancora `mkdocs.yml`: Zensical lo legge nativamente.
