@@ -1,8 +1,9 @@
 # ============================================================
-# MarkTextDocs — configurazione MkDocs + Material
+# MarkTextDocs — configurazione Zensical
 # ------------------------------------------------------------
-# Questo file controlla tutto: nome, tema, ricerca, l'indice
-# di navigazione (nav) e le estensioni Markdown abilitate.
+# Letto nativamente da Zensical (drop-in replacement di MkDocs).
+# Controlla tutto: nome, tema, ricerca, navigazione (nav) e
+# estensioni Markdown abilitate.
 # ============================================================
 
 site_name: MarkTextDocs
@@ -67,8 +68,10 @@ markdown_extensions:
   - admonition            # box colorati !!! note / warning / tip
   - attr_list             # attributi inline su elementi
   - md_in_html            # consente Markdown dentro tag HTML (grid cards)
-  # Converte le scorciatoie :material-...: nelle icone vere di Material
-  # (senza questa estensione restano testo grezzo nella pagina).
+  # Converte le scorciatoie :material-...: in icone SVG.
+  # Nota: emoji_index/emoji_generator puntano al vecchio modulo Python di mkdocs-material
+  # (non più installato). Zensical li ignora e gestisce emoji internamente, ma richiede
+  # la presenza del blocco con opzioni per attivare il supporto emoji.
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg

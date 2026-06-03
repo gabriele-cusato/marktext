@@ -1,7 +1,49 @@
 # MK-DOCS — guida d'uso e registro lavori
 
 Documentazione del progetto **MarkTextDocs** (documentazione di MarkText, costruita con
-MkDocs + Material). Questo file spiega **come si usa lo strumento** e **cosa è stato fatto**.
+Zensical). Questo file spiega **come si usa lo strumento** e **cosa è stato fatto**.
+
+---
+
+## 0. Storia, migrazione e nuovo strumento
+
+### Stato iniziale (fino a giugno 2026)
+
+Progetto costruito originariamente con due pacchetti Python separati:
+
+- **MkDocs** — motore base: prende file Markdown + `mkdocs.yml` e genera HTML statico.
+- **Material for MkDocs** — tema + estensioni sopra MkDocs: ricerca full-text, layout responsive, badge di livello, navigazione ad albero.
+
+### Perché si è migrato
+
+A febbraio 2026 il team MkDocs ha annunciato **MkDocs 2.0**, una riscrittura totale incompatibile con tutto l'esistente:
+
+- il sistema di plugin viene rimosso → tutti i plugin smettono di funzionare
+- il sistema di temi viene riscritto da zero → tutti i temi si rompono
+- nessun percorso di migrazione automatica verso la nuova versione
+- modello di sviluppo chiuso → la community non può segnalare bug
+- al lancio nessuna licenza open-source valida → non adatto alla produzione
+
+Il team di Material for MkDocs ha risposto mettendo il progetto in **maintenance mode**
+(patch di sicurezza garantite fino a novembre 2026) e avviando **Zensical** come successore.
+
+### Cos'è Zensical
+
+**Zensical** è il successore diretto di MkDocs + Material for MkDocs, sviluppato dallo
+stesso team di Material for MkDocs. Differenze chiave:
+
+| | MkDocs + Material | Zensical |
+|---|---|---|
+| Motore | Python | Rust (rebuild da zero, ordini di grandezza più veloce) |
+| Licenza | Open source | FOSS — nessun "Insiders", nessuna funzione a pagamento |
+| Plugin | Rimossi in v2 | Supportati |
+| Stato | Maintenance mode fino a nov 2026 | Sviluppo attivo |
+
+**Migrazione trasparente**: Zensical legge nativamente `mkdocs.yml` invariato. I file
+Markdown, i link, gli snippet e i CSS personalizzati funzionano senza toccare nulla.
+In futuro verrà rilasciato un convertitore automatico verso il formato nativo `zensical.toml`.
+
+Fonti: [annuncio Material](https://squidfunk.github.io/mkdocs-material/blog/2026/02/18/mkdocs-2.0/) · [FAQ Zensical](https://zensical.org/docs/community/faqs/)
 
 ---
 
@@ -11,51 +53,49 @@ Su un PC nuovo, dopo aver clonato il repo o fatto `git pull`:
 
 ```powershell
 # 1. Installa lo strumento (una volta sola per PC)
-python -m pip install mkdocs-material
+pip install zensical
 
 # 2. Entra nella cartella della documentazione
 cd C:\Projects\MarkText\marktext\MarkTextDocs
 
 # 3. Avvia il server e apri http://127.0.0.1:8000/ nel browser
-python -m mkdocs serve
+zensical serve
 ```
 
 Per generare la versione statica (cartella `site/`, condivisibile o apribile offline col
 doppio clic su `site/index.html`):
 
 ```powershell
-python -m mkdocs build
+zensical build
 ```
 
-!!! warning "Due cose da sapere subito"
-    - Su Windows usa sempre **`python -m mkdocs`** (non `mkdocs` nudo → vedi §2).
-    - La cartella **`site/` è ignorata da git** (è rigenerabile): sull'altro PC dopo `git pull`
-      non c'è, la ricrei con i comandi qui sopra. Il sorgente versionato è tutto testo.
+!!! warning "Cosa sapere subito"
+    La cartella **`site/` è ignorata da git** (è rigenerabile): sull'altro PC dopo `git pull`
+    non c'è, la ricrei con i comandi qui sopra. Il sorgente versionato è tutto testo.
 
 ---
 
 ## 1. Cos'è
 
-- **MkDocs**: generatore di siti statici. Prende file Markdown + un file di config
-  (`mkdocs.yml`) e produce un sito HTML navigabile. Niente database, niente server applicativo.
-- **Material for MkDocs**: tema + estensioni sopra MkDocs. Dà ricerca full-text, layout
-  responsive, evidenziazione codice, navigazione ad albero, breadcrumb, temi chiaro/scuro.
+- **Zensical**: generatore di siti statici scritto in Rust. Prende file Markdown + un file
+  di config (`mkdocs.yml` o `zensical.toml`) e produce un sito HTML navigabile. Niente
+  database, niente server applicativo. Motore ordini di grandezza più veloce di MkDocs
+  (Python): il live-reload è praticamente istantaneo.
+- Include il tema e tutte le estensioni che in precedenza erano in Material for MkDocs
+  (ricerca full-text, layout responsive, evidenziazione codice, navigazione ad albero,
+  breadcrumb, temi chiaro/scuro), senza pacchetti separati.
 
-Pacchetto installato: `mkdocs-material` (tira dentro `mkdocs` come dipendenza).
+Pacchetto installato: `zensical` (tutto in uno, nessuna dipendenza aggiuntiva).
 
 ---
 
 ## 2. Installazione (già fatta)
 
 ```powershell
-python -m pip install mkdocs-material
+pip install zensical
 ```
 
-> **Nota Windows**: usa sempre `python -m pip` / `python -m mkdocs`. Su questo PC il `pip`
-> e `mkdocs` "nudi" sul PATH puntano a un'altra installazione Python (3.11); `python -m …`
-> resta sull'interprete giusto (3.13).
-
-Versioni: mkdocs-material **9.7.6**, mkdocs **1.6.1**.
+Versione: vedi `pip show zensical` dopo l'installazione.
 
 ---
 
@@ -66,9 +106,9 @@ Lanciali **dalla cartella `MarkTextDocs/`** (dove sta `mkdocs.yml`):
 ```powershell
 cd C:\Projects\MarkText\marktext\MarkTextDocs
 
-python -m mkdocs serve     # server di sviluppo con auto-reload → http://127.0.0.1:8000/
-python -m mkdocs build     # genera la cartella site/ (HTML statico)
-python -m mkdocs build --strict   # come sopra, ma ogni warning diventa errore (verifica)
+zensical serve          # server di sviluppo con auto-reload → http://127.0.0.1:8000/
+zensical build          # genera la cartella site/ (HTML statico)
+zensical build --strict # come sopra, ma ogni warning diventa errore (verifica)
 ```
 
 > Il `base_path` degli snippet (vedi §6) è `..` (la root del repo): funziona **perché**
@@ -201,7 +241,7 @@ Il commit è **debounced[^debounce] di 1 secondo**.
 | `use_directory_urls: false` | il sito funziona anche aperto in locale (`file://`) |
 | `plugins: search` | ricerca full-text integrata |
 | `pymdownx.snippets` | include codice dal repo (`base_path: ..`, `check_paths: true`) |
-| `pymdownx.emoji` | converte le icone `:material-...:` in icone vere |
+| `pymdownx.emoji` | converte le icone `:material-...:` in icone SVG; Zensical gestisce la conversione internamente ma richiede il blocco con opzioni per attivarla — `emoji_index`/`emoji_generator` restano nel file anche se il modulo Python non è installato |
 | `footnotes` | apici `[^x]` → sezione "Dizionario" in fondo, numerati in automatico |
 | `md_in_html` | consente Markdown dentro tag HTML (es. le grid cards della Home) |
 | `extra_css: stylesheets/extra.css` | badge di livello + **icona/nome centralizzati** (`--lvl-ico`, `--lvl-name`) + classi `lvl-link`/`lvl-cta` |
@@ -211,7 +251,7 @@ Il commit è **debounced[^debounce] di 1 secondo**.
 
 ## 8. Condivisione
 
-- **Niente server obbligatorio**: `python -m mkdocs build` crea `site/` (solo HTML/CSS/JS).
+- **Niente server obbligatorio**: `zensical build` crea `site/` (solo HTML/CSS/JS).
 - **Offline / disco di rete**: con `use_directory_urls: false` puoi zippare `site/` o metterla
   su una cartella condivisa; si apre `site/index.html` con doppio clic.
 - **Intranet**: appoggia `site/` su un IIS/Nginx interno.
@@ -243,13 +283,20 @@ Il commit è **debounced[^debounce] di 1 secondo**.
     (`--lvl-ico`, `--lvl-name`) → si cambiano da un punto solo; i badge in pagina sono span vuoti.
 13. **Dizionario per pagina**: attivata l'estensione `footnotes`; apici `[^x]` auto-numerati e
     sezione "Dizionario" in fondo sulle pagine con termini tecnici (L2/L3/L4).
+14. **Migrazione a Zensical** (giugno 2026): sostituito `mkdocs-material` con `zensical`
+    (drop-in replacement, stesso `mkdocs.yml` invariato). Nessuna modifica a Markdown,
+    CSS o nav. Motivazione: MkDocs 2.0 incompatibile con tutti i plugin/temi esistenti;
+    Material for MkDocs in maintenance mode fino a nov 2026. Zensical è il successore
+    ufficiale dello stesso team, FOSS, motore Rust.
 
 ---
 
 ## 10. Avvertenze
 
-- Usa `python -m mkdocs`, non `mkdocs` nudo (vedi §2).
 - Lancia i comandi da dentro `MarkTextDocs/` (per via del `base_path` degli snippet).
 - Non modificare a mano la cartella `site/`: è rigenerata a ogni `build`.
 - Le pagine in `exclude_docs` esistono ancora su disco ma non sono pubblicate finché non le
   rimetti nel `nav` e le togli da `exclude_docs`.
+- Il file di config si chiama ancora `mkdocs.yml`: Zensical lo legge nativamente.
+  Quando verrà rilasciato il convertitore ufficiale, si potrà migrare a `zensical.toml`,
+  ma non è urgente.
