@@ -718,9 +718,16 @@ const handReplace = ({ value, opt }) => {
   editorStore.SEARCH(searchMatches)
 }
 
-// NB: NON evidenziare la ricerca sidebar in Muya. Tentato con editor.value.search(), ma quello
-// mette Muya in "modalità ricerca" e DIROTTA il tasto Invio (non inserisce più il ritorno a capo).
-// L'highlight sidebar resta quindi solo in source mode (sourceCode.vue).
+// Evidenzia in Muya le occorrenze della ricerca sidebar (tutte le tab), SENZA rompere l'Invio.
+// Usa highlightSearch (highlightOnly) che NON sposta il cursore: il vecchio editor.value.search()
+// chiamava setCursorToHighlight e dirottava il tasto Invio sulla selezione forzata.
+const handleSidebarHighlight = ({ value, opt, preserveCursor }) => {
+  if (sourceCode.value) return // in source l'highlight lo gestisce sourceCode.vue
+  if (!editor.value) return
+  // value vuoto = pulizia evidenziazioni; opt usa gli stessi toggle case/word/regex della sidebar.
+  // preserveCursor=true (editing documento) → render(true) ripristina il caret reale → no furto.
+  editor.value.highlightSearch(value || '', opt || {}, preserveCursor)
+}
 
 const handleUploadedImage = (url, deletionUrl) => {
   insertImage(url)
@@ -1127,6 +1134,7 @@ onMounted(() => {
   bus.on('searchValue', handleSearch)
   bus.on('replaceValue', handReplace)
   bus.on('find-action', handleFindAction)
+  bus.on('sidebar-highlight', handleSidebarHighlight)
   bus.on('insert-image', insertImage)
   bus.on('image-uploaded', handleUploadedImage)
   bus.on('file-changed', handleFileChange)
@@ -1274,6 +1282,7 @@ onBeforeUnmount(() => {
   bus.off('searchValue', handleSearch)
   bus.off('replaceValue', handReplace)
   bus.off('find-action', handleFindAction)
+  bus.off('sidebar-highlight', handleSidebarHighlight)
   bus.off('insert-image', insertImage)
   bus.off('image-uploaded', handleUploadedImage)
   bus.off('file-changed', handleFileChange)

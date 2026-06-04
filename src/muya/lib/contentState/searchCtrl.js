@@ -149,7 +149,10 @@ const searchCtrl = (ContentState) => {
       index = 0 // highlight the first word that matches.
     }
     Object.assign(this.searchMatches, { value, matches, index })
-    if (value) {
+    // highlightOnly: evidenzia i match SENZA spostare il cursore sulla selezione.
+    // Serve all'highlight della ricerca sidebar in Muya: spostare il cursore (setCursorToHighlight)
+    // dirotterebbe il tasto Invio, che andrebbe ad agire sulla selezione forzata invece che dove si scrive.
+    if (value && !options.highlightOnly) {
       this.setCursorToHighlight()
     }
     return matches

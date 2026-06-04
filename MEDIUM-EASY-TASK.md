@@ -7,10 +7,10 @@
 | T5 Toggle | 100% | ✅ DONE (bug1 perdita contenuto + bug2 disable risolti) |
 | T1 Highlight | 100% | ✅ DONE (wordsOnly) |
 | T4A No-IDE + sidebar | 100% | ✅ DONE (sidebar a destra, X, ingranaggio rimosso) |
-| T4B Ricerca tab | 80% | ⚠️ 3 bug aperti → vedi "DA RIPRENDERE": A) highlight Muya, B) Invio input sidebar, C) live search |
+| T4B Ricerca tab | 100% | ✅ DONE (round 5: highlight Muya live, Invio input, live search; vedi "SESSIONE FIX round 5") |
 | T4 Ctrl+F source | 100% | ✅ DONE (find su CodeMirror + highlight giallo) |
 | T2 Registry | 100% | ✅ DONE (testato: voce appare/sparisce) |
-| T3 UI | - | SKIPPED |
+| T3 UI | ✅ | CHIUSO QUI — rimandato e spostato nel TODO generale (serve sessione dedicata con screenshot) |
 
 > **Dettaglio completo dei fix e dei bug aperti: vedere la sezione finale
 > "SESSIONE FIX 2026-06-01" in fondo a questo file.**
@@ -604,13 +604,13 @@ spunta nel menu View resta sincronizzata; `Ctrl+E` continua a funzionare identic
 - **Highlight della ricerca sidebar in Muya via `editor.value.search(value, opt)`**: NON usare. Mette Muya in "modalità ricerca" e **dirotta il tasto Invio** (non inserisce più il ritorno a capo) finché lo stato ricerca resta attivo. Il riquadro flottante Ctrl+F lo gestisce perché ripulisce lo stato alla chiusura; la sidebar no → Invio restava rotto. → Highlight sidebar lasciato SOLO in source mode (`sourceCode.vue`, mark CSS), Muya escluso (commento esplicito in `editor.vue`).
 - **`@keyup`/`@input` sull'input sidebar per la live search**: poco affidabile → sostituito con `watch(keyword, () => search())`.
 
-## ⏭️ DA RIPRENDERE — prossima sessione (3 bug aperti, priorità alta)
+## ✅ RISOLTI — round 5 (i 3 bug "DA RIPRENDERE" sono CHIUSI)
 
-> Stato al termine sessione: **tutto il resto funziona** (toggle, find flottante source con highlight
-> giallo, sidebar a destra + X, trigger Ctrl+F/Ctrl+Shift+F, Invio in Muya nell'editor OK).
-> Restano questi 3 bug, probabilmente 2 collegati (vedi sotto).
+> **Tutti e 3 i bug A/B/C risolti e testati.** Dettaglio completo nella sezione
+> "SESSIONE FIX round 5" in fondo. Sotto resta la descrizione storica originale dei bug
+> (per riferimento), ognuno marcato ✅ con il fix applicato.
 
-### BUG A — Muya: la ricerca SIDEBAR non evidenzia il testo nei file Muya (in source funziona)
+### ✅ BUG A — Muya: la ricerca SIDEBAR non evidenzia il testo nei file Muya (in source funziona)
 - **Contesto:** l'highlight sidebar in source mode funziona (`sourceCode.vue` `handleSidebarHighlight` → `.cm-search-match`). In Muya **non** evidenzia nulla.
 - **Perché ora manca:** era stato tentato con `editor.value.search(value, opt)` in `editor.vue`, ma quello DIROTTA il tasto Invio di Muya (vedi "tentativi falliti" round 4) → rimosso.
 - **Da fare domani:** trovare un modo per evidenziare le occorrenze in Muya SENZA rompere l'Invio. Idee da valutare:
@@ -618,12 +618,12 @@ spunta nel menu View resta sincronizzata; `Ctrl+E` continua a funzionare identic
   2. Highlight DOM-based custom (marcare le occorrenze nel DOM di Muya senza usare il motore di ricerca Muya), simile al `markText` di CodeMirror.
   3. In alternativa: accettare che in Muya l'highlight sidebar non c'è (decisione utente).
 
-### BUG B — Invio NON funziona nella barra di ricerca della SIDEBAR
+### ✅ BUG B — Invio NON funziona nella barra di ricerca della SIDEBAR
 - **Sintomo:** premendo Invio nell'input della sidebar non succede nulla.
 - **Causa:** in `sideBar/search.vue` l'input ora ha solo `v-model="keyword"` (rimosso `@keyup`/`@input`); la ricerca è affidata a `watch(keyword, () => search())`. Manca un handler esplicito per Invio (prima `@keyup` copriva anche Invio).
 - **Da fare domani:** aggiungere `@keydown.enter` / `@keyup.enter` sull'input → `search()` (o "vai al prossimo match"). **NB:** l'utente sospetta un legame con BUG C (vedi sotto): forse l'input non riceve affatto gli eventi tastiera.
 
-### BUG C — Live search NON funziona (né lista né highlight)
+### ✅ BUG C — Live search NON funziona (né lista né highlight)
 - **Sintomo:** digitando nell'input sidebar i nuovi risultati NON compaiono nella lista E non vengono evidenziati nel testo della tab attiva.
 - **Causa sospetta (DA CONFERMARE):** `watch(keyword, () => search())` (aggiunto in `sideBar/search.vue`) non sta scattando, OPPURE `v-model` non aggiorna `keyword` mentre si digita → `search()` non viene mai richiamato. Collegato a BUG B (in entrambi l'input sidebar sembra non reagire alla tastiera).
 - **Da fare domani (diagnosi prima del fix):**
@@ -640,14 +640,74 @@ spunta nel menu View resta sincronizzata; `Ctrl+E` continua a funzionare identic
 - `store/listenForMain.js` — `EDITOR_EDIT_ACTION`: logica trigger Ctrl+F/Ctrl+Shift+F + `search-blur`.
 - `store/editor.js` — `currentSelection` + `SET_SELECTION`; `SELECTION_CHANGE` la aggiorna (Muya).
 - `editorWithTabs/index.vue` — `<editor-search>` montato sempre; `<side-bar>` a destra.
-- `editorWithTabs/editor.vue` — handler Muya search guardati `if (sourceCode.value) return`; **NIENTE** highlight sidebar Muya (rompe Invio).
+- `editorWithTabs/editor.vue` — handler Muya search guardati `if (sourceCode.value) return`; **`handleSidebarHighlight`** → `editor.value.highlightSearch(value, opt, preserveCursor)` (round 5: highlight Muya SENZA rompere Invio).
 - `editorWithTabs/sourceCode.vue` — find CM (`getSearchCursor`), `.cm-search-match` / `.cm-search-match-current`, `handleSidebarHighlight`, `request-search-highlight` al mount.
 - `codeMirror/index.js` — import `searchcursor`.
+
+## 🟢 SESSIONE FIX round 5 — i 3 bug A/B/C CHIUSI (T4B al 100%)
+
+> Sessione dedicata ai 3 bug "DA RIPRENDERE". **Tutti risolti e testati dall'utente** (Muya + source).
+> Diagnosi guidata da log temporanei `[SIDEBAR-DBG]` (poi rimossi).
+
+### ✅ BUG A — highlight ricerca sidebar in Muya senza rompere l'Invio
+- **Causa radice (trovata in `src/muya/lib/contentState/searchCtrl.js`):** `ContentState.prototype.search`,
+  se `value` non vuoto, chiamava **`setCursorToHighlight()`** → spostava `this.cursor` come **selezione
+  sul match** (anche in un altro blocco). Era QUESTO a dirottare l'Invio: il successivo invio agiva
+  sulla selezione forzata, non dove si scriveva. L'highlight `.ag-highlight` invece dipende SOLO da
+  `searchMatches` + `render()`, NON dal cursore.
+- **Fix (3 file, additivo, default invariato → Ctrl+F flottante non cambia):**
+  1. `searchCtrl.js` `search()` → guard `if (value && !options.highlightOnly) this.setCursorToHighlight()`.
+     Con `highlightOnly:true` evidenzia ma NON tocca il cursore.
+  2. `muya/lib/index.js` → nuovo metodo `highlightSearch(value, opt, preserveCursor)`:
+     `contentState.search(value, {...opt, highlightOnly:true})` + `render(!!preserveCursor)`.
+  3. `editorWithTabs/editor.vue` → `handleSidebarHighlight({value, opt, preserveCursor})` →
+     `editor.value.highlightSearch(...)` + `bus.on/off('sidebar-highlight')`. Guard `if (sourceCode.value) return`
+     (mutuamente esclusivo con `sourceCode.vue` che fa `if (!sourceCode.value) return`) → niente doppio highlight.
+- **Live highlight in Muya senza furto cursore (chiave `preserveCursor`):** mentre si scrive nel documento,
+  `contentState.cursor` = caret REALE dell'utente (non più il match, grazie a `highlightOnly`). Quindi
+  `render(true)` lo ripristina → highlight live + nessun furto. Quando invece si digita nella **sidebar**,
+  `preserveCursor=false` → `render(false)` → Muya non ripristina il caret editor → non ruba il focus all'input.
+
+### ✅ BUG B — Invio nell'input della sidebar non faceva nulla
+- **Causa:** input con solo `v-model`, nessun handler Invio (rimossi `@keyup`/`@input` in round 3).
+- **Fix (`sideBar/search.vue`):** input `@keydown.enter.prevent="onEnter"` → `search()`.
+
+### ✅ BUG C — live search non aggiornava lista né highlight
+- **Causa 1 (la principale, scoperta a runtime):** la live sui tasti della sidebar in realtà FUNZIONAVA
+  già (`v-model` + `watch(keyword)`); il malfunzionamento iniziale era **HMR stale** (Muya è compilato nel
+  bundle → serve restart `npm run dev`, l'hot-reload non basta).
+- **Causa 2 (vero bug residuo):** modificando il **documento**, i risultati non si aggiornavano perché
+  `search()` ripartiva solo al cambio di `keyword`, mai al cambio di **contenuto** delle tab.
+- **Fix (`sideBar/search.vue`):**
+  1. `@input="onInput"` come fallback diretto dell'evento DOM (allinea `keyword` se v-model non scattasse) + il `watch(keyword)`.
+  2. Nuovo **content-watcher**: `watch(() => tabs.value.map(t => t.markdown).join('\n \n'), ...)` → ri-lancia
+     `search()` ad ogni modifica del testo di qualunque tab. Nessun loop (`search()` non muta `tab.markdown`).
+  3. `emitEditorHighlight` avvolto in **try/catch** (un listener che lancia non interrompe la search; la
+     lista è già settata prima dell'emit).
+  4. `search(emitHighlight, preserveCursor)`: il content-watcher chiama `search(true, true)` → highlight
+     live in entrambe le modalità (source via `markText` sicuro; Muya via `render(true)` che salva il caret).
+
+### File toccati (round 5)
+- `src/muya/lib/contentState/searchCtrl.js` — guard `highlightOnly` su `setCursorToHighlight`.
+- `src/muya/lib/index.js` — metodo `highlightSearch(value, opt, preserveCursor)`.
+- `src/renderer/src/components/editorWithTabs/editor.vue` — `handleSidebarHighlight` + `bus.on/off('sidebar-highlight')`.
+- `src/renderer/src/components/sideBar/search.vue` — `@input`/`@keydown.enter`, `onInput`/`onEnter`,
+  content-watcher su `tab.markdown`, `search(emitHighlight, preserveCursor)`, try/catch su emit.
+
+### Verifiche eseguite (OK)
+- Muya: highlight live mentre si scrive, **cursore non rubato**, Invio nel doc inserisce il ritorno a capo.
+- Source: highlight `markText` live, cursore intatto.
+- Digitando keyword nella sidebar: highlight aggiorna, focus resta nell'input.
+- Lista risultati live in entrambe le modalità; chiusura sidebar pulisce l'highlight.
+
+### Possibile follow-up (non bloccante)
+- In Muya `render(true)` extra per keystroke su documenti molto grandi → eventuale lag. Se emerge,
+  aggiungere un debounce ~200ms sul content-watcher.
 
 ## ⚠️ NOTE
 
 ### Log diagnostici TEMPORANEI — RIMOSSI
-- `[TOGGLE-DBG]` (`sourceCode.vue`, `editor.vue`) e `[SIDEBAR-DBG]` (`listenForMain.js`, `sideBar/search.vue`): **rimossi** dopo conferma dei fix (toggle + sidebar).
+- `[TOGGLE-DBG]` (`sourceCode.vue`, `editor.vue`) e `[SIDEBAR-DBG]` (`listenForMain.js`, `sideBar/search.vue`): **rimossi** dopo conferma dei fix (toggle + sidebar + round 5).
 
 ### Build produzione
 - `electron-builder.yml:49` `npmRebuild: false` + cartella `patches/` mancante (DESIGN-TASK S3) = sospetti per eventuali crash futuri sui moduli nativi. Rimedio documentato: `npm run rebuild-native` (`docs/DISTRIBUTION.md`).

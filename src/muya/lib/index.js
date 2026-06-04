@@ -345,6 +345,18 @@ class Muya {
     return this.contentState.searchMatches
   }
 
+  // Evidenzia le occorrenze SENZA spostare il cursore sul match (highlightOnly): così il tasto
+  // Invio resta libero. preserveCursor controlla il render:
+  //  - false (default, ricerca da sidebar): render(false) → non ripristina il caret editor,
+  //    quindi non ruba il focus all'input della sidebar mentre si digita la keyword.
+  //  - true (editing del documento): render(true) → ripristina il caret CORRENTE dell'utente
+  //    (contentState.cursor, non toccato da highlightOnly) → highlight live senza furto cursore.
+  highlightSearch(value, opt = {}, preserveCursor = false) {
+    this.contentState.search(value, Object.assign({}, opt, { highlightOnly: true }))
+    this.contentState.render(!!preserveCursor)
+    return this.contentState.searchMatches
+  }
+
   replace(value, opt) {
     this.contentState.replace(value, opt)
     this.contentState.render(false)
