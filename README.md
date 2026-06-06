@@ -37,7 +37,18 @@
 #    - Componenti Singoli (fondamentali):
 #      - Librerie con mitigazione Spectre x64/x86 MSVC v143 - VS 2022 C++ (più recenti)
 #      - Librerie MSVC v143 - VS 2022 C++ x64/x86 con mitigazione Spectre (v14.44-17.14)
-# ========================================================================================
+# 
+# ATTENZIONE: node versione 24 è stato testato e NON FUNZIONA, usare node versione 22
+# ATTENZIONE, provando su mac ha funzionato tutto senza build e spectre ma ho dovuto lanciare i seguenti comandi: 
+# 1. Pulisci i moduli precedenti
+# rm -rf node_modules
+# 2. Reinstalla le dipendenze
+# npm install
+# 3. Ricompila i moduli nativi con il supporto C++20 richiesto
+# CXXFLAGS="-std=c++20" npm_config_arch=arm64 npx electron-builder install-app-deps --arch=arm64
+# 4. Avvia il progetto
+# npm run dev
+========================================================================================
 ```
 
 ### Svuota cache node-gyp, forza bypass SSL proxy, installa dipendenze e ricompila per Electron
