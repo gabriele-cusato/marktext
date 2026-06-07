@@ -993,6 +993,13 @@ const handleFileChange = ({
       container.style.pointerEvents = 'auto'
       scrollToCursor(0)
     }
+
+    // Cambio tab in Muya: setMarkdown ha ricostruito il DOM perdendo le evidenziazioni della
+    // ricerca sidebar (.ag-highlight). Chiedi alla sidebar di ri-evidenziare se la ricerca è
+    // attiva (stesso meccanismo del setTimeout al mount di sourceCode.vue).
+    if (typeof newMarkdown === 'string') {
+      bus.emit('request-search-highlight')
+    }
   }
 }
 

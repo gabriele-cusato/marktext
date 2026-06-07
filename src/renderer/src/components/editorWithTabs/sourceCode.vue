@@ -271,6 +271,11 @@ const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop, forceR
     scrollToCords(scrollTop)
   }
   tabId.value = id
+
+  // Switch source→source (nessun remount del componente): il setValue qui sopra ha cancellato
+  // i mark di ricerca. Chiedi alla sidebar di ri-evidenziare se la ricerca è attiva. Il caso col
+  // remount (Muya→source) è già coperto dall'emit nel setTimeout di onMounted.
+  bus.emit('request-search-highlight')
 }
 
 const handleInvalidateImageCache = () => {

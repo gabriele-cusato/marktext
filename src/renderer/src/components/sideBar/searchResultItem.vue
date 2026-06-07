@@ -66,6 +66,7 @@ import { ref, computed } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import { storeToRefs } from 'pinia'
 import bus from '../../bus'
+import { isMarkdownPath } from '../../util'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -131,6 +132,8 @@ const handleSearchResultClick = (searchMatch) => {
   // Prefer matching by tabId (works for Untitled tabs without pathname)
   const openedTab = tabs.value.find((f) => f.id === tabId)
     || tabs.value.find((f) => window.fileUtils.isSamePathSync(f.pathname, filePath))
+
+  // Cursore in formato CodeMirror {line, ch}: usato SOLO per i tab source e per l'apertura da disco.
   const cursor = {
     isCollapsed: range[0][0] !== range[1][0],
     anchor: {
@@ -143,25 +146,43 @@ const handleSearchResultClick = (searchMatch) => {
     }
   }
 
-  if (openedTab) {
-    openedTab.cursor = cursor
-    if (currentFile.value !== openedTab) {
-      editorStore.UPDATE_CURRENT_FILE(openedTab)
-    } else {
-      const { id, markdown, history } = currentFile.value
-      bus.emit('file-changed', {
-        id,
-        markdown,
-        cursor: currentFile.value.cursor,
-        renderCursor: true,
-        history
-      })
-    }
-  } else {
-    window.electron.ipcRenderer.send('mt::open-file', filePath, {
-      cursor
-    })
+  // Tab non aperto → apri da disco passando il cursore (jump gestito lato apertura).
+  if (!openedTab) {
+    window.electron.ipcRenderer.send('mt::open-file', filePath, { cursor })
+    return
   }
+
+  // Modalità del tab target: Muya (markdown / untitled) vs source (CodeMirror).
+  const isMuya = isMarkdownPath(openedTab.pathname)
+
+  // --- Tab GIÀ attiva ---
+  if (currentFile.value === openedTab) {
+    // Muya: nessun emit. Un 'file-changed' qui rifarebbe importMarkdown (re-parse) e
+    // collasserebbe le blank line; l'editor è già renderizzato e il jump preciso non è
+    // supportato in Muya (cursore approssimato, limitazione accettata).
+    if (isMuya) return
+    // Source: jump alla riga via setSelection (gestito in sourceCode.vue, non perde l'undo).
+    openedTab.cursor = cursor
+    const { id, markdown, history } = currentFile.value
+    bus.emit('file-changed', {
+      id,
+      markdown,
+      cursor,
+      renderCursor: true,
+      history
+    })
+    return
+  }
+
+  // --- Tab DIVERSA → switch ---
+  // Muya: NON impostare un cursore formato CodeMirror sul tab. UPDATE_CURRENT_FILE userà il
+  // cursore Muya esistente del tab + setBlocks (ripristina il DOM esatto → blank line preservate).
+  // Un cursore CM ({line,ch}, senza .key) farebbe crashare render() in Muya.
+  // Source: imposta il cursore CM → onorato da sourceCode.vue (setSelection).
+  if (!isMuya) {
+    openedTab.cursor = cursor
+  }
+  editorStore.UPDATE_CURRENT_FILE(openedTab)
 }
 </script>
 

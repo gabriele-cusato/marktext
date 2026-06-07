@@ -162,3 +162,15 @@ export const deepClone = (obj) => {
 export const isOsx = process.platform === 'darwin'
 export const isWindows = process.platform === 'win32'
 export const isLinux = process.platform === 'linux'
+
+// Estensioni trattate come markdown → editor WYSIWYG (Muya). Tutto il resto → CodeMirror (source).
+// Fonte di verità unica per la scelta della modalità: usata da store/editor.js (_applySourceCodeForFile)
+// e dalla ricerca in sidebar (searchResultItem.vue).
+export const MARKDOWN_EXTENSIONS = ['.md', '.markdown', '.mdown', '.mkd', '.mkdn', '.mdwn']
+
+// True se il file va aperto in Muya (markdown). Untitled / senza pathname → Muya.
+export const isMarkdownPath = (pathname) => {
+  if (!pathname) return true
+  const ext = (window.path.extname(pathname) || '').toLowerCase()
+  return ext === '' || MARKDOWN_EXTENSIONS.includes(ext)
+}

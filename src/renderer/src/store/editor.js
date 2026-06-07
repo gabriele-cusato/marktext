@@ -1,6 +1,6 @@
 import equal from 'deep-equal'
 import bus from '../bus'
-import { hasKeys, getUniqueId, deepClone } from '../util'
+import { hasKeys, getUniqueId, deepClone, isMarkdownPath } from '../util'
 import listToTree from '../util/listToTree'
 import {
   createDocumentState,
@@ -721,17 +721,8 @@ export const useEditorStore = defineStore('editor', {
     _applySourceCodeForFile(file) {
       if (!file) return
       const preferencesStore = usePreferencesStore()
-      const pathname = file.pathname || ''
-      // Senza pathname (file untitled/nuovo) → markdown di default
-      if (!pathname) {
-        if (preferencesStore.sourceCode) {
-          preferencesStore.SET_MODE({ type: 'sourceCode', checked: false })
-        }
-        return
-      }
-      const ext = (window.path.extname(pathname) || '').toLowerCase()
-      const isMd = ext === '' || ['.md', '.markdown', '.mdown', '.mkd', '.mkdn', '.mdwn'].includes(ext)
-      const wantSource = !isMd
+      // isMarkdownPath gestisce sia untitled (no pathname → Muya) sia le estensioni markdown.
+      const wantSource = !isMarkdownPath(file.pathname)
       if (preferencesStore.sourceCode !== wantSource) {
         preferencesStore.SET_MODE({ type: 'sourceCode', checked: wantSource })
       }
