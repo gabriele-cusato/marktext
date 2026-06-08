@@ -29,9 +29,9 @@ in realtà adesso c'è un bug se premo ctrl j si apre una sidebar a destra vuota
 ### Medio (~50-150 righe)
 
 - [ ] **Fix grafica impostazioni** — studiare componente settings in `src/renderer/components`, identificare e correggere problemi layout.
-- [ ] **Find & Replace potenziato** — estendere dialog esistente con checkbox (case, whole word, regex, wrap, direction), passare flag alla logica di ricerca CodeMirror/Muya.
-- [ ] **Trova in tutti i file aperti** — iterare su tutti i tab nello store Pinia, eseguire ricerca su ciascun contenuto, mostrare risultati aggregati in panel sidebar.
-- [ ] **Markdown solo per .md** — in `loadMarkdownFile` controllare estensione: se non `.md` forzare source mode (CodeMirror plain text) saltando parsing Muya.
+- [x] **Find & Replace potenziato** — **FATTO:** il pannello floating ha già i toggle case-sensitive / whole-word / regex (`components/search/index.vue:73-94`), passati alla logica CodeMirror (`sourceCode.vue:385 buildSearchQuery`) e Muya. (wrap/direction non richiesti.)
+- [x] **Trova in tutti i file aperti** — **FATTO** (= T4B, vedi `MEDIUM-EASY-TASK.md`): `Ctrl+Shift+F` cerca in tutte le tab aperte (`tab.markdown`), risultati aggregati in sidebar; click su risultato → switch tab + vai alla riga.
+- [x] **Markdown solo per .md** — **FATTO** (di fatto): l'instradamento Muya↔source è deciso da `isMarkdownPath` (`util/index.js:172`) in `_applySourceCodeForFile` (`store/editor.js:721`): non-.md → source. NB: i file **senza estensione** restano in Muya (decisione di contorno); per cambiarlo modificare SOLO `isMarkdownPath`.
 - [ ] **Apertura browser per .html/.htm** — NON presente: `openExternal` usato solo per URL in markdown (`src/main/menu/actions/file.js:480`), non per file corrente. Aggiungere shortcut che chiama `shell.openExternal(filePath)`. Attivo solo se file corrente è `.html`/`.htm`.
 - [ ] **Commenti con shortcut** — NON presente: `toggleComment` assente nel codebase. Mappare estensione → sintassi commento (`//`, `#`, `<!-- -->`), toggle su riga/selezione. CodeMirror ha `toggleComment` built-in per source mode.
 - [ ] **Indentazione automatica** — parziale: solo auto-indent su Enter in Muya (`src/muya/lib/contentState/enterCtrl.js`), nessun shortcut dedicato per linguaggio. CodeMirror: `indentAuto` command. Per Muya: studiare se espone API oltre enterCtrl.

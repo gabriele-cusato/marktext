@@ -1,6 +1,6 @@
 <template>
   <div
-    :class="['v2-tabbar', { 'has-multirow': hasMultiRow, 'tabs-hovered': tabsAreaHovered }]"
+    :class="['v2-tabbar', { 'has-multirow': hasMultiRow, 'tabs-hovered': tabsAreaHovered, 'is-osx': isOsx }]"
     @mouseleave="onTabbarLeave"
   >
     <!-- B1: Tabs pill multi-row con hover-expand. Hover SOLO su quest'area:
@@ -108,41 +108,45 @@
           <path d="M1.5 4.5h4.5l1.5 1.5H14.5v7.5H1.5V4.5z" stroke-linejoin="round"/>
         </svg>
       </button>
-      <!-- B12: separatore visivo tra icone app (⌘, 📂) e icone finestra (−, □, ×) -->
-      <div class="v2-tr-sep" />
-      <!-- NB14: icone finestra in stile VS Code (SVG inline) -->
-      <button
-        class="v2-tr-btn v2-tr-btn-win"
-        title="Riduci a icona"
-        @click="winMinimize"
-      >
-        <svg width="10" height="10" viewBox="0 0 10 10">
-          <line x1="0" y1="5" x2="10" y2="5" stroke="currentColor" stroke-width="1.2"/>
-        </svg>
-      </button>
-      <button
-        class="v2-tr-btn v2-tr-btn-win"
-        :title="isMaximized ? 'Ripristina' : 'Massimizza'"
-        @click="winMaximize"
-      >
-        <svg v-if="!isMaximized" width="10" height="10" viewBox="0 0 10 10">
-          <rect x="0.6" y="0.6" width="8.8" height="8.8" stroke="currentColor" stroke-width="1.2" fill="none"/>
-        </svg>
-        <svg v-else width="10" height="10" viewBox="0 0 10 10">
-          <rect x="2" y="0.6" width="7.4" height="7.4" stroke="currentColor" stroke-width="1.2" fill="none"/>
-          <rect x="0.6" y="2" width="7.4" height="7.4" stroke="currentColor" stroke-width="1.2" fill="var(--v2-bg)"/>
-        </svg>
-      </button>
-      <button
-        class="v2-tr-btn v2-tr-btn-win v2-tr-btn-close"
-        title="Chiudi"
-        @click="winClose"
-      >
-        <svg width="10" height="10" viewBox="0 0 10 10">
-          <line x1="0" y1="0" x2="10" y2="10" stroke="currentColor" stroke-width="1.2"/>
-          <line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" stroke-width="1.2"/>
-        </svg>
-      </button>
+      <!-- T-ME: su macOS i 3 controlli finestra custom + il loro separatore spariscono
+           (li sostituisce il semaforo nativo top-left). Su Windows/Linux invariato. -->
+      <template v-if="!isOsx">
+        <!-- B12: separatore visivo tra icone app (⌘, 📂) e icone finestra (−, □, ×) -->
+        <div class="v2-tr-sep" />
+        <!-- NB14: icone finestra in stile VS Code (SVG inline) -->
+        <button
+          class="v2-tr-btn v2-tr-btn-win"
+          title="Riduci a icona"
+          @click="winMinimize"
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10">
+            <line x1="0" y1="5" x2="10" y2="5" stroke="currentColor" stroke-width="1.2"/>
+          </svg>
+        </button>
+        <button
+          class="v2-tr-btn v2-tr-btn-win"
+          :title="isMaximized ? 'Ripristina' : 'Massimizza'"
+          @click="winMaximize"
+        >
+          <svg v-if="!isMaximized" width="10" height="10" viewBox="0 0 10 10">
+            <rect x="0.6" y="0.6" width="8.8" height="8.8" stroke="currentColor" stroke-width="1.2" fill="none"/>
+          </svg>
+          <svg v-else width="10" height="10" viewBox="0 0 10 10">
+            <rect x="2" y="0.6" width="7.4" height="7.4" stroke="currentColor" stroke-width="1.2" fill="none"/>
+            <rect x="0.6" y="2" width="7.4" height="7.4" stroke="currentColor" stroke-width="1.2" fill="var(--v2-bg)"/>
+          </svg>
+        </button>
+        <button
+          class="v2-tr-btn v2-tr-btn-win v2-tr-btn-close"
+          title="Chiudi"
+          @click="winClose"
+        >
+          <svg width="10" height="10" viewBox="0 0 10 10">
+            <line x1="0" y1="0" x2="10" y2="10" stroke="currentColor" stroke-width="1.2"/>
+            <line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" stroke-width="1.2"/>
+          </svg>
+        </button>
+      </template>
     </div>
 
     <!-- Context menu custom Vue (sostituisce nativo Electron) -->
@@ -166,6 +170,9 @@ import autoScroll from 'dom-autoscroller'
 import dragula from 'dragula'
 import bus from '../../bus'
 import TabContextMenu from '../contextMenu/TabContextMenu.vue'
+// T-ME: flag macOS. Su mac i controlli finestra custom (−/□/×) spariscono
+// (li gestisce il semaforo nativo) e si riserva spazio a sinistra per i traffic lights.
+import { isOsx } from '@/util'
 
 // Larghezza stimata del bottone "+" inline: 26px width + 3px gap + 6px margini
 const PLUS_W = 35
@@ -394,7 +401,11 @@ const updateTabRowsLayout = () => {
   // condizionato da ul.style.width già settata in iterazioni precedenti → causava
   // loop downgrade row 1 a 1 tab). offsetWidth tab è intrinseco (min/max-clamped,
   // flex-shrink:0) → stabile a prescindere da ul width. Simulo wrap iterativo.
-  const availableForContent = tabbarEl.clientWidth - dynamicPaddingRight - ulPadding
+  // T-ME: clientWidth include il padding-left (riservato al semaforo nativo su macOS).
+  // Va sottratto, altrimenti su mac lo spazio disponibile è sovrastimato → ultima tab
+  // coperta/clippata. Su Win/Linux padding-left=0 → leftPad=0 → calcolo invariato.
+  const leftPad = parseFloat(getComputedStyle(tabbarEl).paddingLeft) || 0
+  const availableForContent = tabbarEl.clientWidth - dynamicPaddingRight - ulPadding - leftPad
   let row1ContentWidth = 0
   let row1Count = 0
   for (const item of items) {
@@ -691,6 +702,13 @@ watch(hasMultiRow, (newVal) => {
   /* B2: padding-bottom default per non far attaccare le tabs alla barra di separazione */
   padding-bottom: 4px;
   user-select: none;
+}
+
+/* T-ME: su macOS riserva spazio a sinistra per il semaforo nativo (traffic lights,
+   top-left). ~78px copre i 3 cerchi inset di titleBarStyle:'hiddenInset'. Solo macOS:
+   la classe `is-osx` è applicata solo se isOsx → Win/Linux invariati (padding-left 0). */
+.v2-tabbar.is-osx {
+  padding-left: 78px;
 }
 
 /* B1: in multi-row il topright ospita anche clone tab + "+" + separator.
