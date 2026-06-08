@@ -530,3 +530,99 @@ sovrapposto; drag finestra dalla tab bar ok. Su Windows/Linux: pixel-identico a 
 
 > NB: il caricamento dinamico via `modeURL` è **già usato e funzionante** in questo progetto per l'highlight dei
 > code-fence in Muya (`codeMirror/index.js:186 setMode`) → T-M1 riusa lo stesso meccanismo, basso rischio.
+
+---
+
+## 7. Bug noti UI tab bar (scoperti dopo T-ME — DA FIXARE)
+
+> File unico coinvolto: `src/renderer/src/components/editorWithTabs/tabs.vue`. Ancore ri-verificate questa sessione.
+> **Stato: bug confermati, fix PROPOSTI ma NON applicati** (layout fragile con molte fix storiche B1–B14/S7/N4/P-DF8;
+> Bug 2 non testabile su Windows). Applicare dopo conferma utente + test (Bug 1 su Win con sidebar aperta; Bug 2 su Mac).
+
+### BUG-1 — Restringendo la finestra in orizzontale, ⌘/📂 e poi le tab vengono CLIPPATE invece di riflusso (Win + Mac)
+
+**Sintomo.** Sotto una certa larghezza, le icone ⌘ (command palette) e 📂 (apri file) non restano agganciate al bordo
+destro: vengono tagliate. Restringendo ancora, anche le tab vengono tagliate invece di andare a capo nelle righe
+successive. La "soglia" coincide con la larghezza massima della sezione destra (⌘ + 📂 + slot clone/+ riga 2+).
+
+**Causa (diagnosi).** La larghezza reale della tab bar = **finestra − sidebar** (non il `minWidth:550` della finestra,
+`config.js:7`). La sezione destra `.v2-topright` (`tabs.vue:915`, `position:absolute; right:10px; z-index:20`) ha
+larghezza **quasi-fissa e grande** perché `.v2-topright-dynamic` (`tabs.vue:932`) riserva **`width:158px;
+flex-shrink:0` SEMPRE**, anche quando invisibile in single-row (`opacity:0`, ma occupa layout). Totale topright ≈
+**230px (mac)** / **340px (win, con i 3 bottoni finestra)**. La tab bar prenota `padding-right = topRightWidth+22`
+(`tabs.vue:390-391`) per non far finire le tab sotto il topright assoluto. Quando la tab bar (per sidebar aperta o
+finestra stretta) scende **sotto ~larghezza topright**, lo spazio contenuto va a ~0/negativo: il topright assoluto
+(z-index 20) **copre** le tab e il suo bordo sinistro viene **clippato** da `.v2-tabbar { overflow:hidden }`
+(`tabs.vue:674`); le tab non riflussono perché `availableForContent` (`tabs.vue:397`) è ~0. Su mac il `padding-left:78px`
+(T-ME) peggiora di 78px (atteso, ma somma alla soglia).
+
+**✅ FIX 1b APPLICATO** (verificato incrociando i fix storici — vedi sotto). Collassare lo slot dinamico quando NON serve: la `width:158px`
+serve solo in multi-row (dove appare il clone). In single-row il clone non esiste → riservare 158px è inutile e gonfia
+il topright. Legare la width allo stato `.topright-expanded` (che esiste già, usato per `opacity`):
+```css
+.v2-topright-dynamic { width: 0; }                              /* era 158px fisso */
+.v2-topright.topright-expanded .v2-topright-dynamic { width: 158px; }  /* solo multi-row */
+```
+Effetto: single-row topright ≈ **72px (mac)** / ~170px (win) → soglia di clipping abbassata di molto → ⌘/📂 restano
+visibili e le tab hanno spazio per riflusso a finestre/sidebar molto più strette.
+
+**Cosa potrebbe andare storto (perché NON applicato a colpo sicuro):**
+- La `width:158px` fissa fu introdotta da **B14c** (`tabs.vue:926-931`) per tenere il topright a larghezza COSTANTE →
+  `padding-right` costante → niente shift di row 1 quando il clone appare/sparisce. Il collasso **mantiene** la
+  costanza *dentro* lo stato multi-row (width sempre 158 lì), ma introduce un cambio di width alla **transizione
+  single↔multi-row** → possibile micro-shift/flicker della prima riga in quel momento (già stato di transizione
+  animata, quindi probabilmente accettabile). **Da verificare empiricamente su Windows** con sidebar aperta + resize.
+- `availableForContent` usa `topRightEl.offsetWidth` runtime (`tabs.vue:389`) → si adatta da solo alla nuova width via
+  i ResizeObserver già presenti (`tabs.vue:502-505`). Nessuna costante JS da toccare.
+
+**Verifica incrociata fix storici (perché 1b è sicuro):**
+- *DESIGN-TASK bug-126*: i 158px nacquero perché il clone (~151px) sforava 150px → tagliato. 1b **tiene 158px in
+  `.topright-expanded`** (multi-row, dove il clone esiste) → clone non si taglia.
+- *B14c* (`tabs.vue:926-931`): width fissa = topright costante = `padding-right` costante = no shift row 1 quando il
+  clone appare/sparisce. 1b **mantiene 158px costante DENTRO multi-row** → invariante preservata. In single-row
+  `recomputePinnedTab` lascia `pinnedTab=null` → con `width:0` non c'è nulla da clippare.
+- La width **non** è in `transition` (solo `opacity`) → cambio 0↔158 istantaneo (non animato) → un solo fire
+  ResizeObserver, coperto da `layoutLockUntil` (150ms, `tabs.vue:650`) → flicker minimo.
+- *DESIGN bug-123*: il ResizeObserver su `.v2-tabbar` root ricalcola `padding-right` da `topRightEl.offsetWidth`
+  runtime (`tabs.vue:389`) → si adatta da solo alla nuova larghezza, nessuna costante JS da toccare.
+- **Rischio residuo:** micro-shift alla transizione single↔multi-row (già momento di reflow). Basso. Testare su
+  Windows con sidebar aperta + finestra stretta.
+
+**Alternative scartate:**
+- *Alzare `minWidth` finestra* (`config.js:7`): NON risolve — la sidebar continua a rubare larghezza alla tab bar a
+  parità di finestra. Scartata.
+- *Refactor topright da `absolute` a flex item in-flow*: risolverebbe alla radice ma tocca il cuore del layout
+  multi-row/hover-expand (alto rischio regressione). Scartata salvo necessità.
+
+### BUG-2 — (mac) Controlli finestra non centrati verticalmente con la tab bar a riga singola
+
+**Sintomo.** Con **una sola riga** di tab la title bar è più bassa: i traffic lights nativi restano in alto a sinistra
+mentre le tab appaiono più in basso (non in linea). Con **più righe** la barra si espande e le tab tornano allineate
+ai controlli.
+
+**Causa (diagnosi).** I traffic lights nativi (`titleBarStyle:'hiddenInset'`, `config.js:22`) hanno **y fissa**
+decisa dall'OS. L'altezza single-row della tab bar (`--v2-tab-h`, var CSS globale) posiziona il centro verticale delle
+tab **più in basso** del centro dei semafori → disallineamento. In multi-row/hover-expand la barra cresce e l'occhio
+percepisce l'allineamento sulla prima riga.
+
+**✅ FIX 2a APPLICATO** (`config.js`, `editorWinOptions`). **`titleBarStyle:'hiddenInset'` MANTENUTO** (path Windows
+invariato) + `trafficLightPosition` aggiunto **solo su mac** (gated `isOsx`). Verificato da doc Electron che hiddenInset
++ trafficLightPosition funzionano insieme (non serve passare a `'hidden'`, che avrebbe richiesto di tarare anche `x`):
+```js
+titleBarStyle: 'hiddenInset',
+...(isOsx ? { trafficLightPosition: { x: 18, y: 12 } } : {}),
+```
+Calcolo default: bar single-row `--v2-tab-h:40px` → centro tab a 20px; bottoni ~16px → `y=(40-16)/2≈12` li centra;
+`x=18` = inset dentro lo spazio riservato (`padding-left:78` di T-ME). Il valore `y` è **fisso**: in multi-row la
+prima riga resta in cima (centro 20px) → i semafori restano allineati alla prima riga in entrambi gli stati.
+
+**Cosa resta da fare / rischi:** `x`/`y` sono **da tarare visivamente sul Mac** (altezza reale bottoni varia per
+versione macOS). Modifica al **main process** → **non testabile su Windows** e richiede **restart `npm run dev`**
+(no HMR sul main). Su Windows/Linux: `isOsx=false` → nessuna chiave aggiunta → config byte-identica a prima.
+
+**Alternativa (NON usata) — Fix 2b renderer:** `min-height` su `.v2-tabbar.is-osx` + centratura prima riga. Scartata:
+`trafficLightPosition` è lo strumento nativo dedicato, più pulito e senza toccare l'altezza della tab bar.
+
+> **Raccomandazione.** BUG-1 → **Fix 1b applicato**, testare su Windows (sidebar aperta + finestra stretta; rischio
+> solo micro-flicker single↔multi-row). BUG-2 → **Fix 2a applicato**, tarare `x/y` su Mac dopo `npm run dev` (Windows
+> non coinvolto).

@@ -939,7 +939,10 @@ watch(hasMultiRow, (newVal) => {
   /* B14e: width 158px. Era 150px ma contenuto reale ~151px (clone 110 + margin-r 6
      + plus 26 + sep 9) eccedeva → bordo sinistro clone tagliato da overflow:hidden.
      158px lascia ~7px buffer a sinistra del clone (flex-end) → bordo dashed visibile. */
-  width: 158px;
+  /* BUG-1 fix: width collassata a 0 in single-row (il clone esiste SOLO in multi-row).
+     I 158px ora vivono in `.topright-expanded` sotto → la sezione destra non riserva
+     ~158px inutili a finestra/tabbar stretta → ⌘/📂 e tab non vengono più clippati. */
+  width: 0;
   flex-shrink: 0;
   opacity: 0;
   pointer-events: none;
@@ -948,6 +951,10 @@ watch(hasMultiRow, (newVal) => {
 }
 
 .v2-topright.topright-expanded .v2-topright-dynamic {
+  /* BUG-1 fix: i 158px (derivati in B14e per contenere il clone) valgono SOLO in
+     multi-row. Width COSTANTE qui dentro → invariante B14c preservata: nessuno shift
+     di row 1 quando il clone appare/sparisce restando nello stato multi-row. */
+  width: 158px;
   opacity: 1;
   pointer-events: auto;
 }

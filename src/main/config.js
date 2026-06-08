@@ -20,6 +20,12 @@ export const editorWinOptions = Object.freeze({
   show: true,
   frame: false,
   titleBarStyle: 'hiddenInset',
+  // BUG-2 (SOLO macOS): centra verticalmente i traffic lights nativi sulla riga singola
+  // della tab bar (alta --v2-tab-h=40px → centro tab a 20px). y=(40-16)/2≈12 centra i
+  // bottoni (~16px); x=18 = inset dentro lo spazio riservato (padding-left:78 in tabs.vue).
+  // ⚠️ VALORI DA TARARE SUL MAC (l'altezza reale dei bottoni varia per versione macOS).
+  // Gated da isOsx → su Windows/Linux la chiave NON viene aggiunta: config invariata.
+  ...(isOsx ? { trafficLightPosition: { x: 18, y: 12 } } : {}),
   // v2: nasconde menu bar nativa quando frame=true (Windows native titlebar).
   // Tasto Alt mostra/nasconde dinamicamente.
   autoHideMenuBar: true,
