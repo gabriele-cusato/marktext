@@ -330,7 +330,8 @@ const onWinUnmaximize = () => { isMaximized.value = false }
 // non deve far saltare la posizione del "+".
 // B4: misurazione layout dopo nextTick + rAF, per evitare flash multi-row
 // transitorio durante il commit DOM (es. nuova tab) che farebbe scattare CSS hover.
-const scheduleUpdate = () => {
+const scheduleUpdate = (src = '?') => {
+  console.log('[TABDBG] scheduleUpdate from:', src)
   nextTick(() => {
     requestAnimationFrame(() => updateTabRowsLayout())
   })
@@ -372,7 +373,10 @@ let currentDragDropHandled = false
 const updateTabRowsLayout = () => {
   // P-DF8-5: lock dentro la funzione → gates ANCHE chiamate dirette
   // (currentFile watcher line 463 bypassava il vecchio scheduleUpdate-only lock).
-  if (Date.now() < layoutLockUntil) return
+  if (Date.now() < layoutLockUntil) {
+    console.log('[TABDBG] updateTabRowsLayout SKIPPED — lock attivo,', layoutLockUntil - Date.now(), 'ms rimanenti')
+    return
+  }
 
   const ul = tabDropContainer.value
   if (!ul) return
@@ -416,6 +420,21 @@ const updateTabRowsLayout = () => {
     row1Count++
   }
   const multiRow = row1Count < items.length
+  // [TABDBG] dump valori chiave per diagnosi wrap (rimuovere dopo)
+  console.log('[TABDBG] calc', {
+    tabbarClientW: tabbarEl.clientWidth,
+    topRightWidth,
+    dynamicPaddingRight,
+    leftPad,
+    availableForContent,
+    items: items.length,
+    itemWidths: items.map((i) => i.offsetWidth),
+    sumItems: items.reduce((s, i) => s + i.offsetWidth, 0),
+    row1Count,
+    row1ContentWidth,
+    multiRow,
+    ulStyleWidthBefore: ul.style.width
+  })
   hasMultiRow.value = multiRow
 
   // Restringe ul a width REALE di row 1. Spazio liberato dentro scroll-area
@@ -494,13 +513,13 @@ onMounted(() => {
 
   // B3 + B4: ResizeObserver per ricalcolare layout su resize finestra/tab list
   if (window.ResizeObserver && tabDropContainer.value) {
-    tabResizeObs = new ResizeObserver(() => scheduleUpdate())
+    tabResizeObs = new ResizeObserver(() => scheduleUpdate('obs:ul'))
     tabResizeObs.observe(tabDropContainer.value)
   }
   // B14: ResizeObserver su .v2-topright. Clone tab width cambia quando filename
   // attivo cambia → padding-right dinamico va ricalcolato per evitare overlap X.
   if (window.ResizeObserver && topRightEl.value) {
-    topRightResizeObs = new ResizeObserver(() => scheduleUpdate())
+    topRightResizeObs = new ResizeObserver(() => scheduleUpdate('obs:topright'))
     topRightResizeObs.observe(topRightEl.value)
   }
   // ResizeObserver su tabbar root → triggera recalc su resize finestra.
@@ -508,10 +527,10 @@ onMounted(() => {
   // su resize finestra ul può eccedere scroll-area → tabs overlap topright.
   const tabbarRoot = tabDropContainer.value?.closest('.v2-tabbar')
   if (window.ResizeObserver && tabbarRoot) {
-    tabbarResizeObs = new ResizeObserver(() => scheduleUpdate())
+    tabbarResizeObs = new ResizeObserver(() => scheduleUpdate('obs:tabbar-resize'))
     tabbarResizeObs.observe(tabbarRoot)
   }
-  scheduleUpdate()
+  scheduleUpdate('onMounted')
 
   // Drag and drop ordering
 

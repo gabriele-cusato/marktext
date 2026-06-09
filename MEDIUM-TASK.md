@@ -1,5 +1,63 @@
 # MEDIUM-TASK — Piano implementativo (sezione "Medio" + ultimo "Medio-facile")
 
+---
+
+# 🔖 CHECKPOINT (2026-06-09) — BUG-1 tab bar in corso, in attesa dei log runtime
+
+> Ripartire DA QUI. Dettaglio completo del bug e dei tentativi falliti → **§7** in fondo al file.
+
+## Dove siamo
+- **T-ME** (controlli finestra mac): ✅ fatto, da verificare solo su Mac.
+- **BUG-2** (mac, semaforo non centrato verticalmente): ✅ fix applicato `config.js` `trafficLightPosition:{x:18,y:12}`
+  (gated `isOsx`), **da tarare su Mac**.
+- **BUG-1** (clipping controlli destra): ❌ **NON risolto — causa trovata, fix pronto da applicare.**
+  Causa radice: il "+" inline (`position:absolute`, non in flex flow) non è incluso nel calcolo wrap
+  → il wrap non scatta prima che "+" sovrasti il topright. Fix = aggiungere check post-loop in
+  `updateTabRowsLayout`. Dettaglio completo + fix → **§7** in fondo. NON ripetere tentativi 1b/1c.
+
+## Bug attuale (repro precisa dell'utente)
+La finestra ammette ~6 tab + "+" in riga 1. Crea la **7ª tab** → va in riga 2. **Espandi** la finestra → la 7ª torna in
+riga 1 (tutte e 7 in una riga). **Rimpicciolisci di nuovo** (la finestra NON è al minimo, può ancora ridursi): la tab 7
+**NON torna in riga 2**; i controlli a destra (⌘/📂 + bottoni finestra) si scontrano col "+" e **vengono tagliati**
+invece di restare ancorati a destra e rimandare la tab 7 alla riga 2. In sintesi: con molte tab il **re-wrap su
+restringimento non scatta**; con poche tab tutto ok.
+
+## Cosa ho appena fatto
+Aggiunto **debug temporaneo** in `tabs.vue` (prefisso `[TABDBG]`, da rimuovere dopo): log in `scheduleUpdate`
+(con sorgente), nei 3 ResizeObserver (`obs:ul` / `obs:topright` / `obs:tabbar-resize`), skip-per-lock in
+`updateTabRowsLayout`, e dump valori (`calc {...}`) prima di decidere `multiRow`.
+
+## COSA DEVI FARE TU (domani, su Windows)
+1. `tabs.vue` è renderer → basta **reload** (no restart main).
+2. Apri DevTools console (**Ctrl+Shift+I**).
+3. Riproduci il caso sopra (7 tab → espandi → rimpicciolisci lento fino al taglio dei controlli).
+4. **Copia/incolla i log `[TABDBG]`** di quella fase (soprattutto gli ultimi, da quando inizia il taglio).
+
+## COSA VERIFICARE nei log (3 ipotesi di causa)
+- **A. Observer non scatta:** durante il restringimento NON compare `scheduleUpdate from: obs:tabbar-resize`
+  → il ResizeObserver sul root non triggera il ricalcolo.
+- **B. Lock:** compaiono `updateTabRowsLayout SKIPPED — lock attivo` ripetuti → `layoutLockUntil` blocca il ricalcolo
+  durante il drag-resize (mai si stabilizza).
+- **C. Calcolo wrap errato:** nel dump `calc {...}`, a finestra stretta, `availableForContent < sumItems` MA
+  `multiRow:false` (o `row1Count` resta = numero tab) → la detection crede che entrino tutte → non wrappa.
+  Annotare anche `topRightWidth` reale e `ulStyleWidthBefore`.
+
+## COSA FARE DOPO (in base alla causa)
+- **A** → capire perché l'observer non fira (es. la tab bar non cambia clientWidth?) e forzare il ricalcolo su resize.
+- **B** → ridurre/condizionare `layoutLockUntil` così il re-wrap su restringimento non resti bloccato.
+- **C** → correggere il calcolo: il caso tipico è che `ul.style.width` resta largo (7 tab) e i tab non wrappano perché
+  l'ul non viene ristretto, oppure `availableForContent` è sovrastimato. Fix mirato **senza** toccare la struttura
+  absolute/padding-right (vedi lezione §7).
+- Poi: **rimuovere tutti i log `[TABDBG]`** da `tabs.vue`.
+- Infine: usare il `topRightWidth` reale dai log per **tarare il `minWidth`** esatto in `config.js` (ora stimato 820/780).
+
+## File/punti toccati
+- `tabs.vue` (renderer): `updateTabRowsLayout` (~372), `scheduleUpdate` (~333), ResizeObserver (~496-513), debug `[TABDBG]`.
+- `config.js`: `minWidth: isOsx ? 780 : 820`, `trafficLightPosition` (mac).
+- `windows/editor.js` (~80): `win.setMinimumSize(editorWinOptions.minWidth, editorWinOptions.minHeight)`.
+
+---
+
 > **Scopo.** Tutto il necessario per implementare, **a sessione pulita**, i task della sezione *Medio* di
 > `TODO.md` + l'ultimo *Medio-facile* (controlli finestra macOS), senza introdurre bug / breaking changes.
 > Leggere PRIMA: `CLAUDE.md` (regole grep call-site / IPC / bus / keybinding), `EASY-TASK.md` (invarianti editor),
@@ -535,64 +593,206 @@ sovrapposto; drag finestra dalla tab bar ok. Su Windows/Linux: pixel-identico a 
 
 ## 7. Bug noti UI tab bar (scoperti dopo T-ME — DA FIXARE)
 
-> File unico coinvolto: `src/renderer/src/components/editorWithTabs/tabs.vue`. Ancore ri-verificate questa sessione.
-> **Stato: bug confermati, fix PROPOSTI ma NON applicati** (layout fragile con molte fix storiche B1–B14/S7/N4/P-DF8;
-> Bug 2 non testabile su Windows). Applicare dopo conferma utente + test (Bug 1 su Win con sidebar aperta; Bug 2 su Mac).
+> **Stato:** BUG-1 → fix corretto = `minWidth` in `config.js` (applicato); i tentativi 1b/1c su `tabs.vue` sono
+> **FALLITI e revertati con git** (vedi sotto, **NON ripetere**). BUG-2 (mac) → `trafficLightPosition` applicato,
+> da tarare su Mac. ⚠️ Layout tab bar molto fragile (fix storiche B1–B14/S7/N4/P-DF8): **NON** convertire
+> `.v2-topright` da `absolute` a in-flow; **NON** rimuovere la riserva `padding-right` dinamica.
 
 ### BUG-1 — Restringendo la finestra in orizzontale, ⌘/📂 e poi le tab vengono CLIPPATE invece di riflusso (Win + Mac)
 
-**Sintomo.** Sotto una certa larghezza, le icone ⌘ (command palette) e 📂 (apri file) non restano agganciate al bordo
-destro: vengono tagliate. Restringendo ancora, anche le tab vengono tagliate invece di andare a capo nelle righe
-successive. La "soglia" coincide con la larghezza massima della sezione destra (⌘ + 📂 + slot clone/+ riga 2+).
+**Sintomo.** Con 7+ tab in riga singola, rimpicciolendo la finestra le tab NON vanno a capo nella riga 2; il bottone
+"+" collide con i controlli a destra (⌘/📂/finestra) che risultano tagliati. Soglia: `tabbarClientW < 950`
+(misurata con 7 tab, ciascuna 102px). Con ≤6 tab o finestra ≥950px tutto funziona.
 
-**Causa (diagnosi).** La larghezza reale della tab bar = **finestra − sidebar** (non il `minWidth:550` della finestra,
-`config.js:7`). La sezione destra `.v2-topright` (`tabs.vue:915`, `position:absolute; right:10px; z-index:20`) ha
-larghezza **quasi-fissa e grande** perché `.v2-topright-dynamic` (`tabs.vue:932`) riserva **`width:158px;
-flex-shrink:0` SEMPRE**, anche quando invisibile in single-row (`opacity:0`, ma occupa layout). Totale topright ≈
-**230px (mac)** / **340px (win, con i 3 bottoni finestra)**. La tab bar prenota `padding-right = topRightWidth+22`
-(`tabs.vue:390-391`) per non far finire le tab sotto il topright assoluto. Quando la tab bar (per sidebar aperta o
-finestra stretta) scende **sotto ~larghezza topright**, lo spazio contenuto va a ~0/negativo: il topright assoluto
-(z-index 20) **copre** le tab e il suo bordo sinistro viene **clippato** da `.v2-tabbar { overflow:hidden }`
-(`tabs.vue:674`); le tab non riflussono perché `availableForContent` (`tabs.vue:397`) è ~0. Su mac il `padding-left:78px`
-(T-ME) peggiora di 78px (atteso, ma somma alla soglia).
+**Causa radice — IDENTIFICATA con log runtime (2026-06-09).**
 
-**✅ FIX 1b APPLICATO** (verificato incrociando i fix storici — vedi sotto). Collassare lo slot dinamico quando NON serve: la `width:158px`
-serve solo in multi-row (dove appare il clone). In single-row il clone non esiste → riservare 158px è inutile e gonfia
-il topright. Legare la width allo stato `.topright-expanded` (che esiste già, usato per `opacity`):
-```css
-.v2-topright-dynamic { width: 0; }                              /* era 158px fisso */
-.v2-topright.topright-expanded .v2-topright-dynamic { width: 158px; }  /* solo multi-row */
+Il bottone "+" nuova-tab (`li.v2-tab-new-li`) è `position:absolute` dentro `.v2-tabs` (fuori dal flex flow). La sua
+posizione è calcolata da JS a `last.offsetLeft + last.offsetWidth + GAP` = `ulPadding + row1ContentWidth + 3`. Il suo
+bordo destro cade a `ulPadding + row1ContentWidth + 3 + 26` (26px = CSS width di `.v2-tab-new-li`).
+
+Il calcolo di `multiRow` in `updateTabRowsLayout` (`tabs.vue:422`) controlla solo se le **tab regolari** entrano in
+`availableForContent`, senza considerare lo spazio occupato dal "+". Con 7 tab a `tabbarClientW=939`:
+
 ```
-Effetto: single-row topright ≈ **72px (mac)** / ~170px (win) → soglia di clipping abbassata di molto → ⌘/📂 restano
-visibili e le tab hanno spazio per riflusso a finestre/sidebar molto più strette.
+availableForContent = 939 - 195(dynamicPaddingRight) - 6(ulPadding) = 738
+row1ContentWidth    = 732   ← 7 tab × 102 + 6 gap × 3
+→ multiRow = false  ← algoritmo dice "entrano tutte" (738 > 732)
 
-**Cosa potrebbe andare storto (perché NON applicato a colpo sicuro):**
-- La `width:158px` fissa fu introdotta da **B14c** (`tabs.vue:926-931`) per tenere il topright a larghezza COSTANTE →
-  `padding-right` costante → niente shift di row 1 quando il clone appare/sparisce. Il collasso **mantiene** la
-  costanza *dentro* lo stato multi-row (width sempre 158 lì), ma introduce un cambio di width alla **transizione
-  single↔multi-row** → possibile micro-shift/flicker della prima riga in quel momento (già stato di transizione
-  animata, quindi probabilmente accettabile). **Da verificare empiricamente su Windows** con sidebar aperta + resize.
-- `availableForContent` usa `topRightEl.offsetWidth` runtime (`tabs.vue:389`) → si adatta da solo alla nuova width via
-  i ResizeObserver già presenti (`tabs.vue:502-505`). Nessuna costante JS da toccare.
+"+" right edge = 6 + 732 + 3 + 26 = 767
+topright left  = 939 - 10 - 173  = 756
+→ overlap = 767 − 756 = 11px  ← "+" sfora dentro topright!
+```
 
-**Verifica incrociata fix storici (perché 1b è sicuro):**
-- *DESIGN-TASK bug-126*: i 158px nacquero perché il clone (~151px) sforava 150px → tagliato. 1b **tiene 158px in
-  `.topright-expanded`** (multi-row, dove il clone esiste) → clone non si taglia.
-- *B14c* (`tabs.vue:926-931`): width fissa = topright costante = `padding-right` costante = no shift row 1 quando il
-  clone appare/sparisce. 1b **mantiene 158px costante DENTRO multi-row** → invariante preservata. In single-row
-  `recomputePinnedTab` lascia `pinnedTab=null` → con `width:0` non c'è nulla da clippare.
-- La width **non** è in `transition` (solo `opacity`) → cambio 0↔158 istantaneo (non animato) → un solo fire
-  ResizeObserver, coperto da `layoutLockUntil` (150ms, `tabs.vue:650`) → flicker minimo.
-- *DESIGN bug-123*: il ResizeObserver su `.v2-tabbar` root ricalcola `padding-right` da `topRightEl.offsetWidth`
-  runtime (`tabs.vue:389`) → si adatta da solo alla nuova larghezza, nessuna costante JS da toccare.
-- **Rischio residuo:** micro-shift alla transizione single↔multi-row (già momento di reflow). Basso. Testare su
-  Windows con sidebar aperta + finestra stretta.
+Il wrap non scatta (multiRow resta false) finché `tabbarClientW < 927` (= 732+195). Ma il "+" comincia
+a sovrapporre il topright già a `tabbarClientW < 950`. Gap tra le due soglie = 23px → finestra bloccata al minimo
+(939) senza che il wrap sia mai scattato.
 
-**Alternative scartate:**
-- *Alzare `minWidth` finestra* (`config.js:7`): NON risolve — la sidebar continua a rubare larghezza alla tab bar a
-  parità di finestra. Scartata.
-- *Refactor topright da `absolute` a flex item in-flow*: risolverebbe alla radice ma tocca il cuore del layout
-  multi-row/hover-expand (alto rischio regressione). Scartata salvo necessità.
+**Conferma dai log:** observer `obs:tabbar-resize` scatta ad ogni pixel ✓; nessun `SKIPPED — lock attivo` ✓;
+`multiRow` resta `false` anche quando "+" sfora visivamente. Ipotesi A (observer non scatta) e B (lock) **eliminate**.
+
+---
+
+**✅ FIX PROPOSTO — `updateTabRowsLayout` in `tabs.vue` (2 modifiche, complessità bassa)**
+
+*Modifica 1* — Rimuovere `const PLUS_W = 35` (riga ~178, era unused e valore errato: 35 vs 26 reali).
+
+*Modifica 2* — Cambiare `const multiRow` → `let multiRow` e aggiungere il check "+" **dopo** il loop:
+
+```js
+let multiRow = row1Count < items.length
+
+// Verify inline "+" fits. It's absolute (not flex), placed at (ulPadding + row1ContentWidth + GAP).
+// If its right edge exceeds the scroll area, demote the last tab to row 2.
+if (!multiRow && items.length > 0) {
+  const scrollRight = tabbarEl.clientWidth - dynamicPaddingRight - leftPad
+  while (row1Count > 0) {
+    if (ulPadding + row1ContentWidth + GAP + 26 <= scrollRight) break  // 26 = .v2-tab-new-li CSS width
+    const lastIdx = row1Count - 1
+    row1ContentWidth -= lastIdx === 0 ? items[0].offsetWidth : GAP + items[lastIdx].offsetWidth
+    row1Count--
+  }
+  multiRow = row1Count < items.length
+}
+```
+
+**Perché funziona — simulazione a `tabbarClientW=939`, 7 tab:**
+- `scrollRight = 939 − 195 − 0 = 744`
+- Iter 1: `plusRight = 6+732+3+26 = 767 > 744` → rimuovi tab 7: `row1ContentWidth=627`, `row1Count=6`
+- Iter 2: `plusRight = 6+627+3+26 = 662 ≤ 744` → break
+- `multiRow = (6 < 7) = true` ✓ — tab 7 va a riga 2, "+" si sposta nel topright, controlli visibili.
+
+**A `tabbarClientW=950`, 7 tab (nessun clipping):**
+- `scrollRight = 950−195−0 = 755`
+- `plusRight = 767 > 755`? Sì, 767 > 755 → rimuovi tab 7 → `row1ContentWidth=627`
+- `plusRight = 662 ≤ 755` → break, `multiRow=true`
+
+Hmm: a 950 il fix triggera ancora il wrap. Ma l'utente dice che a 955 i controlli NON sono tagliati con 7 tab. Ricalcolo:
+- `topright left a 955 = 955−183 = 772`
+- `plusRight = 767 < 772` → nessun overlap a 955. Il wrap dovrebbe scattare a `tabbarClientW < 950` (dove `plusRight > scrollRight`).
+- A 950: `scrollRight = 755`, `plusRight = 767 > 755` → wrap. ✓
+- A 951: `scrollRight = 756`, `plusRight = 767 > 756` → wrap ancora.
+- A 968: `scrollRight = 768`, `plusRight = 767 ≤ 768` → NO wrap ← soglia effettiva del fix.
+
+Quindi il fix triggera il wrap fino a `tabbarClientW = 968` per 7 tab. L'utente dice che a 955 va bene. La differenza (955 vs 968) di 13px potrebbe essere accettabile, oppure si può aggiungere un offset di tolleranza.
+
+**⚠️ Punto aperto — offset tolleranza:** se il wrap scatta "troppo presto" (a 968 invece di 950), la 7ª tab va
+a riga 2 anche quando i controlli non sarebbero ancora clippati (13px di margine extra). Verificare visivamente se
+questo si nota. Se troppo aggressivo: aggiungere un `PLUS_TOLERANCE = 13` e usare
+`if (ulPadding + row1ContentWidth + GAP + 26 + PLUS_TOLERANCE <= scrollRight) break`.
+
+---
+
+---
+
+**📋 ISTRUZIONI PER SESSIONE PULITA — Come applicare il fix**
+
+File da modificare: `src/renderer/src/components/editorWithTabs/tabs.vue`
+→ È renderer: dopo il salvataggio basta **reload** (`Ctrl+R` sull'app), NO restart `npm run dev`.
+
+**Edit 1** — rimuovere le righe (grep: `PLUS_W`):
+```js
+// Larghezza stimata del bottone "+" inline: 26px width + 3px gap + 6px margini
+const PLUS_W = 35
+```
+
+**Edit 2** — trovare (grep: `const multiRow = row1Count < items.length`):
+```js
+  const multiRow = row1Count < items.length
+  // [TABDBG] dump valori chiave per diagnosi wrap (rimuovere dopo)
+```
+Sostituire con:
+```js
+  let multiRow = row1Count < items.length
+  // Verify inline "+" fits. It's absolute (not flex), placed at (ulPadding + row1ContentWidth + GAP).
+  // If its right edge exceeds the scroll area, demote the last tab to row 2.
+  if (!multiRow && items.length > 0) {
+    const scrollRight = tabbarEl.clientWidth - dynamicPaddingRight - leftPad
+    while (row1Count > 0) {
+      if (ulPadding + row1ContentWidth + GAP + 26 <= scrollRight) break  // 26 = .v2-tab-new-li CSS width
+      const lastIdx = row1Count - 1
+      row1ContentWidth -= lastIdx === 0 ? items[0].offsetWidth : GAP + items[lastIdx].offsetWidth
+      row1Count--
+    }
+    multiRow = row1Count < items.length
+  }
+  // [TABDBG] dump valori chiave per diagnosi wrap (rimuovere dopo)
+```
+
+**Ordine operazioni post-edit:**
+1. Salva → reload app → apri DevTools console (Ctrl+Shift+I)
+2. Fai le **verifiche 1–7** sotto (runtime, in ordine)
+3. Se verifica 1 mostra wrap che scatta troppo presto (a ~968 invece di ~950): aggiungi
+   `const PLUS_TOLERANCE = 13` sopra il while e cambia la condizione in
+   `if (ulPadding + row1ContentWidth + GAP + 26 + PLUS_TOLERANCE <= scrollRight) break`
+   **NON aggiungere la tolleranza prima di aver verificato** — potrebbe non servire.
+4. Se tutto ok → fai verifica 10 (rimozione log `[TABDBG]`) + aggiorna checkpoint in cima al file.
+
+---
+
+**Cosa verificare dopo il fix:****
+
+1. **Wrap corretto a 7 tab:** ridimensiona finestra fino a ~950 → tab 7 va in riga 2; topright con "+" nel multi-row
+   è visibile e non clippato.
+2. **Wrap corretto a 6 tab:** ridimensiona fino a ~845 → tab 6 va in riga 2; ~5 tab in riga 1 al minimo (820px).
+3. **Re-wrap su espansione:** espandi da stretto a largo → tutte le tab tornano in riga 1 all'altezza giusta
+   (no isteresi/flicker).
+4. **Observer stability:** i log `[TABDBG]` non mostrano oscillazioni (multiRow che flippa avanti e indietro
+   ripetutamente) durante il ridimensionamento lento → nessun loop.
+5. **Lock post-flip:** dopo il flip multiRow `false→true`, il `layoutLockUntil=150ms` regge:
+   assenza di `SKIPPED — lock attivo` infiniti durante il resize.
+6. **Topright expanded width corretto:** in multi-row, `topRightWidth` ≈ 331 (173+158). Verificare nel log che
+   `dynamicPaddingRight` sia ≈ 353 dopo il flip — altrimenti il calcolo riga 1 sarà sbagliato.
+7. **Minimo window = 820:** verificare che con ≤5 tab non ci sia wrap non necessario (row1ContentWidth ≤
+   `tabbarClientW=820 - 353` per multi-row → ≈467px → 4 tab entrano, 5 no; ricalcolare soglia esatta).
+8. **macOS (futuro):** con `leftPad=78` il calcolo usa `tabbarClientW − dynamicPaddingRight − leftPad` →
+   `scrollRight` già corretto; `plusRight` non dipende da leftPad → comportamento analogo, verifica visiva.
+9. **Tab singola + "+":** 1 tab sola, finestra al minimo → no wrap inutile; "+" non sfora topright.
+10. **Rimozione log `[TABDBG]`:** dopo verifica OK → eliminare tutti i `console.log('[TABDBG]...')` da `tabs.vue`.
+
+**❌ TENTATIVI FALLITI — NON RIPETERE (revertati con git dall'utente).**
+
+**Fix 1b** — collasso `.v2-topright-dynamic` `width:158→0` in single-row (158 solo in `.topright-expanded`):
+**INSUFFICIENTE**. Ha solo abbassato la soglia di clipping, non eliminato la radice (topright `absolute` + riserva
+`padding-right`). Da solo non rompeva nulla, ma il bug restava oltre un certo punto. Non basta.
+
+**Fix 1c — STRUTTURALE: HA ROTTO IL LAYOUT.** Modifiche fatte: `.v2-topright` da `absolute` a **flex-item in-flow**
+(`flex-shrink:0; margin-left:auto`), `.v2-tabbar-scroll` `flex:1` → `flex:1 1 0; min-width:0`, e
+`availableForContent = scrollEl.clientWidth - ulPadding` (rimossa la riserva `padding-right`). **Regressioni osservate:**
+- bug NON risolto (tab non vanno a capo, ⌘/📂 tagliati);
+- **NUOVO**: quando le tab vanno in riga 2, il topright veniva spinto **fuori dalla finestra a destra** (non visibile);
+- **NUOVO**: a volte l'ultima tab di riga 1 (accanto al "+") **usciva dallo spazio max e appariva tagliata**.
+
+**Perché 1c ha rotto (LEZIONE).** Il design `absolute` + `padding-right` dinamico è **load-bearing** per il wrap
+multi-row e per `updateTabRowsLayout`:
+- Mettere `.v2-topright` **in-flow** in una flex-row il cui altro figlio (`.v2-tabbar-scroll`) contiene un `ul` **che
+  wrappa** (righe 2+) rompe il sizing della riga flex: con `margin-left:auto` + `flex:1 1 0` + `ul` a width fissata da
+  JS, quando l'ul wrappa il topright viene spinto oltre il bordo destro (fuori finestra).
+- Sostituire la riserva `padding-right` con `scrollEl.clientWidth` dà un valore **transitoriamente sbagliato** (la
+  scroll-area non è ancora ridimensionata quando il topright cambia width) → row 1 impacchetta una tab di troppo →
+  l'ultima esce e viene tagliata.
+- ⇒ **NON convertire `.v2-topright` in-flow. NON rimuovere la riserva `padding-right` / il calcolo basato su
+  `tabbar.clientWidth - paddingRight`.** Il layout absolute è intenzionale, lasciarlo com'è.
+
+**✅ FIX CORRETTO APPLICATO — `config.js` (ZERO modifiche a `tabs.vue`).** Poiché `tabbar width ≈ finestra` (vedi Causa)
+e il `minWidth` della finestra è passato a `new BrowserWindow` con `useContentSize:true` (`windows/editor.js:51,79`),
+**alzare `minWidth`** impedisce alla finestra di entrare nella zona-bug; il wrap multi-row originale (intatto) gestisce
+il riflusso sopra il minimo. Comportamento = quello richiesto: fino al minimo le tab in eccesso vanno a capo; al minimo
+ci stanno ~5 tab + i controlli interi; **sotto il minimo la finestra non si ridimensiona** → ⌘/📂 mai tagliati.
+```js
+minWidth: isOsx ? 780 : 820,   // era 550
+```
+**⚠️ Enforcement (gotcha Electron):** il `minWidth` del COSTRUTTORE con `useContentSize:true` + `frame:false` **non
+è affidabile** (la finestra scende comunque sotto il minimo → controlli tagliati). Serve l'enforcement esplicito
+`win.setMinimumSize(editorWinOptions.minWidth, editorWinOptions.minHeight)` subito dopo `new BrowserWindow`
+(`windows/editor.js:~80`). **`config.js` è main process → richiede RESTART completo di `npm run dev`** (no HMR).
+
+Formula: `5×tab(min 88) + 4×gap(3) + ul-pad(6) + sezione-destra + offset/buffer [+ padding-left:78 semaforo su mac]`.
+Win ≈ 5*88 + 12 + 6 + ~331(topright incl. 3 bottoni finestra) + 22 ≈ 811 → **820**.
+Mac ≈ 5*88 + 12 + 6 + ~218(topright senza bottoni) + 22 + 78 ≈ 776 → **780**.
+
+**⚠️ Valori STIMATI** (larghezza topright NON misurata a runtime): **verificare sull'app** che al minimo i controlli
+siano interi e ~5 tab visibili. Se ancora tagliati → il topright è più largo della stima → **alzare la costante**
+(single source: quella riga in `config.js`). Per il valore esatto: loggare temporaneamente `topRightEl.offsetWidth`.
 
 ### BUG-2 — (mac) Controlli finestra non centrati verticalmente con la tab bar a riga singola
 
@@ -623,6 +823,6 @@ versione macOS). Modifica al **main process** → **non testabile su Windows** e
 **Alternativa (NON usata) — Fix 2b renderer:** `min-height` su `.v2-tabbar.is-osx` + centratura prima riga. Scartata:
 `trafficLightPosition` è lo strumento nativo dedicato, più pulito e senza toccare l'altezza della tab bar.
 
-> **Raccomandazione.** BUG-1 → **Fix 1b applicato**, testare su Windows (sidebar aperta + finestra stretta; rischio
-> solo micro-flicker single↔multi-row). BUG-2 → **Fix 2a applicato**, tarare `x/y` su Mac dopo `npm run dev` (Windows
-> non coinvolto).
+> **Raccomandazione.** BUG-1 → **`minWidth` in `config.js`** (1b/1c su `tabs.vue` falliti e revertati — NON ripetere,
+> NON toccare il layout absolute). Testare su Windows che al minimo ~5 tab + controlli siano interi; tarare la costante.
+> BUG-2 → **Fix 2a applicato**, tarare `x/y` su Mac dopo `npm run dev` (Windows non coinvolto).

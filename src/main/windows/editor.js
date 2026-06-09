@@ -78,6 +78,12 @@ class EditorWindow extends BaseWindow {
 
     let win = (this.browserWindow = new BrowserWindow(winOptions))
 
+    // BUG-1: enforce esplicito della larghezza minima. Con `useContentSize:true` + `frame:false`
+    // il `minWidth` passato al costruttore non viene applicato in modo affidabile (resize sotto
+    // il minimo → controlli destra tagliati). `setMinimumSize` (coordinate finestra) lo forza.
+    // Single source: editorWinOptions in config.js.
+    win.setMinimumSize(editorWinOptions.minWidth, editorWinOptions.minHeight)
+
     // v2: nasconde menu bar nativa anche quando frame=true (titlebar nativa Windows).
     // Tasto Alt la mostra/nasconde dinamicamente.
     if (!isOsx) {
