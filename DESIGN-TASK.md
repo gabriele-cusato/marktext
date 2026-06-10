@@ -7,6 +7,10 @@ Design di riferimento: `DESIGN/marktext/project/Markdown Editor v2.html` + `edit
 
 ## ⚠️ NOTE TECNICHE IMPORTANTI (le sfumature che fanno rompere tutto — leggere prima di toccare)
 
+- **⚠️ Resize tab bar (BUG-1, 2026-06-10):** prima di toccare `updateTabRowsLayout`, il topright o il layout
+  flex della colonna editor, leggere le **invarianti in `MEDIUM-TASK.md`** (two-pass detection, lock defer-not-drop,
+  loop min-content/`min-width:0`, costanti JS↔CSS, divieto topright in-flow).
+
 - **`markRaw` su CodeMirror**: Vue3 `ref()` deep-proxifica il doc tree di CM → il loop `indexOf` di CM
   confronta raw vs proxy → ritorna -1 → crash su click/cursore. FIX: `editor.value = markRaw(codeMirrorInstance)`.
   Pattern obbligatorio per qualsiasi libreria con stato mutabile (CodeMirror, Three.js, Pixi, Monaco).

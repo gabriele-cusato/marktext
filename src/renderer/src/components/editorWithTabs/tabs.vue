@@ -174,9 +174,6 @@ import TabContextMenu from '../contextMenu/TabContextMenu.vue'
 // (li gestisce il semaforo nativo) e si riserva spazio a sinistra per i traffic lights.
 import { isOsx } from '@/util'
 
-// Larghezza stimata del bottone "+" inline: 26px width + 3px gap + 6px margini
-const PLUS_W = 35
-
 const editorStore = useEditorStore()
 const layoutStore = useLayoutStore()
 const preferencesStore = usePreferencesStore()
@@ -201,6 +198,11 @@ const hasMultiRow = ref(false)
 // updateTabRowsLayout legge larghezze intermedie → flicker. Skip aggiornamenti per
 // la durata della transition + buffer.
 let layoutLockUntil = 0
+// BUG-1 (1e): timer per defer-not-drop del lock. Prima un update arrivato durante
+// il lock veniva PERSO (return secco) → se era l'ultimo del resize, lo stato finale
+// restava sbagliato finché un nuovo evento non arrivava (mai, a finestra ferma).
+// Ora viene rischedulato una volta a lock scaduto. Un solo timer pendente alla volta.
+let lockRetryTimer = null
 
 // B1: hover scope - true solo quando il cursore è sull'area tabs (NON sul topright).
 // Espande la tab bar in multi-row solo via questa flag, non con CSS :hover globale.
@@ -331,7 +333,6 @@ const onWinUnmaximize = () => { isMaximized.value = false }
 // B4: misurazione layout dopo nextTick + rAF, per evitare flash multi-row
 // transitorio durante il commit DOM (es. nuova tab) che farebbe scattare CSS hover.
 const scheduleUpdate = (src = '?') => {
-  console.log('[TABDBG] scheduleUpdate from:', src)
   nextTick(() => {
     requestAnimationFrame(() => updateTabRowsLayout())
   })
@@ -374,7 +375,13 @@ const updateTabRowsLayout = () => {
   // P-DF8-5: lock dentro la funzione → gates ANCHE chiamate dirette
   // (currentFile watcher line 463 bypassava il vecchio scheduleUpdate-only lock).
   if (Date.now() < layoutLockUntil) {
-    console.log('[TABDBG] updateTabRowsLayout SKIPPED — lock attivo,', layoutLockUntil - Date.now(), 'ms rimanenti')
+    // BUG-1 (1e): defer-not-drop — rilancia a lock scaduto, l'update non va perso.
+    if (!lockRetryTimer) {
+      lockRetryTimer = setTimeout(() => {
+        lockRetryTimer = null
+        nextTick(() => requestAnimationFrame(() => updateTabRowsLayout()))
+      }, Math.max(layoutLockUntil - Date.now(), 0) + 20)
+    }
     return
   }
 
@@ -394,12 +401,19 @@ const updateTabRowsLayout = () => {
   const GAP = 3        // gap CSS .v2-tabs
 
   // B14: padding-right dinamico = larghezza reale .v2-topright + offset right + buffer.
+  // BUG-1 (1e): il topright cambia width con lo stato (slot dinamico 0↔158 via
+  // `.topright-expanded`) → misurarlo "as is" rendeva la detection stato-dipendente:
+  // isteresi (soglie wrap diverse tra shrink ed expand) + 1° frame post-flip calcolato
+  // col padding stale. Normalizzo a `baseTopRight` (solo parte statica: sottraggo lo
+  // slot dinamico misurato) e scelgo il padding in base allo stato FINALE calcolato.
   const TOPRIGHT_RIGHT_OFFSET = 10 // CSS .v2-topright { right: 10px }
   const HOVER_BUFFER = 12          // clearance per hover/box-shadow ultima tab
+  const DYN_SLOT_W = 158           // CSS .topright-expanded .v2-topright-dynamic { width }
   const tre = topRightEl.value
-  const topRightWidth = tre ? tre.offsetWidth : 160
-  const dynamicPaddingRight = topRightWidth + TOPRIGHT_RIGHT_OFFSET + HOVER_BUFFER
-  tabbarEl.style.paddingRight = `${dynamicPaddingRight}px`
+  const dynEl = tre ? tre.querySelector('.v2-topright-dynamic') : null
+  const baseTopRight = tre ? tre.offsetWidth - (dynEl ? dynEl.offsetWidth : 0) : 160
+  const padSingle = baseTopRight + TOPRIGHT_RIGHT_OFFSET + HOVER_BUFFER
+  const padMulti = baseTopRight + DYN_SLOT_W + TOPRIGHT_RIGHT_OFFSET + HOVER_BUFFER
 
   // Detection + row1Width SIMULATI (non dipendono da DOM offsetTop attuale, che è
   // condizionato da ul.style.width già settata in iterazioni precedenti → causava
@@ -409,32 +423,57 @@ const updateTabRowsLayout = () => {
   // Va sottratto, altrimenti su mac lo spazio disponibile è sovrastimato → ultima tab
   // coperta/clippata. Su Win/Linux padding-left=0 → leftPad=0 → calcolo invariato.
   const leftPad = parseFloat(getComputedStyle(tabbarEl).paddingLeft) || 0
-  const availableForContent = tabbarEl.clientWidth - dynamicPaddingRight - ulPadding - leftPad
-  let row1ContentWidth = 0
-  let row1Count = 0
-  for (const item of items) {
-    const itemW = item.offsetWidth
-    const addedWidth = row1Count === 0 ? itemW : (GAP + itemW)
-    if (row1Count > 0 && row1ContentWidth + addedWidth > availableForContent) break
-    row1ContentWidth += addedWidth
-    row1Count++
+  // BUG-1 (1f): clamp al viewport. Se un ancestor non può restringersi (regressione
+  // min-width:auto, vedi app.vue .editor-middle), clientWidth resta ≥ ulW+padding
+  // (pavimento = nostro stesso output) → la detection non demoterebbe mai (loop).
+  // Col clamp la detection vede la finestra vera e si sblocca da sola.
+  const tabbarClientW = Math.min(tabbarEl.clientWidth, document.documentElement.clientWidth)
+  // Helper first-fit: quante tab entrano in riga 1 dato lo spazio disponibile.
+  const fitRow1 = (available) => {
+    let width = 0
+    let count = 0
+    for (const item of items) {
+      const itemW = item.offsetWidth
+      const addedWidth = count === 0 ? itemW : (GAP + itemW)
+      if (count > 0 && width + addedWidth > available) break
+      width += addedWidth
+      count++
+    }
+    return { width, count }
   }
-  const multiRow = row1Count < items.length
-  // [TABDBG] dump valori chiave per diagnosi wrap (rimuovere dopo)
-  console.log('[TABDBG] calc', {
-    tabbarClientW: tabbarEl.clientWidth,
-    topRightWidth,
-    dynamicPaddingRight,
-    leftPad,
-    availableForContent,
-    items: items.length,
-    itemWidths: items.map((i) => i.offsetWidth),
-    sumItems: items.reduce((s, i) => s + i.offsetWidth, 0),
-    row1Count,
-    row1ContentWidth,
-    multiRow,
-    ulStyleWidthBefore: ul.style.width
-  })
+
+  // PASS 1: ipotesi single-row (topright collassato, padSingle) → decide multiRow.
+  // Soglia UNICA in entrambe le direzioni di resize → niente isteresi.
+  let fit = fitRow1(tabbarClientW - padSingle - ulPadding - leftPad)
+  let row1ContentWidth = fit.width
+  let row1Count = fit.count
+  let multiRow = row1Count < items.length
+  // Verify inline "+" fits. It's absolute (not flex), placed at (ulPadding + row1ContentWidth + GAP).
+  // If its right edge exceeds the scroll area, demote the last tab to row 2.
+  if (!multiRow && items.length > 0) {
+    const scrollRight = tabbarClientW - padSingle - leftPad
+    while (row1Count > 1) {
+      if (ulPadding + row1ContentWidth + GAP + 26 <= scrollRight) break  // 26 = .v2-tab-new-li CSS width
+      const lastIdx = row1Count - 1
+      row1ContentWidth -= lastIdx === 0 ? items[0].offsetWidth : GAP + items[lastIdx].offsetWidth
+      row1Count--
+    }
+    multiRow = row1Count < items.length
+  }
+
+  // PASS 2: se multi-row, riga 1 va ricalcolata con topright ESPANSO (padMulti):
+  // ul width corretta già in QUESTO run, niente frame transitorio con tab sotto il
+  // topright in attesa che obs:topright/retry rifirino (prima era lì la fragilità).
+  if (multiRow) {
+    fit = fitRow1(tabbarClientW - padMulti - ulPadding - leftPad)
+    row1ContentWidth = fit.width
+    row1Count = fit.count
+  }
+
+  // Padding committato = stato FINALE calcolato (non quello misurato pre-flip):
+  // scroll-area/drag-region coerenti subito col layout deciso.
+  const dynamicPaddingRight = multiRow ? padMulti : padSingle
+  tabbarEl.style.paddingRight = `${dynamicPaddingRight}px`
   hasMultiRow.value = multiRow
 
   // Restringe ul a width REALE di row 1. Spazio liberato dentro scroll-area
@@ -608,6 +647,11 @@ onBeforeUnmount(() => {
   if (tabbarResizeObs) {
     tabbarResizeObs.disconnect()
     tabbarResizeObs = null
+  }
+  // BUG-1 (1e): cleanup timer defer lock
+  if (lockRetryTimer) {
+    clearTimeout(lockRetryTimer)
+    lockRetryTimer = null
   }
 })
 

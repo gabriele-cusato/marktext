@@ -287,6 +287,13 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   flex: 1;
+  /* BUG-1 (1f): flex-item di riga → min-width:auto = min-content dei figli.
+     La tab bar (ul a width fissa JS + padding-right dinamico) faceva da pavimento:
+     la colonna non scendeva sotto ~ulW+padding → sbordava dalla finestra (tab bar
+     E status bar tagliate a destra) e clientWidth misurato restava grande →
+     updateTabRowsLayout non demotava mai (loop). min-width:0 = la colonna segue
+     SEMPRE la finestra; l'eccesso è clippato dentro la tab bar (overflow:hidden). */
+  min-width: 0;
   min-height: 100vh;
   position: relative;
   & > .editor {
