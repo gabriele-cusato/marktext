@@ -49,6 +49,24 @@
           title="New Tab (Ctrl+T)"
         >+</li>
       </ul>
+
+      <!-- Suggerimento "espandibile": freccetta giù centrata orizzontalmente sullo
+           SPAZIO RISERVATO ALLE TABS. È figlia di .v2-tabbar-scroll (il flex:1 che occupa
+           esattamente il content-box della tab bar: tra il padding-left dei traffic lights
+           e il padding-right riservato al topright) → left:50% = centro reale dei tab, non
+           dell'intera bar. Appare (fade-in) + lampeggia ~2s SOLO in multi-row collassato;
+           scompare (fade-out) se torna single-row o se la bar è espansa (tabs-hovered).
+           pointer-events:none → non interferisce con hover-expand / drag. -->
+      <div class="v2-multirow-hint" aria-hidden="true">
+        <svg
+          class="v2-multirow-hint-arrow"
+          width="14" height="9" viewBox="0 0 14 9"
+          fill="none" stroke="currentColor" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round"
+        >
+          <path d="M1 1.5 L7 7 L13 1.5" />
+        </svg>
+      </div>
     </div>
 
     <!-- B1: zona topright si espande verso sinistra quando multi-row,
@@ -774,6 +792,22 @@ watch(hasMultiRow, (newVal) => {
   padding-left: 78px;
 }
 
+/* T-ME (macOS, SOLO single-row): la riga unica di tab è centrata nei 40px della bar
+   → sta più in basso del semaforo nativo (i traffic lights, tarati via
+   trafficLightPosition sulla PRIMA riga multi-row, che resta già allineata). Qui la
+   alziamo e assottigliamo lievemente le tab così da combaciare col semaforo anche in
+   single-row. La leva è `transform: translateY` sulla `ul.v2-tabs` (non sulle singole
+   .v2-tab): muove insieme tab + "+" (absolute, relativo alla ul) ed è puramente visiva
+   → NON altera offsetWidth/offsetTop, quindi updateTabRowsLayout/recomputePinnedTab
+   restano invariati. Gated `is-osx` + `:not(.has-multirow)` → Win/Linux e lo stato
+   multi-row non vengono toccati; `trafficLightPosition` (config.js) resta invariato. */
+.v2-tabbar.is-osx:not(.has-multirow) .v2-tabs {
+  transform: translateY(-5px);
+}
+.v2-tabbar.is-osx:not(.has-multirow) .v2-tab {
+  height: 25px;
+}
+
 /* B1: in multi-row il topright ospita anche clone tab + "+" + separator.
    B14: padding-right rimosso (gestito inline da JS). Solo durata transition mantenuta
    per sincronia con v2-topright-dynamic. */
@@ -791,8 +825,77 @@ watch(hasMultiRow, (newVal) => {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.07);
 }
 
+/* Hint "espandibile": freccetta giù centrata orizzontalmente in basso.
+   Due layer separati per avere fade-in/out PULITO + blink senza che si annullino:
+   - il wrapper .v2-multirow-hint gestisce il fade (transition opacity);
+   - la freccia interna lampeggia per ~2s alla comparsa, poi SVANISCE (fade a opacity 0,
+     fill-mode forwards → resta invisibile, l'elemento sta nel DOM ma non si vede).
+     Riparte da capo a ogni ri-collasso (il selettore torna a matchare). I due opacity
+     si moltiplicano → nessun conflitto. Default: invisibile. */
+.v2-multirow-hint {
+  position: absolute;
+  /* ancorata in basso nella prima riga (bar collassata = var(--v2-tab-h)). top stabile
+     anche se .v2-tabbar-scroll cresce in altezza coi rows nascosti (overflow visible). */
+  top: calc(var(--v2-tab-h) - 9px);
+  left: 50%;
+  /* Centraggio su: spazio tabs + zona clone/"+" (.v2-topright-dynamic), ESCLUSI i
+     controlli di destra (⌘/📂; su Win anche i controlli finestra). La freccia parte
+     centrata sullo scroll (= solo tabs) e va spostata a destra di metà della zona
+     dinamica + buffer: (DYN_SLOT_W 158 + HOVER_BUFFER 12)/2 = 85px. L'offset è esatto e
+     indipendente da OS/larghezza (baseTopRight, leftPad, clientWidth si annullano).
+     ⚠️ Sync JS↔CSS: se cambi 158/12 in updateTabRowsLayout, aggiorna 85 qui. */
+  transform: translateX(calc(-50% + 85px));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 9px;
+  /* stesso accent della tab clone (bordo dashed + badge ↑) → coerenza visiva.
+     --v2-accent è definito per tema → coerente anche con chiaro/scuro. */
+  color: var(--v2-accent);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 15;
+  transition: opacity 0.35s ease-out;
+}
+
+/* Visibile SOLO in multi-row collassato (2+ righe, bar non espansa).
+   transition-delay 0.5s = attende che la bar abbia finito di collassare (max-height 0.5s)
+   prima di comparire → niente blink mentre la bar si richiude. Il delay è solo in questo
+   stato (entrata); uscendo (hover → espansione) il fade-out torna immediato (base rule). */
+.v2-tabbar.has-multirow:not(.tabs-hovered) .v2-multirow-hint {
+  opacity: 1;
+  transition-delay: 0.5s;
+}
+
+.v2-multirow-hint-arrow {
+  display: block;
+  /* base invisibile: la visibilità è guidata SOLO dall'animazione (keyframe). Così,
+     tolta l'animazione (hover/espansione o fine blink), la freccia resta a 0 e NON
+     riappare per un istante mentre il wrapper sfuma → niente flash all'hover. */
+  opacity: 0;
+}
+
+/* Delay 0.5s (= attesa collasso bar, sincronizzato col wrapper sopra) poi blink ~2s,
+   poi fade-out a 0 (fill forwards → resta invisibile). Durante il delay il wrapper è
+   ancora opacity 0 → la freccia non si vede comunque. */
+.v2-tabbar.has-multirow:not(.tabs-hovered) .v2-multirow-hint-arrow {
+  animation: v2-multirow-hint-blink 2.6s ease-in-out 0.5s forwards;
+}
+
+@keyframes v2-multirow-hint-blink {
+  0%   { opacity: 1; }
+  19%  { opacity: 0.2; }
+  38%  { opacity: 1; }
+  58%  { opacity: 0.2; }
+  77%  { opacity: 1; }   /* fine blink (~2s) */
+  100% { opacity: 0; }   /* poi svanisce */
+}
+
 .v2-tabbar-scroll {
   flex: 1;
+  /* anchor per .v2-multirow-hint → la centra sul content-box (= spazio tabs), non
+     sull'intera bar. Non tocca il "+" (ancorato alla ul, già position:relative). */
+  position: relative;
   /* S7-fix: visible per permettere inline + assoluto di sconfinare nello
      slot riservato topright-dynamic (invisibile in single-row).
      Clipping verticale row 2+ resta gestito da .v2-tabbar (max-height + overflow:hidden). */

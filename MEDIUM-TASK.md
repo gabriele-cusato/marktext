@@ -23,6 +23,8 @@
 | T-ME — Controlli finestra macOS | ✅ implementato | **verifica visiva su Mac pendente** |
 | BUG-1 — Resize tab bar (clipping/re-wrap) | ✅ **RISOLTO e verificato (2026-06-10)** | fix 1d+1e+1f, vedi storico |
 | BUG-2 — (mac) semaforo non centrato | ✅ fix applicato | `trafficLightPosition`, **tarare su Mac** |
+| BUG-3 — (mac) tab single-row più basse del semaforo | ✅ fix applicato (2026-06-12) | shift up + tab più sottili, gated `.is-osx:not(.has-multirow)`, vedi §dedicata |
+| T-ME2 — Hint freccetta "espandibile" multi-row | ✅ implementato (2026-06-12) | chevron blink ~2s poi svanisce, vedi §dedicata |
 
 ## Decisioni utente (LOCKED — non richiedere)
 
@@ -64,6 +66,16 @@
    `config.js` è main → restart `npm run dev`. Formula: `5×tab(88) + 4×gap + ul-pad + topright + buffer [+78 mac]`.
 8. Il check "+" inline (fix 1d) usa `while (row1Count > 1)` → garantisce ≥1 tab in riga 1. Il "+" è absolute
    (fuori flex flow), left calcolato da JS, esiste solo in single-row (in multi-row è nel topright).
+9. **macOS single-row tab shift (BUG-3)** (`.v2-tabbar.is-osx:not(.has-multirow)`): tab alzate
+   (`transform: translateY(-5px)` sulla `ul.v2-tabs`) + più sottili (`height:25px`) per allinearle al
+   semaforo. `transform` scelto APPOSTA = non altera `offsetWidth`/`offsetTop` → wrap intatto; agendo
+   sulla `ul` muove anche il "+" (absolute relativo alla ul). **NON toccare `trafficLightPosition`**
+   (allinea già il multi-row). Gated `is-osx` + `:not(.has-multirow)` → Win/Linux e multi-row invariati.
+10. **Hint freccetta multi-row (T-ME2)** (`.v2-multirow-hint`): l'arrow ha `opacity:0` di BASE ed è
+   load-bearing (anti-flash: tolta l'animazione su hover non deve riapparire mentre il wrapper sfuma).
+   Offset orizzontale `85px = (DYN_SLOT_W 158 + HOVER_BUFFER 12)/2` da tenere in **sync col JS**
+   (invariante 5). Delay `0.5s` SOLO in entrata (= attesa collasso bar) — NON metterlo in uscita.
+   `pointer-events:none` obbligatorio (non interferire con hover-expand/drag).
 
 ---
 
@@ -146,6 +158,45 @@ in multi-row. **Da tarare visivamente su Mac** (main → restart dev). Win/Linux
 
 ---
 
+## Tab bar — rifiniture mac single-row (BUG-3) + hint multi-row (T-ME2) (2026-06-12)
+
+> CSS/template puri in `tabs.vue`, additivi, gated per stato/OS. Nessun JS layout toccato
+> (detection wrap intatta). HMR-only (no restart). Lezioni → §Invarianti 9-10.
+
+**BUG-3 — (mac) tab single-row non allineate col semaforo.** In single-row la `ul.v2-tabs`
+(`align-items:center`, `min-height:40px`) centra la riga → centro tab ~24-25px, **più in basso** del
+semaforo nativo. Quest'ultimo (`trafficLightPosition y=12`) era tarato sulla PRIMA riga MULTI-row,
+dove la `ul` overflowa e la riga 1 sta in alto (~19px) → in multi-row erano già allineate, in
+single-row no. Fix CSS-only gated `.v2-tabbar.is-osx:not(.has-multirow)` (decisione utente: shift
+SOLO sulle tab, ⌘/📂 restano fermi — lieve asimmetria a destra accettata):
+- `ul.v2-tabs { transform: translateY(-5px) }` — alza riga + "+" insieme; `transform` = leva visiva,
+  NON altera `offsetWidth`/`offsetTop` → detection wrap intatta.
+- `.v2-tab { height: 25px }` (da 28) — leggermente più sottili.
+**`trafficLightPosition` NON toccato** (romperebbe l'allineamento multi-row). Win/Linux: `is-osx`
+assente → zero impatto. Tarabili: `translateY(-5px)`, `height:25px`, `top` del semaforo invariato.
+
+**T-ME2 — Hint freccetta "espandibile" multi-row.** Chevron giù che invita a espandere la tab bar
+quando ci sono righe nascoste. Elemento `.v2-multirow-hint` (+ svg `.v2-multirow-hint-arrow`) dentro
+`.v2-tabbar-scroll`. Visibilità 100% via CSS dalle classi `has-multirow`/`tabs-hovered`:
+- Visibile SOLO in `.v2-tabbar.has-multirow:not(.tabs-hovered)` (multi-row collassato).
+- **Due layer anti-conflitto**: wrapper = fade (`transition` opacity); arrow = blink + svanimento
+  (`animation`). Arrow `opacity:0` di BASE → tolta l'animazione (hover/fine) resta invisibile →
+  niente flash (era il bug: senza base 0, l'arrow tornava a opacity 1 mentre il wrapper sfumava).
+- **Sequenza**: bar collassa (`max-height 0.5s`) → delay `0.5s` (su wrapper `transition-delay` in
+  ENTRATA + su `animation-delay`, sincronizzati → appare solo a bar collassata, non durante il
+  collasso) → blink ~2s (keyframe opacity, 2 dip) → fade-out a 0 (`animation-fill-mode: forwards` →
+  resta invisibile). Riparte a ogni ri-collasso. In uscita (espansione) nessun delay → sparisce subito.
+- **Centraggio orizzontale**: dentro lo scroll (= solo tabs) + offset `translateX(calc(-50% + 85px))`
+  per includere la zona clone/"+" (`.v2-topright-dynamic`) ed ESCLUDERE ⌘/📂 (+ controlli finestra su
+  Win). `85 = (DYN_SLOT_W 158 + HOVER_BUFFER 12)/2`, esatto e cross-OS (baseTopRight/leftPad/clientWidth
+  si annullano nel calcolo). ⚠️ Sync JS↔CSS con `updateTabRowsLayout` (invariante 5).
+- Colore `var(--v2-accent)` (= accent della tab clone). `pointer-events:none` → non tocca hover/drag.
+  `.v2-tabbar-scroll { position:relative }` aggiunto come anchor (non tocca il "+", ancorato alla `ul`).
+Tarabili: durata `2.6s` (~0.6s fade finale = salto keyframe 77%→100%), `top: calc(var(--v2-tab-h) − 9px)`,
+delay `0.5s` (×2), offset `85px`.
+
+---
+
 ## Anchor file (ri-grep prima di editare)
 
 | Cosa | File:riga |
@@ -163,6 +214,8 @@ in multi-row. **Da tarare visivamente su Mac** (main → restart dev). Win/Linux
 | `EDITOR_EDIT_ACTION` (template per T-M5) | `store/listenForMain.js:9`; `menu/actions/edit.js:99` |
 | `defaultFileState` / `createDocumentState` | `store/help.js:9,148` |
 | keybindings (conflitti: Ctrl+Shift+B occupato) | `src/main/keyboard/keybindingsWindows.js:102` (+Linux/Darwin) |
+| shift tab mac single-row (BUG-3) | `tabs.vue` style `.v2-tabbar.is-osx:not(.has-multirow) .v2-tabs/.v2-tab` |
+| hint freccetta multi-row (T-ME2) | `tabs.vue` template in `.v2-tabbar-scroll`; style `.v2-multirow-hint*` + `@keyframes v2-multirow-hint-blink` |
 
 ## Fonti (T-M1, CM5 dynamic mode loading)
 - Demo ufficiale lazy-load: https://github.com/codemirror/codemirror5/blob/master/demo/loadmode.html
