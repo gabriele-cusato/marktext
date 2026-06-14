@@ -222,6 +222,8 @@ Legenda stato: ⬜ da fare · 🔧 in corso · ✅ fatto (codice) · 🧪 da tes
 - `dirtySince`/`replaying` (editor.vue) sono il cuore: l'uguaglianza-markdown da sola NON protegge dai push spuri perché Muya ri-serializza (compatta vuoti, doc vuoto→`"\n"`). Tutti i flush Muya (undo/redo/switch) DEVONO essere gated su `dirtySince`. Il lato source non serve gating (CM `setValue`/`getValue` idempotente).
 - Fix C (preservazione righe vuote) è **globale** per scelta: rende parse/serialize fedele e ferma la rimozione silenziosa al salvataggio. ⚠️ eventuali unit test Muya che asseriscono il collasso delle righe vuote ora falliscono (atteso).
 
+**LIMITE NOTO (accettato 2026-06-15) — conteggio righe vuote source↔Muya non 1:1:** un blocco di righe vuote in markdown è *ambiguo* (`riga1\n\n\n\nriga2` = "2 paragrafi distanziati" **o** "riga1 + paragrafo vuoto + riga2" → stessi byte) → nessuna mappa può distinguerli, l'1:1 perfetto è **impossibile** in markdown. Inoltre Muya esporta **2 `\n` per paragrafo vuoto** → la mappa `k=(gap-2)/2` dimezza (3 righe vuote in source → 1 paragrafo vuoto mostrato in Muya). **Nessuna perdita dati:** il round-trip del markdown è preservato (salvando, le 3 righe vuote restano 3 nel file); differisce solo il conteggio *visivo* in Muya. Miglioria possibile ma non risolutiva (export `1 \n`/vuoto + import `k=gap-2` → 3→2, resta −1 per il separatore di paragrafo, e cambia il formato di salvataggio globale) → **scartata**, si accetta il limite.
+
 ---
 
 ## 0. Decisioni utente (LOCKED — non richiedere di nuovo, 2026-06-09)
