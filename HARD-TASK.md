@@ -1716,7 +1716,21 @@ const onInput = (event) => {
 DOPO: rimuovere la riga `search()` (l'assegnazione a `keyword` fa scattare `watch(keyword)`;
 se il valore era già allineato la ricerca è già partita dal watch).
 
-### 7.13 Non procedere alla cieca (decisioni/verifiche prima del codice)
+### 7.14 BUG-CP1 — Command palette non inserisce testo in source mode
+
+Azioni della command palette che inseriscono markdown (es. `# titolo`) non hanno effetto se
+l'editor è in source mode (CodeMirror). Funzionano solo in Muya. Il canale/bus usato probabilmente
+chiama API Muya direttamente ignorando CM.
+
+### 7.15 BUG-CP2 — Switch source↔Muya non ri-renderizza markdown inserito via palette
+
+Se si inserisce testo markdown via command palette in Muya (es. `# ciao`), si passa in source mode
+e si torna in Muya, il testo rimane come stringa letterale invece di essere interpretato. Aggiungere
+uno spazio extra forza il re-parse ma il problema si ripresenta ad ogni successivo switch. Root cause
+probabile: il documento non viene ri-parsato al cambio modalità quando il contenuto non risulta
+"dirty" per il sistema di change detection.
+
+### 7.16 Non procedere alla cieca (decisioni/verifiche prima del codice)
 
 - **B-REV5** (hard-break vs lightTouch): decidere con l'utente PRIMA (vedi §6.1).
 - **B-REV7** (filtro `ASK_FOR_SAVE_ALL`): capire l'intento del filtro attuale prima di toccarlo.

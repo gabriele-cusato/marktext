@@ -811,6 +811,18 @@ watch(hasMultiRow, (newVal) => {
   height: 25px;
 }
 
+/* Win/Linux single-row: rimuove padding verticale sull'ul per permettere ad align-items:center
+   di centrare esattamente le pill nel centro visivo della title bar (y=20px in 40px bar),
+   allineandole ai window controls (.v2-topright h:40px align:center → center y=20px).
+   Tab assottigliate a 23px. transform non necessario: padding-block:0 basta.
+   Gated :not(.is-osx) + :not(.has-multirow) → mac e multi-row invariati. */
+.v2-tabbar:not(.is-osx):not(.has-multirow) .v2-tabs {
+  padding-block: 0;
+}
+.v2-tabbar:not(.is-osx):not(.has-multirow) .v2-tab {
+  height: 28px;
+}
+
 /* B1: in multi-row il topright ospita anche clone tab + "+" + separator.
    B14: padding-right rimosso (gestito inline da JS). Solo durata transition mantenuta
    per sincronia con v2-topright-dynamic. */
@@ -970,8 +982,6 @@ watch(hasMultiRow, (newVal) => {
   color: var(--v2-text);
   font-weight: 500;
   box-shadow: var(--v2-shadow-sm);
-  /* B6: spazio tra barra blu e nome file */
-  padding-top: 3px;
 }
 
 /* B1: badge ↑ usato dalla clone tab nel topright */
@@ -986,7 +996,7 @@ watch(hasMultiRow, (newVal) => {
 .v2-tab-active::before {
   content: '';
   position: absolute;
-  top: 5px;
+  top: 4px;
   left: 50%;
   transform: translateX(-50%);
   width: 20px;
