@@ -107,6 +107,13 @@ import Printer from '@/services/printService'
 import { SpellcheckerLanguageCommand } from '@/commands'
 import { SpellChecker } from '@/spellchecker'
 import { isOsx, animatedScrollTo } from '@/util'
+import {
+  seedUnified,
+  pushUnified,
+  unifiedUndo,
+  unifiedRedo,
+  isUnifiedTarget
+} from '@/store/unifiedHistory'
 import { moveImageToFolder, moveToRelativeFolder, uploadImage } from '@/util/fileSystem'
 import { guessClipboardFilePath } from '@/util/clipboard'
 import { getCssForOptions, getHtmlToc } from '@/util/pdf'
@@ -202,6 +209,15 @@ const { currentFile } = storeToRefs(editorStore)
 
 // Traccia il tab id attualmente caricato in Muya — evita cross-tab dirty su cambio tab rapido.
 const currentMuyaTabId = ref(null)
+// H8 — traccia l'ultimo history.index Muya visto; resettato al cambio tab per evitare push fantasma
+let lastMuyaIndex = -1
+// H8 — anti push-spuri del flush-tail (Muya non è idempotente: il re-parse compatta le righe vuote
+// → getMarkdown ≠ snapshot dopo un replay).
+// replaying: true durante un setMarkdown PROGRAMMATICO (replay/load/switch) → il change risultante
+//   NON è un edit utente (niente dirty, niente push).
+// dirtySince: true se l'utente ha digitato dall'ultimo undo/redo/load → il flush-tail pusha SOLO allora.
+let replaying = false
+let dirtySince = false
 
 // Project store refs
 const { projectTree } = storeToRefs(projectStore)
@@ -480,6 +496,30 @@ watch(currentFile, (value, oldValue) => {
 
 watch(sourceCode, (value, oldValue) => {
   if (value && value !== oldValue) {
+    // H8 #1 — flush del tail di Muya nello stack unificato PRIMA di passare a source (simmetrico del
+    // flush source→Muya). Cattura l'eventuale parola pending non ancora committata a un checkpoint.
+    // Anti-loop: no-op se identica alla cima. Muya resta montato → editor.value valido qui.
+    // Guard: solo view-switch dello STESSO file (Muya tiene davvero questo tab) E solo se l'utente
+    // ha davvero editato (dirtySince). Senza il gate dirtySince, a idx=0 (seed "") il getMarkdown di
+    // un doc vuoto = "\n" ≠ "" → push spurio che TRONCA lo stack (splice) e azzera il redo. Muya
+    // ri-serializza (non idempotente) → l'uguaglianza-markdown non basta come protezione qui.
+    const file = currentFile.value
+    if (
+      editor.value &&
+      file &&
+      currentMuyaTabId.value === file.id &&
+      isUnifiedTarget(file.pathname) &&
+      dirtySince
+    ) {
+      let liveCursor = file.muyaIndexCursor
+      try {
+        liveCursor = editor.value.contentState.getMuyaIndexCursor()
+      } catch (e) {
+        /* cursore stale: tengo il fallback */
+      }
+      pushUnified(file.id, editor.value.getMarkdown(), liveCursor, 'muya-switch-flush')
+      dirtySince = false
+    }
     if (editor.value) {
       editor.value.hideAllFloatTools()
     }
@@ -660,17 +700,72 @@ const replaceMisspelling = ({ word, replacement }) => {
 const handleUndo = () => {
   // B10: in modalità sourceCode CodeMirror gestisce undo via keymap, Muya non ha cursore valido
   if (sourceCode.value) return
-  if (editor.value) {
-    editor.value.undo()
+  if (!editor.value) return
+  if (isUnifiedTarget(currentFile.value?.pathname)) {
+    // Flush tail: cattura l'ultima parola non ancora committata leggendo lo stato LIVE e SINCRONO
+    // dall'editor. NON usare currentFile.markdown: è aggiornato in ritardo da dispatchChange via
+    // setTimeout(0) → tra Ctrl+Z rapidi sarebbe stale e ri-pusherebbe lo stato vecchio, troncando
+    // il ramo redo e bloccando l'undo (barriera). getMarkdown/getMuyaIndexCursor sono sincroni;
+    // pushUnified è idempotente (gate uguaglianza) se lo stato è già in cima.
+    const file = currentFile.value
+    // Flush tail: cattura la parola pending SOLO se l'utente ha digitato dall'ultimo undo/redo/load.
+    // Senza questo guard, dopo un replay il re-parse di Muya compatta le righe vuote → getMarkdown ≠
+    // snapshot → push spurio che tronca lo stack e blocca undo/redo (bug osservato nei log).
+    if (dirtySince) {
+      const liveMd = editor.value.getMarkdown()
+      // getMuyaIndexCursor deref il blocco del cursore: se stale può lanciare (BUG-MUYA-INPUT) → guard.
+      let liveCursor = file.muyaIndexCursor
+      try {
+        liveCursor = editor.value.contentState.getMuyaIndexCursor()
+      } catch (e) {
+        /* cursore stale: tengo il fallback */
+      }
+      pushUnified(file.id, liveMd, liveCursor, 'muya-undo-flush')
+      dirtySince = false
+    }
+    const snap = unifiedUndo(file.id)
+    if (snap) bus.emit('unified-replay', snap)
+    return
   }
+  editor.value.undo()
 }
 
 const handleRedo = () => {
   // B10: stesso motivo di handleUndo
   if (sourceCode.value) return
-  if (editor.value) {
-    editor.value.redo()
+  if (!editor.value) return
+  if (isUnifiedTarget(currentFile.value?.pathname)) {
+    // Stesso guard di handleUndo: pusha il pending solo su edit utente reale (no residuo di replay).
+    const file = currentFile.value
+    if (dirtySince) {
+      const liveMd = editor.value.getMarkdown()
+      let liveCursor = file.muyaIndexCursor
+      try {
+        liveCursor = editor.value.contentState.getMuyaIndexCursor()
+      } catch (e) {
+        /* cursore stale: tengo il fallback */
+      }
+      pushUnified(file.id, liveMd, liveCursor, 'muya-redo-flush')
+      dirtySince = false
+    }
+    const snap = unifiedRedo(file.id)
+    if (snap) bus.emit('unified-replay', snap)
+    return
   }
+  editor.value.redo()
+}
+
+// H8 — applica uno snapshot unified in Muya mode (guardia: solo se Muya attivo)
+const handleUnifiedReplay = ({ markdown, muyaIndexCursor }) => {
+  if (sourceCode.value || !editor.value) return
+  replaying = true
+  editor.value.setMarkdown(markdown, undefined, true, muyaIndexCursor)
+  // setMarkdown rinvia dispatchChange via setTimeout(0); il nostro clear è in coda DOPO → il change
+  // del replay vede replaying=true (niente dirty/push) e poi azzeriamo replaying + dirtySince.
+  setTimeout(() => {
+    replaying = false
+    dirtySince = false
+  }, 0)
 }
 
 const handleSelectAll = () => {
@@ -946,13 +1041,27 @@ const setMarkdownToEditor = ({ id, markdown: newMarkdown, cursor: newCursor }) =
   if (sourceCode.value) return
   // Aggiorna prima del setMarkdown → il listener 'change' usa già l'id corretto.
   if (id) currentMuyaTabId.value = id
+  // H8 — reset lastMuyaIndex al cambio tab per evitare push fantasma al primo change
+  lastMuyaIndex = -1
   if (editor.value) {
+    // H8 — set programmatico: il change risultante non è un edit utente (no dirty/push).
+    replaying = true
     editor.value.clearHistory()
     if (newCursor) {
       editor.value.setMarkdown(newMarkdown, newCursor, true)
     } else {
       editor.value.setMarkdown(newMarkdown)
     }
+    // H8 — seed baseline unificata (idempotente: no-op se la tab ha già una entry).
+    // Cursor non disponibile in formato muyaIndexCursor qui → null (il primo change reale lo aggiornerà).
+    if (id && isUnifiedTarget(currentFile.value?.pathname)) {
+      seedUnified(id, newMarkdown, null)
+    }
+    // clear in coda DOPO il dispatchChange (setTimeout 0) interno di setMarkdown.
+    setTimeout(() => {
+      replaying = false
+      dirtySince = false
+    }, 0)
   }
 }
 
@@ -971,15 +1080,24 @@ const handleFileChange = ({
   if (sourceCode.value) return
   // Aggiorna prima del setMarkdown → il listener 'change' usa già l'id corretto.
   if (id) currentMuyaTabId.value = id
-  const { container } = editor.value
+  // H8 — reset lastMuyaIndex al cambio tab per evitare push fantasma al primo change
+  lastMuyaIndex = -1
 
   if (editor.value) {
+    // B-REV4: deref DOPO il null-check (editor.value può essere null in race di teardown).
+    const { container } = editor.value
+    // H8 — set programmatico (cambio tab / switch da source): il change non è un edit utente.
+    replaying = true
     if (history) {
       editor.value.setHistory(history)
     }
 
     if (typeof newMarkdown === 'string') {
       editor.value.setMarkdown(newMarkdown, newCursor, renderCursor, muyaIndexCursor, blocks)
+      // H8 — seed baseline unificata dopo setMarkdown (idempotente: no-op se già seedata)
+      if (id && isUnifiedTarget(currentFile.value?.pathname)) {
+        seedUnified(id, newMarkdown, muyaIndexCursor ?? null)
+      }
     } else if (newCursor) {
       editor.value.setCursor(newCursor)
     }
@@ -1000,6 +1118,11 @@ const handleFileChange = ({
     if (typeof newMarkdown === 'string') {
       bus.emit('request-search-highlight')
     }
+    // H8 — clear in coda DOPO il dispatchChange interno di setMarkdown (setTimeout 0).
+    setTimeout(() => {
+      replaying = false
+      dirtySince = false
+    }, 0)
   }
 }
 
@@ -1129,6 +1252,8 @@ onMounted(() => {
   // listen for bus events.
   bus.on('file-loaded', setMarkdownToEditor)
   bus.on('invalidate-image-cache', handleInvalidateImageCache)
+  // H8: replay snapshot unified in Muya mode
+  bus.on('unified-replay', handleUnifiedReplay)
   bus.on('undo', handleUndo)
   bus.on('redo', handleRedo)
   bus.on('selectAll', handleSelectAll)
@@ -1170,6 +1295,20 @@ onMounted(() => {
         blocks: editor.value.contentState.getBlocks()
       })
     )
+    // H8 — cattura snapshot unificato Muya a granularità nativa (a-parola via commitPending).
+    // Rileva un nuovo checkpoint Muya confrontando history.index con l'ultimo visto.
+    const muyaTab = currentMuyaTabId.value
+    if (muyaTab && isUnifiedTarget(currentFile.value?.pathname)) {
+      const idx = changes.history?.index ?? -1
+      if (!replaying) {
+        // Edit utente reale (committed o pending) → segna dirty per il flush-tail.
+        dirtySince = true
+        if (idx > lastMuyaIndex) {
+          pushUnified(muyaTab, changes.markdown, changes.muyaIndexCursor, 'muya-change')
+        }
+      }
+      lastMuyaIndex = idx
+    }
   })
 
   editor.value.on('scroll', (scroll) => {
@@ -1277,6 +1416,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   bus.off('file-loaded', setMarkdownToEditor)
   bus.off('invalidate-image-cache', handleInvalidateImageCache)
+  bus.off('unified-replay', handleUnifiedReplay)
   bus.off('undo', handleUndo)
   bus.off('redo', handleRedo)
   bus.off('selectAll', handleSelectAll)

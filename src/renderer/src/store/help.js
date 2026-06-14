@@ -85,7 +85,8 @@ export const getBlankFileState = (
   let untitleId = Math.max(
     ...tabs.map((f) => {
       if (f.pathname === '') {
-        return +f.filename.split('-')[1]
+        // Number(...) || 0 evita NaN se filename non ha il suffisso "-N" (es. "Untitled").
+        return Number(f.filename.split('-')[1]) || 0
       } else {
         return 0
       }

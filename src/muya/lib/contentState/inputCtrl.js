@@ -108,6 +108,14 @@ const inputCtrl = (ContentState) => {
     const block = this.getBlock(key)
     const paragraph = document.querySelector(`#${key}`)
 
+    // Guard difensivo (stesso pattern del null-check start/end sopra): start.key può riferire un
+    // blocco non più esistente — selezione DOM stale dopo switch modalità Muya↔source o rebuild del
+    // content state, poi click+scrittura rapida. getBlock → null → block.text crasherebbe
+    // ("Cannot read properties of null (reading 'text')"). Si scarta l'input stale; il prossimo è valido.
+    if (!block) {
+      return
+    }
+
     // Fix issue 1447
     // Fixme: any better solution?
     if (

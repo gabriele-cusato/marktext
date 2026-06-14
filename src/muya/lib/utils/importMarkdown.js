@@ -412,6 +412,18 @@ const importRegister = (ContentState) => {
         }
 
         case 'space': {
+          // Fix C: ricrea le righe vuote multiple come paragrafi vuoti (round-trip Muya↔source
+          // idempotente, niente rimozione silenziosa al salvataggio). `token.lines` = numero di \n
+          // del gap. L'export produce gap = 2 + 2k newline per k paragrafi vuoti → invertiamo con
+          // k = (lines - 2) / 2. SOLO a top-level (parentList[0] = root): dentro liste/blockquote un
+          // paragrafo vuoto romperebbe la struttura. Se `lines` manca (token vecchio) → comportamento
+          // precedente (nessun paragrafo).
+          if (parentList.length === 1 && token.lines > 2) {
+            const emptyCount = Math.floor((token.lines - 2) / 2)
+            for (let i = 0; i < emptyCount; i++) {
+              this.appendChild(parentList[0], this.createBlockP())
+            }
+          }
           break
         }
 
@@ -526,31 +538,34 @@ const importRegister = (ContentState) => {
       return
     }
     const lines = markdown.split('\n')
-    const anchorText = lines[anchor.line]
-    const focusText = lines[focus.line]
-    if (!anchorText || !focusText) {
-      return {
-        markdown: lines.join('\n'),
-        isValid: false
-      }
-    }
-    if (anchor.line === focus.line) {
-      const minOffset = Math.min(anchor.ch, focus.ch)
-      const maxOffset = Math.max(anchor.ch, focus.ch)
+    // #2-B: clampa riga/colonna al range valido invece di fallire. Dopo una normalizzazione di Muya
+    // (compattazione righe vuote) la `line` salvata nello snapshot di undo può finire FUORI range →
+    // senza clamp il marcatore non viene inserito e il cursore ripiega a inizio documento. Una riga
+    // vuota ('') è una posizione valida (ch=0), quindi non va più trattata come "fallita".
+    // NON mutiamo anchor/focus (appartengono allo snapshot): lavoriamo su copie locali.
+    const clampLine = (n) => Math.max(0, Math.min(n ?? 0, lines.length - 1))
+    const aLine = clampLine(anchor.line)
+    const fLine = clampLine(focus.line)
+    const anchorText = lines[aLine] ?? ''
+    const focusText = lines[fLine] ?? ''
+    const clampCh = (text, ch) => Math.max(0, Math.min(ch ?? 0, text.length))
+    const aCh = clampCh(anchorText, anchor.ch)
+    const fCh = clampCh(focusText, focus.ch)
+    if (aLine === fLine) {
+      const minOffset = Math.min(aCh, fCh)
+      const maxOffset = Math.max(aCh, fCh)
       const firstTextPart = anchorText.substring(0, minOffset)
       const secondTextPart = anchorText.substring(minOffset, maxOffset)
       const thirdTextPart = anchorText.substring(maxOffset)
-      lines[anchor.line] =
+      lines[aLine] =
         firstTextPart +
-        (anchor.ch <= focus.ch ? CURSOR_ANCHOR_DNA : CURSOR_FOCUS_DNA) +
+        (aCh <= fCh ? CURSOR_ANCHOR_DNA : CURSOR_FOCUS_DNA) +
         secondTextPart +
-        (anchor.ch <= focus.ch ? CURSOR_FOCUS_DNA : CURSOR_ANCHOR_DNA) +
+        (aCh <= fCh ? CURSOR_FOCUS_DNA : CURSOR_ANCHOR_DNA) +
         thirdTextPart
     } else {
-      lines[anchor.line] =
-        anchorText.substring(0, anchor.ch) + CURSOR_ANCHOR_DNA + anchorText.substring(anchor.ch)
-      lines[focus.line] =
-        focusText.substring(0, focus.ch) + CURSOR_FOCUS_DNA + focusText.substring(focus.ch)
+      lines[aLine] = anchorText.substring(0, aCh) + CURSOR_ANCHOR_DNA + anchorText.substring(aCh)
+      lines[fLine] = focusText.substring(0, fCh) + CURSOR_FOCUS_DNA + focusText.substring(fCh)
     }
 
     return {
@@ -611,7 +626,15 @@ const importRegister = (ContentState) => {
   ContentState.prototype.importCursor = function (cursor) {
     // set cursor
 
-    if (!cursor) {
+    // FIX-CRASH: un cursore "vuoto ma non-null" (es. {anchor:null, focus:null} restituito da
+    // convertMuyaIndexCursortoCursor quando i marcatori DNA non si possono inserire — cursore su
+    // riga vuota o fuori range nello snapshot di undo unificato) buca un semplice `if (!cursor)`.
+    // Senza anchor/focus né start/end validi il setter `cursor` crea un Cursor con start/end
+    // undefined → getActiveBlocks deref `cursor.start.key` → crash. Lo trattiamo come "no cursore"
+    // e ricostruiamo dal primo blocco (stesso fallback del caso null).
+    const hasAnchorFocus = cursor && cursor.anchor && cursor.focus
+    const hasStartEnd = cursor && cursor.start && cursor.end
+    if (!hasAnchorFocus && !hasStartEnd) {
       cursor = {}
       const firstBlock = this.getFirstBlock()
       const key = firstBlock.key
@@ -619,6 +642,13 @@ const importRegister = (ContentState) => {
       cursor.anchor = { key, offset }
       cursor.focus = { key, offset }
     }
+
+    // BUG-MUYA-UNDO-SWITCH: importCursor è l'UNICO set di cursore "programmatico" (load / tab-switch /
+    // view-switch source↔Muya, via setMarkdown). Senza noHistory il setter `cursor` (contentState/
+    // index.js:163) farebbe un push di history FANTASMA: dopo il rebuild dei blocchi la key del cursore
+    // cambia sempre → i primi Ctrl+Z dopo uno switch non annullano nulla di visibile. noHistory lo evita
+    // (stesso flag che usa l'undo). prevCursor si aggiorna comunque → il primo edit utente reale pusha.
+    cursor.noHistory = true
 
     this.cursor = cursor
   }

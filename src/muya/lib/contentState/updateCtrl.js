@@ -30,6 +30,13 @@ const updateCtrl = (ContentState) => {
     const endOffset = cEnd ? cEnd.offset : focus.offset
     const NO_NEED_TOKEN_REG = /text|hard_line_break|soft_line_break/
 
+    // Guard difensivo (BUG-MUYA-INPUT sito #2, stesso pattern del guard in inputCtrl.inputHandler):
+    // cStart/cEnd.key possono riferire un blocco non più esistente (cursore stale dopo switch modalità
+    // o rebuild). getBlock → null → startBlock.text/endBlock.text crasherebbe. Si scarta il check.
+    if (!startBlock || !endBlock) {
+      return false
+    }
+
     for (const token of tokenizer(startBlock.text, {
       labels,
       options: this.muya.options

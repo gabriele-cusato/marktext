@@ -9,6 +9,9 @@
 // Livello modulo: sopravvive ai remount del componente (ogni cambio tab smonta/rimonta).
 // Se fosse dentro <script setup>, verrebbe ricreato ad ogni mount → history persa ad ogni cambio tab.
 const cmStatePerTab = new Map()
+// Traccia l'undoSize CM dell'ultimo push unificato: risincronizzato ad ogni change (anche replay)
+// così il replay non genera un push fantasma (il gate uguaglianza è il secondo livello di difesa).
+let lastUndoSize = 0
 </script>
 
 <script setup>
@@ -21,6 +24,14 @@ import { debounce, wordCount as getWordCount } from 'muya/lib/utils'
 import { adjustCursor } from '../../util'
 import bus from '../../bus'
 import { oneDarkThemes, railscastsThemes } from '@/config'
+import {
+  seedUnified,
+  pushUnified,
+  unifiedUndo,
+  unifiedRedo,
+  clearUnified,
+  isUnifiedTarget
+} from '@/store/unifiedHistory'
 
 const props = defineProps({
   markdown: {
@@ -165,6 +176,16 @@ const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop, forceR
       if (commitTimer.value) { clearTimeout(commitTimer.value); commitTimer.value = null }
       editor.value.setValue(newMarkdown)
       editor.value.refresh()
+      // setValue NON azzera l'undo di CM5 (vedi BUG-CTRLZ): senza questo Ctrl+Z post-reload
+      // tornerebbe al contenuto pre-reload. Reload da disco = undo riparte pulito (intento doc EASY §104).
+      editor.value.clearHistory()
+      // H8 — azzera + reseed history unificata al reload da disco (Q2)
+      if (isUnifiedTarget(currentTab.value?.pathname)) {
+        clearUnified(id)
+        const s = getMarkdownAndCursor(editor.value)
+        seedUnified(id, s.markdown, s.cursor)
+        lastUndoSize = editor.value.historySize().undo
+      }
       // baseline pulita: il contenuto CM è ora il file su disco (come al caricamento iniziale)
       if (currentTab.value) {
         currentTab.value.isSaved = true
@@ -265,12 +286,25 @@ const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop, forceR
   // ha appena aggiunto, garantendo uno stack undo pulito senza eventi fantasma in cima.
   if (historyToRestore) {
     editor.value.setHistory(historyToRestore)
+  } else {
+    // BUG Ctrl+Z cross-tab: setValue() NON azzera l'undo stack di CM5 (la sostituzione resta
+    // annullabile) → senza questo, Ctrl+Z sulla nuova tab annullerebbe il setValue e mostrerebbe
+    // il contenuto della tab PRECEDENTE. clearHistory dopo il cursore = stack undo pulito e isolato.
+    editor.value.clearHistory()
   }
 
   if (typeof scrollTop === 'number') {
     scrollToCords(scrollTop)
   }
   tabId.value = id
+
+  // H8 — seed baseline unificata allo switch tab in source mode.
+  // seedUnified è idempotente → nessun rischio di azzerare la history di una tab già caricata.
+  if (isUnifiedTarget(currentTab.value?.pathname)) {
+    const s = getMarkdownAndCursor(editor.value)
+    seedUnified(id, s.markdown, s.cursor)
+    lastUndoSize = editor.value.historySize().undo
+  }
 
   // Switch source→source (nessun remount del componente): il setValue qui sopra ha cancellato
   // i mark di ricerca. Chiedi alla sidebar di ri-evidenziare se la ricerca è attiva. Il caso col
@@ -286,13 +320,43 @@ const handleInvalidateImageCache = () => {
 
 // Bug 2: handler undo/redo per modalità sourceCode (CodeMirror)
 const handleUndo = () => {
-  if (editor.value) {
-    editor.value.execCommand('undo')
+  if (!editor.value) return
+  if (isUnifiedTarget(currentTab.value?.pathname)) {
+    // Flush tail: cattura lo stato live se non ancora committato al funnel (debounce 1s)
+    const live = getMarkdownAndCursor(editor.value)
+    pushUnified(tabId.value, live.markdown, live.cursor, 'source-undo-flush')
+    const snap = unifiedUndo(tabId.value)
+    if (snap) bus.emit('unified-replay', snap)
+    return
   }
+  editor.value.execCommand('undo')
 }
 
 const handleRedo = () => {
-  if (editor.value) editor.value.execCommand('redo')
+  if (!editor.value) return
+  if (isUnifiedTarget(currentTab.value?.pathname)) {
+    const live = getMarkdownAndCursor(editor.value)
+    pushUnified(tabId.value, live.markdown, live.cursor, 'source-redo-flush')
+    const snap = unifiedRedo(tabId.value)
+    if (snap) bus.emit('unified-replay', snap)
+    return
+  }
+  editor.value.execCommand('redo')
+}
+
+// Applica uno snapshot unified-undo/redo in source mode (guardia: solo se source attivo)
+const handleUnifiedReplay = ({ markdown, muyaIndexCursor }) => {
+  if (!sourceCode.value || !editor.value) return
+  const cm = editor.value
+  cm.setValue(markdown)
+  if (muyaIndexCursor?.anchor && muyaIndexCursor?.focus) {
+    const lineCount = cm.lineCount()
+    const clampPos = (p) => ({
+      line: Math.max(0, Math.min(p?.line ?? 0, lineCount - 1)),
+      ch: Math.max(0, Math.min(p?.ch ?? 0, cm.getLine(Math.max(0, Math.min(p?.line ?? 0, lineCount - 1))).length))
+    })
+    cm.setSelection(clampPos(muyaIndexCursor.anchor), clampPos(muyaIndexCursor.focus))
+  }
 }
 
 // Trasforma il case della selezione corrente in CodeMirror
@@ -313,7 +377,7 @@ const handleToLowerCase = () => {
 // dallo store causano false-dirty su ogni click cursore dopo il salvataggio.
 const normalizeMarkdown = (md, trimOption) => {
   if (!md) return ''
-  const trimEnd = (s) => s.replace(/[\r?\n]+$/, '')
+  const trimEnd = (s) => s.replace(/[\r\n]+$/, '')
   if (trimOption === 0) return trimEnd(md)
   if (trimOption === 1) {
     if (md[md.length - 1] === '\n') {
@@ -683,6 +747,8 @@ onMounted(() => {
   bus.on('file-changed', handleFileChange)
   bus.on('selectAll', handleSelectAll)
   bus.on('image-action', handleImageAction)
+  // H8: replay di uno snapshot unified in source mode
+  bus.on('unified-replay', handleUnifiedReplay)
   // Bug 2: Ctrl+Z/Y intercettato da menu Electron, bus.emit('undo'/'redo') arriva qui
   // ma editor.vue handleUndo/handleRedo escono in sourceCode mode → instradiamo a CodeMirror
   bus.on('undo', handleUndo)
@@ -728,6 +794,17 @@ onMounted(() => {
   codeMirrorInstance.on('change', (cm, change) => {
     if (change.origin === '+input' && /[\s.,;:!?]/.test(change.text.join('\n'))) {
       cm.doc.history.lastModTime = 0
+    }
+    // H8 — cattura snapshot unificato a granularità nativa CM (a-parola, grazie al reset lastModTime).
+    // Rileva un nuovo passo undo creato da CM confrontando historySize().undo con l'ultimo noto.
+    if (isUnifiedTarget(currentTab.value?.pathname)) {
+      const size = cm.historySize().undo
+      if (size > lastUndoSize) {
+        const { cursor, markdown } = getMarkdownAndCursor(cm)
+        pushUnified(tabId.value, markdown, cursor, 'source-change')
+      }
+      // Risincronizza SEMPRE (anche su replay/setValue) per evitare falsi positivi al prossimo change
+      lastUndoSize = cm.historySize().undo
     }
   })
 
@@ -776,6 +853,14 @@ onMounted(() => {
 
   editor.value = codeMirrorInstance
   tabId.value = id
+
+  // H8 — seed baseline unificata al mount (prima visita alla tab).
+  // seedUnified è idempotente: no-op se la tab ha già una entry (non sovrascrive history esistente).
+  if (isUnifiedTarget(currentTab.value?.pathname)) {
+    const s = getMarkdownAndCursor(codeMirrorInstance)
+    seedUnified(id, s.markdown, s.cursor)
+    lastUndoSize = codeMirrorInstance.historySize().undo
+  }
 
   // P-DF8-8: fix tiny line + click-shift via setTimeout(150ms).
   // Doppio rAF non basta: layout + flex computations richiedono più tempo a settle.
@@ -836,6 +921,7 @@ onBeforeUnmount(() => {
   bus.off('file-changed', handleFileChange)
   bus.off('selectAll', handleSelectAll)
   bus.off('image-action', handleImageAction)
+  bus.off('unified-replay', handleUnifiedReplay)
   bus.off('undo', handleUndo)
   bus.off('redo', handleRedo)
   bus.off('toUpperCase', handleToUpperCase)
@@ -853,6 +939,13 @@ onBeforeUnmount(() => {
   // il currentFile già caricato in Muya — causerebbe contenuto/history cross-tab.
   if (tabId.value && currentTab.value?.id === tabId.value) {
     const { cursor, markdown: newMarkdown } = getMarkdownAndCursor(editor.value)
+    // H8 #1 — flush del tail di source nello stack unificato PRIMA di passare a Muya. La cattura
+    // source pusha solo ai boundary di parola di CM → l'ultima parola digitata senza spazio finale
+    // (es. "gamma") può non essere nello stack. Senza questo, il redo si fermerebbe a metà parola.
+    // Anti-loop: no-op se identica alla cima.
+    if (isUnifiedTarget(currentTab.value?.pathname)) {
+      pushUnified(tabId.value, newMarkdown, cursor, 'source-switch-flush')
+    }
     bus.emit('file-changed', {
       id: tabId.value,
       markdown: newMarkdown,

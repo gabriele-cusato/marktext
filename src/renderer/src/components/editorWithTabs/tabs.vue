@@ -338,7 +338,10 @@ const winMaximize = () => {
 }
 
 const winClose = () => {
-  window.electron.ipcRenderer.send('mt::close-window')
+  // BUG-WINCLOSE: la X custom mandava 'mt::close-window' (forceClose immediato) → scartava le
+  // modifiche non salvate senza chiedere. 'mt::cmd-close-window' fa win.close() → win.on('close')
+  // → 'mt::ask-for-close' → LISTEN_FOR_CLOSE → dialog "salvare?" (stesso flusso della X nativa).
+  window.electron.ipcRenderer.send('mt::cmd-close-window')
 }
 
 const onWinMaximize = () => { isMaximized.value = true }

@@ -101,7 +101,7 @@ Per `type==='file'` il watcher NON filtra per estensione (B2); il filtro markdow
 
 **`loadChange`**: rimpiazza lo stato col disco; `isSaved=true`+`justLoaded=Date.now()` (B11); ricarica l'editor solo
 se currentFile, con **`forceReload:true`**. **`forceReload`** (`sourceCode.vue`): `id===tabId.value && forceReload` →
-`setValue`+`refresh` (altrimenti l'early-return same-tab salterebbe il reload, B11; `setValue` resetta la history undo, atteso).
+`setValue`+`refresh`+`clearHistory` (altrimenti l'early-return same-tab salterebbe il reload, B11; ⚠️ **`setValue` NON resetta l'undo CM5** — verificato su `codemirror.js:6238`, aggiunge un change annullabile → serve `clearHistory()` esplicito dopo il reload, vedi BUG-CTRLZ in HARD-TASK §TESTING).
 
 **Dialog reload** (`fileChangedDialog.vue`, box v2, NON `el-dialog`, in `editorWithTabs/index.vue`): bus
 `file-changed-externally`, non-modale, click-fuori/ESC/Annulla=annulla. `onClosed`: confermato→`loadChange`;

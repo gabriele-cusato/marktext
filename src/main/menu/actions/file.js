@@ -137,7 +137,7 @@ const handleResponseForSave = async (e, id, filename, pathname, markdown, option
 
   // Save dialog canceled by user - no error, but notify renderer to clear spinner.
   if (!filePath) {
-    win.webContents.send('mt::tab-saved', id)
+    win.webContents.send('mt::tab-saved', id, true)
     return Promise.resolve()
   }
 
@@ -316,7 +316,7 @@ ipcMain.on(
         })
     } else {
       // User canceled save dialog - notify renderer to clear spinner
-      win.webContents.send('mt::tab-saved', id)
+      win.webContents.send('mt::tab-saved', id, true)
     }
   }
 )
@@ -343,8 +343,28 @@ ipcMain.on('mt::close-window-confirm', async (e, unsavedFiles) => {
         )
       )
     )
-      .then(() => {
-        ipcMain.emit('window-close-by-id', win.id)
+      .then((results) => {
+        // B-REV9: handleResponseForSave risolve con `id` in successo e `undefined` su errore
+        // (non rigetta mai → il .catch sotto da solo non scatterebbe). Chiudi SOLO se tutti salvati.
+        const okCount = results.filter((id) => id != null).length
+        if (okCount === unsavedFiles.length) {
+          ipcMain.emit('window-close-by-id', win.id)
+          return
+        }
+        // Almeno un salvataggio è fallito (disco pieno, readonly, path di rete caduto):
+        // ora il dialog di recupero è raggiungibile. Non chiudere se l'utente sceglie "keep open".
+        dialog
+          .showMessageBox(win, {
+            type: 'error',
+            buttons: [t('dialog.close'), t('dialog.keepOpen')],
+            message: t('dialog.saveFailure'),
+            detail: t('dialog.changesWillBeLost')
+          })
+          .then(({ response }) => {
+            if (win.id && response === 0) {
+              ipcMain.emit('window-close-by-id', win.id)
+            }
+          })
       })
       .catch((err) => {
         log.error('Error while saving before quit:', err)

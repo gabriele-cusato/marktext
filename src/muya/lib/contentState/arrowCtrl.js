@@ -134,7 +134,8 @@ const arrowCtrl = (ContentState) => {
       event.stopPropagation()
 
       const sel = window.getSelection()
-      if (!sel) return
+      // rangeCount === 0 → sel.extend() lancerebbe. getSelection() non è mai null.
+      if (!sel || sel.rangeCount === 0) return
 
       if (event.key === EVENT_KEYS.ArrowUp) {
         const prevBlock = this.findPreBlockInLocation(focusBlock)

@@ -121,7 +121,7 @@ export const guessEncoding = async (buffer, autoGuessEncoding) => {
         if (CED_ICONV_ENCODINGS[raw]) {
           encoding = CED_ICONV_ENCODINGS[raw]
         } else {
-          encoding = raw.toLowerCase().replace(/-_/g, '')
+          encoding = raw.toLowerCase().replace(/[-_]/g, '')
         }
 
         // ced riporta ASCII per file piccoli anche quando ci sono byte > 0x7F

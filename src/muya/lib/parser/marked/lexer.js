@@ -114,8 +114,11 @@ Lexer.prototype.token = function (src, top, prevListIsOrdered = null) {
     if (cap) {
       src = src.substring(cap[0].length)
       if (cap[0].length > 1) {
+        // Fix C: conserva il NUMERO di \n del gap (oggi scartato) così markdownToState può
+        // ricreare i paragrafi vuoti per le righe vuote multiple. Campo additivo: nessun altro lo legge.
         this.tokens.push({
-          type: 'space'
+          type: 'space',
+          lines: cap[0].length
         })
       }
     }

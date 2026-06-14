@@ -34,7 +34,7 @@
 - **`sideBarMenuItem`**: NON rimuovere l'oggetto MenuItem (4 call-site fanno `getMenuItemById(...).checked` → crash). Solo `visible:false`.
 - **Sidebar dentro `editor-row`** (`editorWithTabs/index.vue`): deve restare `height:100%` (NON `100vh`), senza `padding-top:40px`; sta a destra (renderizzata dopo `.container`), drag-bar `left:0`, resize invertito.
 - **Match tab nella ricerca**: usare `tabId` (le tab Untitled non hanno `pathname`).
-- **Jump same-tab source**: solo `setSelection` (MAI `setValue` → azzera l'undo). **Same-tab Muya**: nessun emit `file-changed` (un `importMarkdown` ricollasserebbe le blank line).
+- **Jump same-tab source**: solo `setSelection` (MAI `setValue`: aggiungerebbe un change annullabile spurio nello stack undo — ⚠️ NB: `setValue` **NON** azzera l'undo CM5, vedi BUG-CTRLZ in HARD-TASK). **Same-tab Muya**: nessun emit `file-changed` (un `importMarkdown` ricollasserebbe le blank line).
 - **Switch a tab Muya**: NON passare un cursore formato CodeMirror (`{line,ch}` senza `.key` → crash `findOutMostBlock` in `render()`). `setBlocks` ripristina il DOM esatto (blank line salve). Vedi `isMarkdownPath`.
 - **Highlight in Muya**: usare SOLO `editor.value.highlightSearch(value, opt, preserveCursor)` (`highlightOnly:true`). MAI `editor.value.search()` → dirotta il tasto Invio.
 - **`request-search-highlight`**: deve essere emesso da ENTRAMBI gli editor quando ricaricano contenuto (mount source + `handleFileChange` di `editor.vue` e `sourceCode.vue`), altrimenti l'highlight si perde al cambio tab.
@@ -91,7 +91,7 @@
 | Bug | Causa | Fix (file) |
 |---|---|---|
 | T1 highlight su lettere interne | addon senza `wordsOnly` | `wordsOnly:true` (`sourceCode.vue`) |
-| T5 perdita contenuto al toggle | `cmStatePerTab` ripristinava snapshot stale vs store | se `snapshot.content !== store.markdown` carica lo store (history azzerata); altrimenti ripristina snapshot+history (`sourceCode.vue`) |
+| T5 perdita contenuto al toggle | `cmStatePerTab` ripristinava snapshot stale vs store | se `snapshot.content !== store.markdown` carica lo store + **`clearHistory()` esplicito** (⚠️ `setValue` NON azzera l'undo CM5, vedi BUG-CTRLZ in HARD-TASK); altrimenti ripristina snapshot+history (`sourceCode.vue`) |
 | T5 bottone non disabilitato su non-md | mancava guard estensione | computed `canToggleMode` + guard in `toggleSourceMode` (`statusBar/index.vue`) |
 | Sidebar invisibile con `showSideBar=true` | `.side-bar{display:none !important}` v2 vinceva sul `v-show` | regola rimossa (`v2-tokens.css`) |
 | Sidebar a sinistra | `<side-bar>` prima di `.container` | spostata dopo; border-left, drag-bar left, resize invertito |

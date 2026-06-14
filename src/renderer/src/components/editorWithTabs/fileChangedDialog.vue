@@ -61,6 +61,12 @@ const message = computed(() =>
 )
 
 const handleExternalChange = ({ change, filename: name, hasUnsavedChanges }) => {
+  // B-REV12: un nuovo evento esterno durante il fade-out (220ms) deve annullare il timer pendente,
+  // altrimenti il timer scatta dopo e auto-tratta il NUOVO change come "Annulla" senza mostrarlo.
+  if (closeTimer) {
+    clearTimeout(closeTimer)
+    closeTimer = null
+  }
   pendingChange = change
   filename.value = name
   hasUnsaved.value = hasUnsavedChanges

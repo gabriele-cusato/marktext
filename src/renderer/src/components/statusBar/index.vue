@@ -122,6 +122,7 @@ import { useEditorStore } from '@/store/editor'
 import { usePreferencesStore } from '@/store/preferences'
 import { ENCODING_NAME_MAP } from 'common/encoding'
 import bus from '@/bus'
+import { isMarkdownPath } from '@/util'
 
 const editorStore = useEditorStore()
 const preferencesStore = usePreferencesStore()
@@ -159,12 +160,9 @@ const wordWrap = computed(() => {
 // Bottone Source attivo solo per untitled + file markdown. Per altre estensioni
 // (.js, .txt…) _applySourceCodeForFile (editor.js) forza già sourceCode=true → qui
 // disabilitiamo il bottone (come Wrap in markdown mode). Stessa regola estensione di editor.js.
-const canToggleMode = computed(() => {
-  const pathname = currentFile.value?.pathname
-  if (!pathname) return true // file untitled → toggle permesso
-  const ext = (window.path.extname(pathname) || '').toLowerCase()
-  return ext === '' || ['.md', '.markdown', '.mdown', '.mkd', '.mkdn', '.mdwn'].includes(ext)
-})
+// M-REV11: usa isMarkdownPath (fonte di verità unica in util/index.js) invece di
+// duplicare la lista estensioni — così il bottone non diverge se la lista cambia là.
+const canToggleMode = computed(() => isMarkdownPath(currentFile.value?.pathname || ''))
 
 const toggleSourceMode = () => {
   if (!canToggleMode.value) return

@@ -1,6 +1,7 @@
 import equal from 'deep-equal'
 import bus from '../bus'
 import { hasKeys, getUniqueId, deepClone, isMarkdownPath } from '../util'
+import { clearUnified } from './unifiedHistory'
 import listToTree from '../util/listToTree'
 import {
   createDocumentState,
@@ -38,6 +39,9 @@ export const useEditorStore = defineStore('editor', {
   state: () => ({
     currentFile: {},
     tabs: [],
+    // P-REV3: bump O(1) ad ogni content-change; il content-watcher della sidebar osserva questo
+    // invece di concatenare tutti i tab.markdown ad ogni keystroke.
+    contentVersion: 0,
     listToc: [], // Used for equal check and for searching for the correct github-slug to jump to
     toc: [],
     isSaving: false, // Tracks when a manual save is in progress
@@ -192,6 +196,10 @@ export const useEditorStore = defineStore('editor', {
         // save current state first
         this.currentFile = tab
         const { id, cursor, history, scrollTop } = tab // Should not use blocks history as this is loaded from disk
+        // H8 — azzera la pila unificata al reload da disco (Q2); source mode reseed avviene in
+        // sourceCode.vue forceReload branch (serve anche per lastUndoSize reset); Muya seedUnified
+        // avviene in editor.vue handleFileChange dopo setMarkdown.
+        clearUnified(id)
         bus.emit('file-changed', {
           id,
           markdown,
@@ -363,6 +371,10 @@ export const useEditorStore = defineStore('editor', {
       const defaultPath = getRootFolderFromState(projectStore)
 
       if (id) {
+        // Registra cosa stiamo per scrivere: così il race-check in mt::set-pathname
+        // aggiorna la baseline col contenuto realmente salvato, non con quello corrente
+        // (che potrebbe includere modifiche fatte mentre il dialog Save As era aperto).
+        pendingSavedMarkdown.set(id, markdown)
         // Show save spinner for manual saves
         this._saveStartTime = Date.now()
         this.isSaving = true
@@ -451,7 +463,14 @@ export const useEditorStore = defineStore('editor', {
         this._clearSavingSpinner()
       })
 
-      window.electron.ipcRenderer.on('mt::tab-saved', (_, tabId) => {
+      window.electron.ipcRenderer.on('mt::tab-saved', (_, tabId, canceled) => {
+        // Save As / save annullato dall'utente: nessuna scrittura su disco.
+        // Scarta il record pending e lascia la tab nello stato in cui era (no falso "salvato").
+        if (canceled) {
+          pendingSavedMarkdown.delete(tabId)
+          this._clearSavingSpinner()
+          return
+        }
         const tab = this.tabs.find((f) => f.id === tabId)
         if (tab) {
           const savedMarkdown = pendingSavedMarkdown.get(tabId)
@@ -517,6 +536,9 @@ export const useEditorStore = defineStore('editor', {
       const projectStore = useProjectStore()
       const preferencesStore = usePreferencesStore()
       window.electron.ipcRenderer.on('mt::ask-for-close', () => {
+        // B-REV3: flush sincrono del contenuto source (commit debounced ~1s) prima di leggere
+        // tab.markdown, altrimenti chiudendo entro 1s dall'ultima battuta si salva una versione vecchia.
+        bus.emit('pre-save')
         const { lightTouch } = preferencesStore
         const unsavedFiles = this.tabs
           .filter((file) => !file.isSaved)
@@ -556,6 +578,8 @@ export const useEditorStore = defineStore('editor', {
     },
 
     ASK_FOR_SAVE_ALL(closeTabs) {
+      // B-REV3: flush sincrono (source debounced) prima di raccogliere tab.markdown.
+      bus.emit('pre-save')
       const { tabs } = this
       const projectStore = useProjectStore()
       const preferencesStore = usePreferencesStore()
@@ -873,6 +897,8 @@ export const useEditorStore = defineStore('editor', {
         clearTimeout(timer)
         autoSaveTimers.delete(file.id)
       }
+      // H8 — cleanup simmetrico: rimuovi la pila undo unificata alla chiusura della tab
+      clearUnified(file.id)
 
       if (file.id === currentFile.id) {
         const fileState = this.tabs[index] || this.tabs[index - 1] || this.tabs[0] || {}
@@ -909,6 +935,8 @@ export const useEditorStore = defineStore('editor', {
     },
 
     CLOSE_UNSAVED_TAB(file) {
+      // B-REV3: flush sincrono (source debounced) prima di leggere file.markdown.
+      bus.emit('pre-save')
       const { id, pathname, filename, markdown } = file
       const options = getOptionsFromState(file)
       window.electron.ipcRenderer.send('mt::save-and-close-tabs', [
@@ -1198,6 +1226,9 @@ export const useEditorStore = defineStore('editor', {
       toc,
       blocks
     }) {
+      // P-REV3: incrementa la versione contenuto (O(1)) → il content-watcher della sidebar reagisce
+      // a questo invece di ricostruire la concatenazione di tutti i tab.markdown ad ogni change.
+      this.contentVersion++
       const preferencesStore = usePreferencesStore()
       const { autoSave } = preferencesStore
       const LOAD_SETTLE_MS = 400
@@ -1463,7 +1494,9 @@ export const useEditorStore = defineStore('editor', {
         const { trimTrailingNewline } = this.currentFile
         if (trimTrailingNewline !== value) {
           this.currentFile.trimTrailingNewline = value
-          this.currentFile.isSaved = true
+          // Coerente con SET_LINE_ENDING e set-encoding (N14): cambiare l'opzione
+          // non equivale a salvare → la tab resta dirty.
+          this.currentFile.isSaved = false
         }
       })
     },
@@ -1671,7 +1704,7 @@ const adjustTrailingNewlines = (markdown, trimTrailingNewlineOption) => {
  * @param {string} text The text to trim.
  */
 const trimTrailingNewlines = (text) => {
-  return text.replace(/[\r?\n]+$/, '')
+  return text.replace(/[\r\n]+$/, '')
 }
 
 /**
@@ -1859,6 +1892,15 @@ const getMarkdownForSave = (currentMarkdown, originalMarkdown, lightTouch) => {
   // If semantically identical, use original entirely (preserves all whitespace)
   if (normalizedCurrent === normalizedOriginal) {
     return originalMarkdown
+  }
+
+  // P-REV1: mergeWithOriginal usa LCS O(n×m) con matrice piena → su file grandi (anche ad ogni
+  // autosave) freezerebbe il renderer. Sopra soglia degrada con grazia: salva il rigenerato
+  // (formattazione non preservata, contenuto sì).
+  const totalLines =
+    (currentMarkdown.match(/\n/g) || []).length + (originalMarkdown.match(/\n/g) || []).length
+  if (totalLines > 3000) {
+    return currentMarkdown
   }
 
   // Changes were made - merge to preserve unchanged lines

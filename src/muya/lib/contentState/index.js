@@ -220,6 +220,15 @@ class ContentState {
     const { start, end } = this.cursor
     const startBlock = this.getBlock(start.key)
     const endBlock = this.getBlock(end.key)
+
+    // Guard difensivo (BUG-MUYA-INPUT sito #3, path undo): se il cursore (da snapshot history) punta a
+    // un blocco non più esistente, getBlock → null → findOutMostBlock(null) → block.parent crasherebbe.
+    // Fallback: renderRange [null,null] = full render (è il default di init, sicuro).
+    if (!startBlock || !endBlock) {
+      this.renderRange = [null, null]
+      return
+    }
+
     const startOutMostBlock = this.findOutMostBlock(startBlock)
     const endOutMostBlock = this.findOutMostBlock(endBlock)
 
