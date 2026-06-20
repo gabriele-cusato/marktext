@@ -221,7 +221,14 @@ class Watcher {
           change(win, pathname, type, eol, autoGuessEncoding, trimTrailingNewline)
         }
       })
-      .on('unlink', (pathname) => unlink(win, pathname, type))
+      .on('unlink', (pathname) => {
+        // R7 atomic save (temp-file + rename) cancella brevemente l'originale prima del rename
+        // → chokidar emette 'unlink'. Se un salvataggio è appena avvenuto per questo path, NON
+        // è una rimozione reale → sopprimi il falso "removed from disk". Peek (no-consume): la
+        // entry resta valida per il successivo 'add', gestito da _shouldIgnoreEvent.
+        if (type === 'file' && this._isPendingIgnore(win.id, pathname)) return
+        unlink(win, pathname, type)
+      })
       .on('addDir', (pathname) => addDir(win, pathname, type))
       .on('unlinkDir', (pathname) => unlinkDir(win, pathname, type))
       .on('raw', (event, subpath, details) => {
@@ -345,6 +352,26 @@ class Watcher {
     duration = WATCHER_STABILITY_THRESHOLD + WATCHER_STABILITY_POLL_INTERVAL * 2
   ) {
     this._ignoreChangeEvents.push({ windowId, pathname, duration, start: new Date() })
+  }
+
+  /**
+   * Peek (non-consuming) se esiste una richiesta di ignore ancora valida per questo file/finestra.
+   * Usato dall'handler 'unlink' per sopprimere il falso evento generato dal rename atomico (R7)
+   * senza consumare la entry (che deve restare per il successivo 'add'). Pulisce solo le scadute.
+   *
+   * @param {number} winId
+   * @param {string} pathname
+   * @returns {boolean}
+   */
+  _isPendingIgnore(winId, pathname) {
+    const now = new Date()
+    // Rimuovi le entry scadute per evitare accumulo (le valide restano per add/change).
+    this._ignoreChangeEvents = this._ignoreChangeEvents.filter(
+      (e) => now - e.start < e.duration
+    )
+    return this._ignoreChangeEvents.some(
+      (e) => e.windowId === winId && e.pathname === pathname
+    )
   }
 
   /**

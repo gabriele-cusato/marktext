@@ -1,4 +1,4 @@
-import { readlinkSync, outputFile } from 'fs-extra'
+import { readlinkSync, outputFile, move, remove } from 'fs-extra'
 import path from 'path'
 import { isDirectory, isFile, isSymbolicLink } from 'common/filesystem'
 
@@ -28,5 +28,15 @@ export const writeFile = (pathname, content, extension, options = 'utf-8') => {
   }
   pathname = !extension || pathname.endsWith(extension) ? pathname : `${pathname}${extension}`
 
-  return outputFile(pathname, content, options)
+  // R7: atomic write via temp-file + rename. Prevents file corruption on crash/power-loss.
+  // outputFile writes the temp file (creates parent dirs if needed), then move renames it
+  // atomically on the same volume. On network volumes rename may not be atomic — acceptable
+  // (best effort). The watcher ignores the final rename event via ignoreChangedEvent.
+  const tmpPath = `${pathname}.tmp`
+  return outputFile(tmpPath, content, options)
+    .then(() => move(tmpPath, pathname, { overwrite: true }))
+    .catch((err) => {
+      remove(tmpPath).catch(() => {})
+      throw err
+    })
 }

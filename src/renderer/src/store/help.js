@@ -39,7 +39,13 @@ export const defaultFileState = {
     value: ''
   },
   // Per tab notifications
-  notifications: []
+  notifications: [],
+  // M-REV7: explicit shape for dynamically-added properties (Vue3 proxy-reactive but invisible
+  // in help.js without these defaults → misleads readers and tools about the real tab shape).
+  justLoaded: 0,
+  pendingExternalChange: null,
+  // H4: tab pinnata (protetta da close-others/close-all, rimane sempre in prima posizione).
+  pinned: false
 }
 
 export const getOptionsFromState = (file) => {

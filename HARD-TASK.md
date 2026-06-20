@@ -12,78 +12,138 @@
 
 ---
 
+## PUNTO DELLA SITUAZIONE (2026-06-20)
+
+**Fatto (codice):** tutti i micro-fix §7 + refactor M-REV; H8 (undo unificato, verificato runtime);
+H4 Pin tab (logica + revisione cosmetica); BUG-CP1 + CP1b (markdown reale in source); BUG-SAVE-UNLINK
+(falso "removed from disk" al save); ITEM-PERF-WARN (avviso "troppe tab"); R1/R4/R5/R7; R2 **rivisto**
+(cap undo rimosso → history piena in sessione). Dettagli implementativi: sezione TESTING → "Sessione 2026-06-20".
+
+**Rimane da fare (in ordine di peso):**
+- 🔶 **H2-a/b/c** — ripristino sessione stile Notepad++ (draft in `userData` + restore + chiusura silenziosa).
+  **Piano pronto in §H2, codice NON iniziato** — è il task grande/rischioso, prossimo step. Finché non c'è,
+  il popup di chiusura resta (toglierlo = perdita dati).
+- 🔶 **H5-1 / H5-2** — detach tab fuori finestra (context menu + drag-out). OPUS, non iniziato.
+- **H3** — `Ctrl+K C/U` commenta per linguaggio. Bloccato: serve T-M1 (`MEDIUM-TASK.md`) + permesso.
+- **BUG-CP2** — switch source↔Muya non ri-renderizza md inserito via palette. Serve REPRO runtime.
+
+**Minori / da testare:** bug unpin (tab non torna a posizione originale, accettato); B-REV5 (hard-break 2 spazi,
+test rimandato); B-REV11 (accelerator duplicati, serve runtime); M-REV10 (resync drag, serve test);
+BUILD-1 (patch-package, serve npm). Vari ✅ 🧪 da spot-check runtime (vedi colonna Stato).
+
+---
+
 ## STATO TASK (aggiornato ad ogni task completato)
 
 Legenda stato: ⬜ da fare · 🔧 in corso · ✅ fatto (codice) · 🧪 da testare a runtime · ⏸️ bloccato (serve decisione/verifica runtime) · ❌ scartato · ✔️ già ok (nessun lavoro)
 
-**Completamento: 22 / 52 task attivi (42%)** — escludono H6 (scartato), H7/R6/R8/R9/R10/S-REV1 (note o già ok). H8 (undo unificato) ✅ verificato runtime 2026-06-15.
+**Completamento PESATO: 83 / 127 pt (≈65%)** — peso per sforzo (1 pt ≈ 0,8% del totale; colonna *Peso* in tabella, somma attiva = 127 pt). Conteggio semplice task: 35/52 (67%). Aggiornato 2026-06-20 (sessione 2). Escludono dal peso H6 (scartato), H7/R6/R8/R9/R10/S-REV1/M-REV14 (note o già ok), R3 (= P-REV3) e DESIGN-HISTORY-SPLIT (= H8) per non doppiare. H8 (undo unificato) ✅ verificato runtime 2026-06-15. **Legenda pesi + validazione decisioni sul codice: blocco sotto la tabella (2026-06-20).**
 
 > Stato `✅ ✔️` = codice fatto **e verificato runtime OK** · `✅ 🧪` = codice fatto, verifica runtime puntuale non ancora fatta (vedi sezione TESTING).
 
-| ID | Task | Stato |
-|----|------|-------|
-| BUG-1 | Fix wrap tab bar (§1) | ⬜ |
-| H1 | Multi-selez additiva Ctrl (source) | ⬜ |
-| H2-a | Draft storage userData | ⬜ |
-| H2-b | Session restore | ⬜ |
-| H2-c | Chiusura silenziosa finestra | ⏸️ (dopo a+b) |
-| H3 | Ctrl+K C/U commenta (source) | ⏸️ (serve T-M1) |
-| H4 | Pin tab | ⬜ |
-| H5-1 | Detach via context menu | ⬜ |
-| H5-2 | Detach via drag-out | ⏸️ (dopo H5-1) |
-| H5-3 | Ghost window | ❌ rimandato |
-| H8 | Undo/redo unificato Muya↔source (opzione B) | ✅ ✔️ (verificato runtime 2026-06-15; 6 file. Iterazione bug runtime → sezione TESTING Batch H8) |
-| H6 | Undo persistente | ❌ scartato |
-| H7 | Numeri di riga | ✔️ già ok |
-| R1 | Muya undo depth dinamico | ⬜ |
-| R2 | Cap LRU cmStatePerTab + undoDepth 1000 | ⬜ |
-| R3 | Debounce content-watcher sidebar | ✅ ✔️ (= P-REV3) |
-| R4 | Degradare opzioni CM file enormi | ⬜ |
-| R5 | Clamp minWidth a workArea | ⬜ |
-| R6 | Smoke test mac/Linux/DPI | ✔️ solo test |
-| R7 | Write atomico (temp+rename) | ⬜ |
-| R8 | Watcher cloud/rete | ✔️ già ok |
-| R9 | Encoding/EOL edge | ✔️ doc |
-| R10 | Minori | ✔️ nessuna azione |
-| BUILD-1 | patch-package setup | ⏸️ (serve npm) |
-| B-REV1 | Regex `[\r?\n]` ×2 | ✅ ✔️ |
-| B-REV2 | final-newline isSaved=false | ✅ ✔️ |
-| B-REV3 | pre-save nei 3 path chiusura | ✅ 🧪 |
-| B-REV4 | guard-order editor.vue | ✅ 🧪 |
-| B-REV5 | hard-break vs lightTouch | ⏸️ (decisione utente) |
-| B-REV6 | baseline Save As | ✅ ✔️ |
-| B-REV7 | filtro Save All | ⏸️ (verifica intento) |
-| B-REV8 | Untitled-NaN guard | ✅ 🧪 |
-| B-REV9 | chiusura su save fallito | ✅ ✔️ |
-| B-REV10 | extend() guard rangeCount | ✅ 🧪 |
-| B-REV11 | accelerator duplicati | ⏸️ (serve runtime R-6) |
-| B-REV12 | race fileChangedDialog | ✅ ✔️ |
-| BUG-CTRLZ | Ctrl+Z cross-tab (setValue non azzera undo) | ✅ ✔️ (switch + forceReload) |
-| BUG-WINCLOSE | X custom finestra scartava modifiche (forceClose) | ✅ ✔️ |
-| BUG-MUYA-INPUT | Muya cursore stale → getBlock null (sistemico, 3 siti) | ✅ ✔️ (3/3 guard, #1 testato) |
-| BUG-MUYA-UNDO-SWITCH | Ctrl+Z post-switch: stati history fantasma (key nuove) | ✅ 🧪 (fix core noHistory) |
-| BUG-MUYA-HEADING-DNA | 1ª riga heading come testo dopo switch (cursor-DNA `ch=0`) | ✔️ (opzione A: cosmetico, documentato, no fix) |
-| DESIGN-HISTORY-SPLIT | undo non condiviso Muya↔source (2 engine separati) | ⏸️ (architetturale, opzioni A/B/C) |
-| P-REV1 | size-guard LCS | ✅ ✔️ |
-| P-REV2 | changeGeneration cursorActivity | ⬜ |
-| P-REV3 | contentVersion sidebar | ✅ ✔️ (= R3) |
-| P-REV4 | onInput no doppia search | ✅ ✔️ |
-| P-REV5 | cap risultati ricerca | ⬜ |
-| M-REV1 | byte NUL search.vue | ✅ (rimosso, assorbito P-REV3) |
-| M-REV2 | pinnedTab triplicato | ⬜ refactor |
-| M-REV3 | restore snapshot CM dup | ⬜ refactor |
-| M-REV4 | normalizeMarkdown dup | ⬜ refactor |
-| M-REV5 | ~35 watcher fotocopia | ⬜ refactor |
-| M-REV6 | typo LINTEN_FOR_* | ⬜ refactor |
-| M-REV7 | shape tab implicita | ⬜ |
-| M-REV8 | regex `/[-_]/g` | ✅ 🧪 |
-| M-REV9 | due watch showSideBar | ⬜ refactor |
-| M-REV10 | resyncDomToStore ridondante | ⏸️ (serve test drag) |
-| M-REV11 | canToggleMode usa isMarkdownPath | ✅ 🧪 |
-| M-REV12 | i18n status bar | ⬜ |
-| M-REV13 | isCollapsed morto | ⬜ |
-| M-REV14 | Muya montato dietro CM | ✔️ nota |
-| S-REV1 | contextIsolation | ✔️ nota (fuori scopo) |
+| ID | Task | Stato | Peso |
+|----|------|-------|------|
+| BUG-1 | Fix wrap tab bar (§1) | ✔️ già ok (verificato nel codice: while loop `row1Count>1` presente, PLUS_W rimosso) | 2 · 1,6% |
+| H1 | Multi-selez additiva Ctrl (source) | ✅ 🧪 (ctrlHeld + beforeSelectionChange + Esc + Ctrl+D guard) | 5 · 4,0% |
+| H2-a | Draft storage userData | ⬜ 🔶 OPUS — **piano dettagliato pronto §H2 (2026-06-20), utente APPROVA la feature, esecuzione da fare** | 8 · 6,4% |
+| H2-b | Session restore | ⬜ 🔶 OPUS — piano pronto §H2; esecuzione dopo H2-a | 8 · 6,4% |
+| H2-c | Chiusura silenziosa finestra | ⏸️ (dopo a+b) 🔶 OPUS — DECISO 2026-06-20: dietro preferenza, default OFF finché testato | 3 · 2,4% |
+| H3 | Ctrl+K C/U commenta (source) | ⏸️ (serve T-M1 → LEGGERE `MEDIUM-TASK.md`, permesso esplicito) | 3 · 2,4% |
+| H4 | Pin tab | ✅ 🧪 (pinned in help.js + TOGGLE_PIN_TAB + close protection + zone clamp + dragula accepts + CSS + i18n) — **revisione cosmetica 2026-06-20**: icona ⊞ → puntina SVG; sfondo "in rilievo" + accento verticale SULLA tab pinnata; rimosso il bordo-sliver sulla vicina (era fuorviante, sembrava un indicatore pin). Logica ordine/drag/menu Pin↔Unpin già corrette (confermato leggendo il codice). | 5 · 4,0% |
+| H5-1 | Detach via context menu | ⬜ 🔶 OPUS (rischioso, per ultimi) | 5 · 4,0% |
+| H5-2 | Detach via drag-out | ⏸️ (dopo H5-1) 🔶 OPUS (rischioso, per ultimi) | 5 · 4,0% |
+| H5-3 | Ghost window | ❌ rimandato | — |
+| H8 | Undo/redo unificato Muya↔source (opzione B) | ✅ ✔️ (verificato runtime 2026-06-15; 6 file. Iterazione bug runtime → sezione TESTING Batch H8) | 8 · 6,4% |
+| H6 | Undo persistente | ❌ scartato | — |
+| H7 | Numeri di riga | ✔️ già ok | — |
+| R1 | Muya undo depth dinamico | ✅ 🧪 (UNDO_DEPTH 500→100 in muya/lib/config/index.js) | 2 · 1,6% |
+| R2 | ~~Cap LRU cmStatePerTab~~ + undoDepth 1000 | 🔄 **RIVISTO 2026-06-20 (decisione utente)**: cap LRU **RIMOSSO** — tutte le tab della sessione mantengono la history undo; snapshot eliminato solo a chiusura tab. `undoDepth:1000` resta. ⬜ Da aggiungere: avviso perf "troppe tab" (vedi ITEM-PERF-WARN). | 2 · 1,6% |
+| R3 | Debounce content-watcher sidebar | ✅ ✔️ (= P-REV3) | — (in P-REV3) |
+| R4 | Degradare opzioni CM file enormi | ✅ ✔️ (setOption highlightSelectionMatches/styleActiveLine se >10MB in sourceCode.vue) — **verificato utente 2026-06-20: file 480k righe / 16MB → lag accettabile.** | 2 · 1,6% |
+| R5 | Clamp minWidth a workArea | ✅ 🧪 (Math.min(820, workArea.width) in windows/editor.js) | 1 · 0,8% |
+| R6 | Smoke test mac/Linux/DPI | ✔️ solo test | — |
+| R7 | Write atomico (temp+rename) | ✅ 🧪 (outputFile→.tmp+move in filesystem/index.js) | 2 · 1,6% |
+| R8 | Watcher cloud/rete | ✔️ già ok | — |
+| R9 | Encoding/EOL edge | ✔️ doc | — |
+| R10 | Minori | ✔️ nessuna azione | — |
+| BUILD-1 | patch-package setup | ⏸️ (serve npm) | 1 · 0,8% |
+| B-REV1 | Regex `[\r?\n]` ×2 | ✅ ✔️ | 1 · 0,8% |
+| B-REV2 | final-newline isSaved=false | ✅ ✔️ | 1 · 0,8% |
+| B-REV3 | pre-save nei 3 path chiusura | ✅ 🧪 | 2 · 1,6% |
+| B-REV4 | guard-order editor.vue | ✅ 🧪 | 1 · 0,8% |
+| B-REV5 | hard-break vs lightTouch | ✅ 🧪 (sentinella \x02 in normalizeBlock, store/editor.js) | 2 · 1,6% |
+| B-REV6 | baseline Save As | ✅ ✔️ | 2 · 1,6% |
+| B-REV7 | filtro Save All | ✅ 🧪 (allineato a `!file.isSaved` in store/editor.js) | 1 · 0,8% |
+| B-REV8 | Untitled-NaN guard | ✅ 🧪 | 1 · 0,8% |
+| B-REV9 | chiusura su save fallito | ✅ ✔️ | 3 · 2,4% |
+| B-REV10 | extend() guard rangeCount | ✅ 🧪 | 1 · 0,8% |
+| B-REV11 | accelerator duplicati | ⏸️ (serve runtime R-6) | 1 · 0,8% |
+| B-REV12 | race fileChangedDialog | ✅ ✔️ | 2 · 1,6% |
+| BUG-CTRLZ | Ctrl+Z cross-tab (setValue non azzera undo) | ✅ ✔️ (switch + forceReload) | 2 · 1,6% |
+| BUG-WINCLOSE | X custom finestra scartava modifiche (forceClose) | ✅ ✔️ | 2 · 1,6% |
+| BUG-MUYA-INPUT | Muya cursore stale → getBlock null (sistemico, 3 siti) | ✅ ✔️ (3/3 guard, #1 testato) | 3 · 2,4% |
+| BUG-MUYA-UNDO-SWITCH | Ctrl+Z post-switch: stati history fantasma (key nuove) | ✅ 🧪 (fix core noHistory) | 2 · 1,6% |
+| BUG-MUYA-HEADING-DNA | 1ª riga heading come testo dopo switch (cursor-DNA `ch=0`) | ✔️ (opzione A: cosmetico, documentato, no fix) | — |
+| BUG-CP1 | Inserimento markdown reale in source da palette/menu (§7.14) | ✅ 🧪 (handleParagraphInSource + handleFormatInSource espanso — heading/list/blockquote/block + strong/em/u/mark/etc. Selection-aware per del/link: selezione→formato, cursore→line-op legacy) | 5 · 4,0% |
+| BUG-CP2 | Switch source↔Muya non ri-renderizza md inserito via palette (§7.15) | ⬜ (serve REPRO runtime §7.15 → ramo A=duplicato HEADING-DNA / B=fix switch) | 3 · 2,4% |
+| BUG-CP1b | Comando "Table" in source apriva ANCHE il dialog Muya (handleEditParagraph senza guard source) | ✅ ✔️ (guard `if (sourceCode.value) return` in editor.vue:902) | 1 · 0,8% |
+| BUG-SAVE-UNLINK | Salvataggio → barra arancio "removed from disk" + bollino dirty (effetto collaterale R7: rename atomico → chokidar 'unlink') | ✅ 🧪 (watcher.js: handler 'unlink' ora fa peek `_isPendingIgnore` e sopprime il falso unlink durante la finestra di ignore del save) | 2 · 1,6% |
+| ITEM-PERF-WARN | Avviso "troppe tab → possibile lag, chiudine alcune" (sostituisce il cap LRU rimosso in R2) | ✅ 🧪 (nuovo `perfWarningDialog.vue`, stile = `fileChangedDialog.vue`; soglia 15 poi +10; watch su `tabs.length`; testi con default inline anti-chiave-grezza) | 2 · 1,6% |
+| DESIGN-HISTORY-SPLIT | undo non condiviso Muya↔source (2 engine separati) | ✅ risolto da H8 (opzione B, verificato 2026-06-15) | — (in H8) |
+| P-REV1 | size-guard LCS | ✅ ✔️ | 2 · 1,6% |
+| P-REV2 | changeGeneration cursorActivity | ✅ 🧪 (lastChangeGen gate in listenChange — skip getValue/wordCount/N12 su puro movimento cursore) | 3 · 2,4% |
+| P-REV3 | contentVersion sidebar | ✅ ✔️ (= R3) | 3 · 2,4% |
+| P-REV4 | onInput no doppia search | ✅ ✔️ | 1 · 0,8% |
+| P-REV5 | cap risultati ricerca | ✅ 🧪 (MAX_MATCHES_PER_TAB=500, MAX_MATCHES_TOTAL=2000 in search.vue + MAX_MARKS=1000 in sourceCode.vue) | 2 · 1,6% |
+| M-REV1 | byte NUL search.vue | ✅ (rimosso, assorbito P-REV3) | 1 · 0,8% |
+| M-REV2 | pinnedTab triplicato | ✅ 🧪 (watcher currentFile.id + hasMultiRow → chiamano recomputePinnedTab(); selector aggiornato a :not(.v2-tab-pinned)) | 2 · 1,6% |
+| M-REV3 | restore snapshot CM dup | ✅ 🧪 (helper restoreCmStateForTab in sourceCode.vue — 2 siti → 1 funzione condivisa) | 2 · 1,6% |
+| M-REV4 | normalizeMarkdown dup | ✅ 🧪 (adjustTrailingNewlines esportata da util/index.js; private copies rimosse da editor.js + sourceCode.vue) | 1 · 0,8% |
+| M-REV5 | ~35 watcher fotocopia | ✅ 🧪 (SIMPLE_OPTION_WATCHERS table+loop in editor.vue — 19 watcher → 1 ciclo) | 3 · 2,4% |
+| M-REV6 | typo LINTEN_FOR_* | ✅ 🧪 (rinomina store/editor.js + app.vue) | 1 · 0,8% |
+| M-REV7 | shape tab implicita | ✅ 🧪 (justLoaded+pendingExternalChange in help.js) | 1 · 0,8% |
+| M-REV8 | regex `/[-_]/g` | ✅ 🧪 | 1 · 0,8% |
+| M-REV9 | due watch showSideBar | ✅ 🧪 (unificati in un solo watch in search.vue) | 1 · 0,8% |
+| M-REV10 | resyncDomToStore ridondante | ⏸️ (serve test drag) | 2 · 1,6% |
+| M-REV11 | canToggleMode usa isMarkdownPath | ✅ 🧪 | 1 · 0,8% |
+| M-REV12 | i18n status bar | ✅ 🧪 (en.json + 3 stringhe + ENC_GROUPS computed in statusBar/index.vue) | 2 · 1,6% |
+| M-REV13 | isCollapsed morto | ✅ 🧪 (rimosso da searchResultItem.vue) | 1 · 0,8% |
+| M-REV14 | Muya montato dietro CM | ✔️ nota | — |
+| S-REV1 | contextIsolation | ✔️ nota (fuori scopo) | — |
+
+### Pesi & validazione decisioni (2026-06-20)
+
+**Pesi (peso per sforzo, story-point 1/2/3/5/8 → % sul totale a 1 pt ≈ 0,8%):**
+- Totale attivo = **127 pt** · Fatto (✅/✅🧪) = **83 pt (≈65%)** · Da fare (⬜/⏸️) = **44 pt (≈35%)**.
+- Esclusi dal peso (—): scartati (❌), già-ok/note (✔️), e i duplicati di lavoro R3 (= P-REV3) e DESIGN-HISTORY-SPLIT (= H8).
+- Il numero pesato (32%) è < del conteggio task (42%) perché i pezzi pesanti — H1, H2-a/b, H4, H5-1/2 — sono ancora aperti.
+
+**Decisioni §4 validate LEGGENDO il codice (non più solo dalle descrizioni del file):**
+- **B-REV5** ✅ confermato: `normalizeBlock` (`store/editor.js:1717`) toglie i trailing space (`/[ \t]+$/gm`) → **mangia l'hard-break a 2 spazi**; `getMarkdownForSave:1893` su normalizzati uguali → `return originalMarkdown` → la modifica solo-whitespace **non viene scritta**. Consiglio: fix sentinella in `normalizeBlock` (preserva ` {2,}$`). Resta decisione utente (fix vs documentare).
+- **B-REV7** ✅ confermato: filtro `ASK_FOR_SAVE_ALL:588` = `!(file.isSaved && /[^\n]/.test(file.markdown))` include le tab **salvate-ma-vuote** tra gli unsaved; `LISTEN_FOR_CLOSE:544` usa il pulito `!file.isSaved`. Consiglio: allineare a `!file.isSaved`.
+- **H1** ⚠️ consiglio RAFFINATO dal codice: solo **Ctrl+D duplica** (`sourceCode.vue:425`, usa `getCursor('from'/'to')` = solo primaria) va guardato con multi-selez; **Ctrl+L** (`deleteLine`, :442) e **Alt+↑/↓** (`swapLineUp/Down`, :721) sono **già multi-selezione-aware** → niente guard.
+- **H4** ✅ design valido: nessun concetto `pinned` nel codice oggi; `CLOSE_OTHER_TABS` (`tabs.vue:284`) chiuderebbe tutto → con H4 servirà un filtro pinned solo se si vuole protezione.
+- **B-REV11** invariato: duplicati già grep-verificati; il "chi vince" è solo runtime (R-6).
+
+**Decisioni utente LOCKED (2026-06-20) — non richiedere di nuovo:**
+- **B-REV5** → **FIXARE** (sentinella hard-break in `normalizeBlock`).
+- **B-REV7** → **allineare a `!file.isSaved`**.
+- **H2-c** → **dietro preferenza, default OFF** finché testato; poi ON.
+- **H1** → guard multi-selez SOLO su Ctrl+D (duplica); Ctrl+L e Alt+↑/↓ già ok.
+- **H4 close-others** → **pinnate PROTETTE**: "Chiudi altre"/"Chiudi tutte" NON chiudono le tab pinnate
+  (si chiudono solo singolarmente). Serve filtrare le pinnate in `CLOSE_OTHER_TABS`/`CLOSE_ALL_TABS` (`store/editor.js`).
+- **BUG-CP1** → **fix (B)**: inserimento markdown reale in source via CodeMirror; root cause verificata
+  (routing bus incompleto + collisione `del`/`link`). Conviene farlo insieme/dopo H3 (stessa infrastruttura CM insert).
+
+**🔶 OPUS-only:** H2-a, H2-b, H2-c, H5-1, H5-2 = rischiosi → li implementa Opus, **per ultimi**. Sonnet
+NON deve scriverli; deve solo lasciarli pronti (architettura già in §2). A contesto pulito Opus riparte da §2 + §H2/§H5.
+
+**🟢 Eseguibili da Sonnet 4.6 a sessione pulita** (dopo le decisioni sopra): tutti i micro-fix §7, BUILD-1,
+BUG-1, R1/R2/R4/R5/R7, P-REV2/P-REV5, M-REV2/3/4/5/6/7/9/12/13, B-REV5/B-REV7, H1, H4,
+BUG-CP1 (fix B, feature media — meglio dopo/insieme a H3).
+**⛔ NON Sonnet:** H2-a/b/c, H5-1/2 (🔶 Opus). **⛔ Prima investigare a runtime:** BUG-CP2 (probabile duplicato
+di HEADING-DNA). **Dipendenza esterna (permesso a leggere):** H3 → `MEDIUM-TASK.md` (T-M1);
+H4 → `MEDIUM-TASK.md` (§7 + T-M6); BUG-CP1 fix B si appoggia all'infrastruttura CM-insert di H3.
 
 ---
 
@@ -226,6 +286,35 @@ Legenda stato: ⬜ da fare · 🔧 in corso · ✅ fatto (codice) · 🧪 da tes
 
 ---
 
+### Sessione 2026-06-20 (rev 2) — feedback runtime utente + fix
+
+**Fatti in questa sessione (renderer = hot reload; `watcher.js` = MAIN → riavviare `npm run dev`):**
+
+- **H4 pinned tabs — revisione cosmetica** (`tabs.vue`): icona `⊞` → **puntina SVG** (`v2-tab-pin`); sfondo "in rilievo" + accento verticale a sinistra (`box-shadow inset 2px` + `--v2-surface2`) **sulla tab pinnata**; rimosso il `border-left` sulla tab *vicina* (`.is-pinned + .v2-tab:not(.is-pinned)`) — era la fonte di tutta la confusione (l'utente lo scambiava per l'indicatore pin e cliccava la tab sbagliata). **La logica era già corretta**: `TOGGLE_PIN_TAB` ordina pinnate-prima, il context menu mostra Pin/Unpin sul tab giusto, il drag-clamp tiene le pinnate in zona. Nessun bug funzionale, solo cosmetico.
+  - TEST: pinna 2 tab → entrambe a sinistra con puntina + accento; nessun "spicchio" su tab non pinnate. Right-click tab pinnata → "Unpin Tab" → torna tra le non-pinnate. Drag pinnata → resta tra le pinnate. "Chiudi altre/tutte" non chiude le pinnate.
+  - ⚠️ **BUG MINORE NOTO (accettato, non fixato):** all'**unpin** la tab NON ritorna alla sua posizione originale pre-pin — `TOGGLE_PIN_TAB` (`store/editor.js`) la mette in testa alla zona non-pinnata (ordine pinnate-prima, relativo preservato), non dove stava prima del pin. Per ripristinarla servirebbe memorizzare l'indice pre-pin (dato persistente) e gestirne lo spostamento al drag → rimandato. Comportamento attuale = stile VS Code.
+- **R2 — cap LRU RIMOSSO** (`sourceCode.vue`): tutte le tab mantengono la history undo per l'intera sessione (decisione utente). Snapshot rimosso solo a chiusura tab.
+  - TEST: apri >10 file source, modifica ognuno, switcha avanti/indietro su tutti → `Ctrl+Z` funziona su **ogni** tab (pre-fix: le >10 più vecchie perdevano l'undo).
+- **BUG-CP1b** (`editor.vue:902`): guard `if (sourceCode.value) return` in `handleEditParagraph` → comando "Table" in source non apre più il dialog Muya spurio.
+  - TEST: source .md → comando **Table** → solo markdown inserito, nessun dialog rows/columns. Muya mode → Table → dialog normale.
+- **BUG-SAVE-UNLINK** (`watcher.js`): l'handler `unlink` ora fa peek non-consumante (`_isPendingIgnore`) della lista ignore → sopprime il falso "removed from disk" generato dal rename atomico R7. ⚠️ MAIN process → **riavviare `npm run dev`**.
+  - TEST: apri file su disco, modifica, `Ctrl+S` ripetuti veloci → **mai** la barra arancio "[file] has been removed from disk"; il bollino dirty resta spento dopo il salvataggio.
+- **ITEM-PERF-WARN — avviso "troppe tab"** (NUOVO componente `perfWarningDialog.vue`, montato in `editorWithTabs/index.vue` accanto a `file-changed-dialog`):
+  - **Come è fatto:** stile/animazioni copiate 1:1 da `fileChangedDialog.vue` (classi `fc-*`, `v2dropIn`/`v2fadeIn`, fade-out 220ms) — è il box che l'utente voleva ("stesso del file cambiato dall'esterno"). Bottone singolo OK + ESC/click-fuori per chiudere.
+  - **Trigger:** `watch(() => tabs.value.length)`. Soglia: avviso a **15** tab, poi ad ogni **+10** (25, 35, …). Logica a bande: `bandFor(n)` = più grande `15+10k ≤ n`; avvisa solo salendo in una banda nuova (`band > lastWarnLevel`); scendendo sotto si ri-arma (`band < lastWarnLevel`). `watch` NON è `immediate` → all'avvio con molte tab non spamma.
+  - **i18n (FIX bug runtime):** la prima versione mostrava le chiavi grezze `store.editor.tooManyTabs*`. Causa: le chiavi sono **solo in `en.json`**; il locale attivo (it) non le ha e il fallback en richiede che i messaggi en in memoria siano aggiornati (caricati da disco via preload all'avvio in `i18n/index.js`) → senza restart completo mancavano. **Fix robusto:** testi con **default inline** nel componente (`t(key, DEFAULT)`) + interpolazione `{count}` fatta a mano con `.replace` → non mostra mai più la chiave grezza, in qualunque locale. Le chiavi en.json restano per la traduzione quando l'i18n è a posto.
+  - TEST: apri tab fino a 15 → box (stile = file-changed, con fade). Chiudi (OK/ESC/click-fuori). Fino a 25 → riappare. Scendi sotto soglia e risali → riappare. Verifica testo leggibile (NON `store.editor.tooManyTabs*`).
+
+**Confermati dall'utente (nessuna azione):**
+- **R4** file 480k righe / 16MB → lag accettabile. ✔️
+- **B-REV5** (hard-break 2 spazi finali) → **test rimandato** (minore, da verificare in futuro). Resta ✅ 🧪.
+- **Item 7 — Save All**: è nelle icone in testa alla **sidebar file-tree** (`tree.vue` → `saveAll(false)` = salva tutti, `saveAll(true)` = salva e chiudi). Nessuna scorciatoia tastiera assegnata (eventuale TODO).
+
+**⛔ NON fatto — richiede decisione (vedi sotto):**
+- **H2-a/b/c (ITEM-4 utente)** — chiusura silenziosa + ripristino sessione: **NON implementato**. Lo stato attuale: i file aperti **non vengono persistiti da nessuna parte** → niente restore, e il popup "salvare?" alla chiusura **deve restare** (rimuoverlo ora = perdita dati senza recovery). Vedi §H2 per l'architettura. È il task 🔶 OPUS grande/rischioso.
+
+---
+
 ## 0. Decisioni utente (LOCKED — non richiedere di nuovo, 2026-06-09)
 
 1. **Multi-selezione**: solo source mode. Comportamento richiesto: **tenendo premuto Ctrl** le selezioni
@@ -331,6 +420,25 @@ Alt+Tab con Ctrl premuto → niente stuck mode; undo dopo edit multi-cursore →
 Copre, **in quest'ordine di implementazione**: (a) file non salvati NON in temp; (b) session restore;
 (c) rimozione dialog "vuoi salvare?" alla chiusura finestra. Il TODO li elenca separati ma sono un
 unico sistema: (c) è SICURO solo quando (a)+(b) funzionano — stessa conclusione già annotata in `TODO.md`.
+
+> **DECISIONE UTENTE 2026-06-20 (ITEM-4):** SÌ a questa feature (comportamento atteso stile **Notepad++**:
+> chiudo l'app → riapro → ritrovo tutte le tab, anche untitled/non salvate; nessun popup "vuoi salvare?").
+> Modalità: **prima il piano completo (questo §H2), POI l'esecuzione** in una sessione Opus dedicata.
+> Stato: ⏸️ piano pronto, codice non iniziato. **Dove verranno salvate le tab:** `app.getPath('userData')`
+> (cartella dati utente di Electron, fuori dalla cartella del progetto) → sottocartella `drafts/` + indice
+> `session.json`. Finché questo non esiste, il popup di chiusura **resta** (toglierlo ora = perdita dati).
+>
+> **DA VERIFICARE/DECIDERE PRIMA DI SCRIVERE CODICE (checklist bloccante):**
+> 1. **Stabilità `tabId` tra sessioni** (grep `getUniqueId` in `store/help.js`): se l'id cambia ad ogni
+>    avvio, il restore deve rimappare i draft per **ordine + pathname**, non per id. (Vedi rischio sotto.)
+> 2. **Nome + default preferenze:** `restoreSession` (default ON?) e `silentClose` (decisione LOCKED:
+>    default OFF finché testato, poi ON) → aggiungere a `src/main/preferences/schema.json` + UI prefs.
+> 3. **Intervallo flush** draft (proposto ~30s) + flush sincrono di chiusura via `pre-save`.
+> 4. **Scope multi-finestra:** prima iterazione solo finestra principale (shape `session.json` già pronta
+>    per più finestre, ma non implementarle ora).
+> 5. **Migrazione/cleanup draft orfani:** draft di tab chiuse/salvate vanno cancellati (simmetria
+>    create/delete, `CLAUDE.md` §9) — censire TUTTI i punti di chiusura tab.
+> 6. **Encoding/EOL/trim** nel payload draft = stesso shape del save (`getOptionsFromState`).
 
 **Stato attuale (verificato):**
 - ✅ Autosave salta gli untitled: `store/editor.js:1278` `if (pathname && autoSave)` — gli untitled
@@ -474,9 +582,10 @@ posizionato sull'ultima tab di quella lista, dragula è configurato su quel cont
 
 **Rischi:** la voce "pinnedTab" ESISTENTE in `tabs.vue` (riga 212) è il **clone temporaneo** della tab
 attiva in riga 2+ — nome confondibile: chiamare il nuovo campo `pinned`/`isPinned` e NON toccare
-`pinnedTab`/`recomputePinnedTab`. Chiudi-tutte/chiudi-altre (`TABS::close-others`) devono rispettare…
-🟡 no: decisione semplice — le pinnate si chiudono come le altre (Pin = posizione, non protezione);
-alternativa "close others salta le pinnate" = +5 righe, chiedere all'utente quando si implementa.
+`pinnedTab`/`recomputePinnedTab`. Chiudi-tutte/chiudi-altre (`TABS::close-others`/`close-all`):
+**DECISO 2026-06-20 — le pinnate sono PROTETTE** (non si chiudono con "chiudi altre/tutte", solo
+singolarmente). Filtrare le tab `pinned` in `CLOSE_OTHER_TABS`/`CLOSE_ALL_TABS` (`store/editor.js`),
+~+5 righe.
 
 **Test:** pin/unpin riordina; drag dentro zona ok, cross-zona rifiutato; wrap multi-row con pinnate
 invariato; "+" posizionato giusto; nuova tab nasce non-pinnata dopo le pinnate; context menu su tab
@@ -1062,6 +1171,27 @@ descrizione di M-REV1) → `grep`/`Grep` lo trattano come binario e falliscono s
 ---
 
 ## 4. Ordine consigliato
+
+### Ordine AGGIORNATO (2026-06-20, post-H8) — usare questo
+
+0. **BUILD-1** (patch-package) — PRIMA di tutto ciò che tocca dipendenze: il prossimo `npm install`
+   cancella le patch CM5/native-keymap esistenti (crash di ritorno). Serve `npm`.
+1. **Testare i 🧪 già fatti** (B-REV3/4/8/10, M-REV8/11, BUG-MUYA-UNDO-SWITCH) + checklist runtime
+   §6.8 (R-1..R-11). Verificare la base prima di costruirci sopra.
+2. **BUG-1** tab bar (§1, ~15 min) + rimozione log `[TABDBG]`.
+3. **Quick-win robustezza:** R2 + R5 + R7 (piccoli, indipendenti, alto valore; R3 già fatto = P-REV3).
+4. **Decisioni** B-REV5 / B-REV7 / B-REV11 → applicare (validazioni codice nel blocco sotto la tabella).
+5. **T-M1** (`MEDIUM-TASK.md`) → **H3** (`Ctrl+K`, libera `toggle-toc`).
+6. **H1** multi-selez additiva (guard solo Ctrl+D, vedi validazione).
+7. **H2** persistenza: (a) → (b) → solo dopo verifica completa → (c).
+8. **H4** pin tab.
+9. **R1 + R4 + T-M6** (depth dinamico Muya, degrade CM, auto-source file grandi).
+10. **P-REV2 + P-REV5** (changeGeneration, cap risultati ricerca).
+11. **H5** detach: Fase 1; Fase 2 solo se la 1 convince; Fase 3 rimandata.
+12. **Refactor M-REV** (commit dedicati) + M-REV10 (solo con test drag).
+13. **BUG-CP1 / BUG-CP2** (prima verificare la root cause: oggi solo "probabile").
+
+### Ordine originale (2026-06-09, pre-H8) — storico, lasciato come riferimento
 
 1. **Fix BUG-1** (`tabs.vue`, §1 — pronto, 15 min + verifiche runtime) + rimozione log `[TABDBG]`.
 2. **R2 + R3-debounce** (cap LRU `cmStatePerTab`, `undoDepth` 1000, debounce content-watcher) —
@@ -1724,6 +1854,29 @@ Azioni della command palette che inseriscono markdown (es. `# titolo`) non hanno
 l'editor è in source mode (CodeMirror). Funzionano solo in Muya. Il canale/bus usato probabilmente
 chiama API Muya direttamente ignorando CM.
 
+**ROOT CAUSE VERIFICATA SUL CODICE (2026-06-20):** non è "API Muya diretta" — è un **routing bus
+incompleto verso il source editor**:
+- Palette (`commands/index.js:231-431`) e menu (`store/listenForMain.js:68,71`) emettono
+  `bus.emit('paragraph', tipo)` (heading/list/blockquote/table/code/hr/…) e `bus.emit('format', tipo)`
+  (strong/em/link/image/…).
+- `editor.vue` (Muya) ascolta ENTRAMBI: `bus.on('paragraph', handleEditParagraph)` (`:1262`) e
+  `bus.on('format', handleInlineFormat)` (`:1263`) → in Muya tutto funziona.
+- `sourceCode.vue` (CM) ascolta **solo `'format'`** (`:758`, `handleFormatInSource`) e **MAI `'paragraph'`**.
+  Inoltre `handleFormatInSource` (`:419`) gestisce **solo** `type==='del'` (→ duplica riga, Ctrl+D) e
+  `type==='link'` (→ elimina riga, Ctrl+L): NON inserisce markdown reale.
+- ⇒ In source mode: tutti i comandi `'paragraph'` = **no-op**; tutti i `'format'` = no-op **TRANNE**
+  `'del'`/`'link'` che hanno una **collisione latente** (la palette "Strikethrough" e "Link" in source
+  farebbero rispettivamente duplica-riga / elimina-riga invece del formato). Vale anche per il MENU
+  Paragraph/Format, non solo per la palette.
+- **Fix (da decidere):** (A) minimo/sicuro = in source disabilitare/nascondere le voci paragraph/format
+  e risolvere la collisione `'del'`/`'link'` (rinominare gli eventi delle line-op source, es. `'src-dup'`/
+  `'src-delline'`); (B) completo = scrivere handler CM che inseriscono davvero la sintassi markdown
+  (heading/list/bold/… via `replaceRange`/`wrapSelection`) — feature più grande, simile a H3.
+  **DECISO 2026-06-20: opzione (B)** — implementare l'inserimento markdown reale in source. Conviene farlo
+  insieme/dopo **H3** (stessa infrastruttura CM-insert: H3 importa l'addon comment, CP1-B aggiunge gli
+  altri inserimenti). La collisione `del`/`link` va comunque risolta come parte del lavoro (rinominare gli
+  eventi line-op source, es. `del`→`src-dup`, `link`→`src-delline`, aggiornando palette/menu/keybinding).
+
 ### 7.15 BUG-CP2 — Switch source↔Muya non ri-renderizza markdown inserito via palette
 
 Se si inserisce testo markdown via command palette in Muya (es. `# ciao`), si passa in source mode
@@ -1732,6 +1885,41 @@ uno spazio extra forza il re-parse ma il problema si ripresenta ad ogni successi
 probabile: il documento non viene ri-parsato al cambio modalità quando il contenuto non risulta
 "dirty" per il sistema di change detection.
 
+**INDAGINE (2026-06-20) — probabile DUPLICATO di BUG-MUYA-HEADING-DNA, NON confermato senza runtime:**
+- Inserendo un heading via palette in Muya, `handleEditParagraph` (`editor.vue:984`) chiama
+  `editor.value.updateParagraph(type)` → Muya crea un **vero blocco heading** (testo `"ciao"`, tipo
+  heading), non la stringa `"# ciao"`. Serializzato = `"# ciao"`.
+- Tornando in Muya, lo switch chiama `setMarkdown` con `muyaIndexCursor`: se il cursore è a inizio riga
+  (`ch=0`) di una riga heading, il meccanismo cursor-DNA antepone un marcatore → la riga viene parsata
+  come **paragrafo** non heading (esattamente **BUG-MUYA-HEADING-DNA**, §TESTING). Il "si auto-corregge
+  digitando uno spazio" e "torna ad ogni switch" coincidono con quel bug.
+- ⇒ **Ipotesi forte: CP2 è una manifestazione di BUG-MUYA-HEADING-DNA** (cursor-DNA `ch=0`), già
+  documentato e **deciso opzione A** (cosmetico, self-healing, contenuto salvato corretto, no fix).
+- ⚠️ **NON confermato staticamente**: serve repro a runtime per escludere la seconda ipotesi (re-parse
+  saltato al cambio modalità quando non-dirty).
+
+**➡️ AZIONE PER CHI IMPLEMENTA (Sonnet/Opus): NON scrivere codice per CP2 prima della repro.** Presenta
+questi passi all'utente, chiedi l'esito, poi segui il ramo A o B e annota il risultato nella sezione
+**TESTING** in cima al file (stesso pattern delle voci "verificato dall'utente").
+
+**REPRO RUNTIME (passi):**
+1. `npm run dev`; crea/apri un `.md` (parte in Muya).
+2. Su una riga, scrivi un heading: `# ciao` (a mano, oppure via palette/menu "Heading 1" + testo). Aggiungi
+   anche una **seconda** riga heading `# ciao2`.
+3. Toggle a **source mode** (status bar) → vedi il markdown `# ciao` / `# ciao2`.
+4. Toggle di nuovo a **Muya**. Osserva le righe heading. Ripeti il doppio switch 2-3 volte.
+
+**COSA OSSERVARE → quale ramo:**
+- **Ramo A (= BUG-MUYA-HEADING-DNA, già deciso "no fix"):** appare come testo semplice **solo la riga dov'è
+  il cursore** (es. `# ciao`), **NON** la seconda; e si **auto-corregge** alla prima lettera digitata.
+  → CP2 è un **duplicato**: chiudere come ✔️ (peso 0), decisione A, nessun codice. (Contenuto salvato resta
+  corretto: `getMarkdown` legge `# ciao` comunque.)
+- **Ramo B (bug distinto, re-parse saltato allo switch):** appaiono come testo **anche righe senza cursore**,
+  oppure **non** si auto-corregge digitando, oppure serve uno spazio extra ad **ogni** switch a prescindere
+  dalla posizione del cursore. → **fix nello switch source→Muya**: forzare la ri-riconoscizione block-level
+  del/dei blocchi (riusare `checkInlineUpdate`) dopo `setMarkdown`, oppure marcare `dirty` artificiale per
+  innescare il re-render. File: `editor.vue` (`setMarkdownToEditor`/`handleFileChange`), Muya `importMarkdown.js`.
+
 ### 7.16 Non procedere alla cieca (decisioni/verifiche prima del codice)
 
 - **B-REV5** (hard-break vs lightTouch): decidere con l'utente PRIMA (vedi §6.1).
@@ -1739,4 +1927,6 @@ probabile: il documento non viene ri-parsato al cambio modalità quando il conte
 - **B-REV11** (accelerator duplicati): serve R-6 per sapere chi vince oggi; POI azzerare il perdente.
 - **P-REV2** (changeGeneration): refactor con test manuali su N12/bollino — non è un micro-fix.
 - **M-REV2/3/4/5** (refactor): commit dedicati, mai insieme ai fix.
+- **BUG-CP2**: NON scrivere codice; eseguire/far eseguire la **REPRO §7.15**, poi seguire ramo A (duplicato
+  HEADING-DNA → chiudere, no fix) o ramo B (fix switch). Annotare l'esito nella sezione TESTING.
 - I task H1-H5 hanno già il loro dettaglio in §2; le decisioni utente vincolanti sono in §0.

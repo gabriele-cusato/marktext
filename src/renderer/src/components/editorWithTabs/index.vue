@@ -25,6 +25,7 @@
     <editor-search />
     <tab-notifications />
     <file-changed-dialog />
+    <perf-warning-dialog />
   </div>
 </template>
 
@@ -35,6 +36,7 @@ import Editor from './editor.vue'
 import SourceCode from './sourceCode.vue'
 import TabNotifications from './notifications.vue'
 import FileChangedDialog from './fileChangedDialog.vue'
+import PerfWarningDialog from './perfWarningDialog.vue'
 import SideBar from '@/components/sideBar'
 import EditorSearch from '@/components/search'
 

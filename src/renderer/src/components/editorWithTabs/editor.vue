@@ -270,13 +270,40 @@ watch(lineHeight, (value, oldValue) => {
   }
 })
 
-watch(preferLooseListItem, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({
-      preferLooseListItem: value
-    })
-  }
-})
+// --- Watcher tabellare per le opzioni setOptions semplici ---
+// Formato: [ref, optionKey, needsRender, transform?]
+// transform: funzione opzionale applicata al valore prima di passarlo a setOptions
+const SIMPLE_OPTION_WATCHERS = [
+  [preferLooseListItem, 'preferLooseListItem', false],
+  [frontmatterType, 'frontmatterType', false],
+  [superSubScript, 'superSubScript', true],
+  [footnote, 'footnote', true],
+  [isGitlabCompatibilityEnabled, 'isGitlabCompatibilityEnabled', true],
+  [hideQuickInsertHint, 'hideQuickInsertHint', false],
+  [autoPairBracket, 'autoPairBracket', false],
+  [autoPairMarkdownSyntax, 'autoPairMarkdownSyntax', false],
+  [autoPairQuote, 'autoPairQuote', false],
+  [surroundSelection, 'surroundSelection', false],
+  [trimUnnecessaryCodeBlockEmptyLines, 'trimUnnecessaryCodeBlockEmptyLines', false],
+  [bulletListMarker, 'bulletListMarker', false],
+  [orderListDelimiter, 'orderListDelimiter', false],
+  [hideLinkPopup, 'hideLinkPopup', false],
+  [autoCheck, 'autoCheck', false],
+  [codeBlockLineNumbers, 'codeBlockLineNumbers', true],
+  [sequenceTheme, 'sequenceTheme', true],
+  // option key diversa dal nome del ref / valore invertito
+  [isHtmlEnabled, 'disableHtml', true, v => !v],
+  [spellcheckerNoUnderline, 'spellcheckEnabled', false, v => !v],
+]
+for (const [ref, key, needsRender, transform] of SIMPLE_OPTION_WATCHERS) {
+  watch(ref, (value, oldValue) => {
+    if (value !== oldValue && editor.value) {
+      const tv = transform ? transform(value) : value
+      const args = needsRender ? [{ [key]: tv }, true] : [{ [key]: tv }]
+      editor.value.setOptions(...args)
+    }
+  })
+}
 
 watch(tabSize, (value, oldValue) => {
   if (value !== oldValue && editor.value) {
@@ -307,51 +334,9 @@ watch(theme, (value, oldValue) => {
   }
 })
 
-watch(sequenceTheme, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ sequenceTheme: value }, true)
-  }
-})
-
 watch(listIndentation, (value, oldValue) => {
   if (value !== oldValue && editor.value) {
     editor.value.setListIndentation(value)
-  }
-})
-
-watch(frontmatterType, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ frontmatterType: value })
-  }
-})
-
-watch(superSubScript, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ superSubScript: value }, true)
-  }
-})
-
-watch(footnote, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ footnote: value }, true)
-  }
-})
-
-watch(isHtmlEnabled, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ disableHtml: !value }, true)
-  }
-})
-
-watch(isGitlabCompatibilityEnabled, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ isGitlabCompatibilityEnabled: value }, true)
-  }
-})
-
-watch(hideQuickInsertHint, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ hideQuickInsertHint: value })
   }
 })
 
@@ -367,60 +352,6 @@ watch(wrapCodeBlocks, (value, oldValue) => {
   }
 })
 
-watch(autoPairBracket, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ autoPairBracket: value })
-  }
-})
-
-watch(autoPairMarkdownSyntax, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ autoPairMarkdownSyntax: value })
-  }
-})
-
-watch(autoPairQuote, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ autoPairQuote: value })
-  }
-})
-
-watch(surroundSelection, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ surroundSelection: value })
-  }
-})
-
-watch(trimUnnecessaryCodeBlockEmptyLines, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ trimUnnecessaryCodeBlockEmptyLines: value })
-  }
-})
-
-watch(bulletListMarker, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ bulletListMarker: value })
-  }
-})
-
-watch(orderListDelimiter, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ orderListDelimiter: value })
-  }
-})
-
-watch(hideLinkPopup, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ hideLinkPopup: value })
-  }
-})
-
-watch(autoCheck, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ autoCheck: value })
-  }
-})
-
 watch(codeFontSize, (value, oldValue) => {
   if (value !== oldValue) {
     addCommonStyle({
@@ -428,12 +359,6 @@ watch(codeFontSize, (value, oldValue) => {
       codeFontFamily: codeFontFamily.value,
       hideScrollbar: hideScrollbar.value
     })
-  }
-})
-
-watch(codeBlockLineNumbers, (value, oldValue) => {
-  if (value !== oldValue && editor.value) {
-    editor.value.setOptions({ codeBlockLineNumbers: value }, true)
   }
 })
 
@@ -468,13 +393,6 @@ watch(spellcheckerEnabled, (value, oldValue) => {
     } else {
       spellchecker.deactivateSpellchecker()
     }
-  }
-})
-
-watch(spellcheckerNoUnderline, (value, oldValue) => {
-  if (value !== oldValue) {
-    // Set Muya's spellcheck container attribute.
-    editor.value.setOptions({ spellcheckEnabled: !value })
   }
 })
 
@@ -982,6 +900,9 @@ const handlePrintServiceClearup = () => {
 }
 
 const handleEditParagraph = (type) => {
+  // In source mode i blocchi li gestisce handleParagraphInSource (sourceCode.vue).
+  // Senza questo guard, 'table' aprirebbe ANCHE il dialog Muya (ramo sotto non controlla editor.value).
+  if (sourceCode.value) return
   if (type === 'table') {
     tableChecker.rows = 4
     tableChecker.columns = 3

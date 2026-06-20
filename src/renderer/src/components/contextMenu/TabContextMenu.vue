@@ -28,6 +28,13 @@ const editorStore = useEditorStore()
 const items = computed(() => {
   const tab = props.tab
   return [
+    // H4: pin/unpin tab — sempre disponibile, cambia label secondo lo stato corrente
+    {
+      label: tab.pinned ? t('contextMenu.tabs.unpin', 'Unpin Tab') : t('contextMenu.tabs.pin', 'Pin Tab'),
+      iconKey: 'pin',
+      action: () => editorStore.TOGGLE_PIN_TAB(tab.id)
+    },
+    '---',
     {
       label: t('contextMenu.tabs.close'),
       iconKey: 'close',

@@ -63,6 +63,12 @@
     >
       {{ searchErrorString }}
     </div>
+    <div
+      v-if="searchTruncated"
+      class="search-message-section search-truncated-warning"
+    >
+      {{ t('search.tooManyResults', 'Too many results — refine your search') }}
+    </div>
 
     <div
       v-if="searchResult.length"
@@ -108,6 +114,8 @@ const editorStore = useEditorStore()
 const keyword = ref('')
 const searchResult = ref([])
 const searchErrorString = ref('')
+// P-REV5: cap flag — set when results are truncated to avoid DOM freeze on broad searches
+const searchTruncated = ref(false)
 const isCaseSensitive = ref(false)
 const isWholeWord = ref(false)
 const isRegexp = ref(false)
@@ -153,8 +161,13 @@ const emitEditorHighlight = (preserveCursor = false) => {
 // emitHighlight=false → aggiorna SOLO la lista risultati, senza ri-evidenziare l'editor.
 // Serve quando la ricerca riparte perché è cambiato il CONTENUTO della tab attiva: in Muya
 // ri-evidenziare farebbe un render() che ricostruisce il DOM e ruberebbe il cursore mentre si scrive.
+// P-REV5: caps to avoid DOM freeze on very broad searches (e.g. searching "e" across 30 tabs)
+const MAX_MATCHES_PER_TAB = 500
+const MAX_MATCHES_TOTAL = 2000
+
 const search = (emitHighlight = true, preserveCursor = false) => {
   searchErrorString.value = ''
+  searchTruncated.value = false
   if (!keyword.value) {
     searchResult.value = []
     if (emitHighlight) emitEditorHighlight(preserveCursor)
@@ -178,11 +191,14 @@ const search = (emitHighlight = true, preserveCursor = false) => {
   }
 
   const results = []
+  let totalMatches = 0
+  let truncated = false
   for (const tab of tabs.value) {
+    if (truncated) break
     const text = tab.markdown || ''
     const lines = text.split('\n')
     const matches = []
-    for (let i = 0; i < lines.length; i++) {
+    outer: for (let i = 0; i < lines.length; i++) {
       const line = lines[i]
       pattern.lastIndex = 0
       let m
@@ -193,6 +209,11 @@ const search = (emitHighlight = true, preserveCursor = false) => {
         })
         // prevent infinite loop on zero-length match
         if (m[0].length === 0) pattern.lastIndex++
+        totalMatches++
+        if (matches.length >= MAX_MATCHES_PER_TAB || totalMatches >= MAX_MATCHES_TOTAL) {
+          truncated = true
+          break outer
+        }
       }
     }
     if (matches.length) {
@@ -203,6 +224,7 @@ const search = (emitHighlight = true, preserveCursor = false) => {
       })
     }
   }
+  searchTruncated.value = truncated
   searchResult.value = results
   if (emitHighlight) emitEditorHighlight(preserveCursor)
 }
@@ -237,10 +259,7 @@ watch(
   }
 )
 
-// Alla chiusura della sidebar (qualsiasi via) pulisci le evidenziazioni nell'editor.
-watch(showSideBar, (value) => {
-  if (!value) bus.emit('sidebar-highlight', { value: '', opt: {} })
-})
+// M-REV9: merged into the watch(showSideBar) below (was duplicated)
 
 const handleFindInFolder = (executeSearch = true) => {
   nextTick(() => {
@@ -276,11 +295,16 @@ const closeSidebar = () => {
   layoutStore.SET_LAYOUT({ rightColumn: '', showSideBar: false })
 }
 
+// M-REV9: single watch(showSideBar) covering both: close highlight clear + open focus/blur.
 watch(showSideBar, (value, oldValue) => {
+  if (!value) {
+    // Sidebar closed: clear editor highlights regardless of column
+    bus.emit('sidebar-highlight', { value: '', opt: {} })
+  }
   if (rightColumn.value === 'search') {
     if (value && !oldValue) {
       handleFindInFolder(false)
-    } else {
+    } else if (!value) {
       bus.emit('search-blur')
     }
   }

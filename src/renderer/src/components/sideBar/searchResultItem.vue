@@ -135,7 +135,8 @@ const handleSearchResultClick = (searchMatch) => {
 
   // Cursore in formato CodeMirror {line, ch}: usato SOLO per i tab source e per l'apertura da disco.
   const cursor = {
-    isCollapsed: range[0][0] !== range[1][0],
+    // M-REV13: removed `isCollapsed` — semantically inverted (was true on multi-line match)
+    // and unused by any consumer (grep confirmed no caller reads it).
     anchor: {
       line: range[0][0],
       ch: range[0][1]

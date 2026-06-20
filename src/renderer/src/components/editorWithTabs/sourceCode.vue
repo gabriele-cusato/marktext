@@ -12,6 +12,16 @@ const cmStatePerTab = new Map()
 // Traccia l'undoSize CM dell'ultimo push unificato: risincronizzato ad ogni change (anche replay)
 // così il replay non genera un push fantasma (il gate uguaglianza è il secondo livello di difesa).
 let lastUndoSize = 0
+// H1: traccia se Ctrl è tenuto premuto per la modalità multi-selezione additiva.
+// Module-level: un solo editor source attivo per volta, nessuna race.
+let ctrlHeld = false
+const onCtrlKeyDown = (e) => { if (e.key === 'Control') ctrlHeld = true }
+const onCtrlKeyUp = (e) => { if (e.key === 'Control') ctrlHeld = false }
+const onCtrlBlur = () => { ctrlHeld = false }
+// P-REV2: tracking della changeGeneration CM per evitare getValue() ad ogni cursorActivity.
+// Se la generazione non è cambiata rispetto all'ultimo cursorActivity, il contenuto non è
+// cambiato → skip del percorso costoso (getValue, adjustTrailingNewlines×2, getWordCount).
+let lastChangeGen = -1
 </script>
 
 <script setup>
@@ -21,7 +31,7 @@ import { usePreferencesStore } from '@/store/preferences'
 import { storeToRefs } from 'pinia'
 import codeMirror, { setMode, setCursorAtFirstLine, setTextDirection } from '../../codeMirror'
 import { debounce, wordCount as getWordCount } from 'muya/lib/utils'
-import { adjustCursor } from '../../util'
+import { adjustCursor, adjustTrailingNewlines, isMarkdownPath } from '../../util'
 import bus from '../../bus'
 import { oneDarkThemes, railscastsThemes } from '@/config'
 import {
@@ -135,6 +145,10 @@ const prepareTabSwitch = () => {
     // Usare il content CM (non lo store) garantisce consistenza con le posizioni in history.
     if (editor.value) {
       const hist = editor.value.getHistory()
+      // R2 (rivisto): NESSUN cap LRU. Tutte le tab della sessione mantengono la propria
+      // history undo (decisione utente). Lo snapshot viene rimosso solo alla chiusura della
+      // tab (onBeforeUnmount). Per il rischio RAM con molte tab → avviso "troppe tab" gestito
+      // altrove (notifica perf), non si butta più la history.
       cmStatePerTab.set(tabId.value, {
         content: editor.value.getValue(),
         history: hist
@@ -155,6 +169,32 @@ const scrollToCords = (y) => {
       editor.value.scrollTo(null, y)
     }
   })
+}
+
+/**
+ * Carica il content in `cm` dallo snapshot (se allineato allo store) o da `storeMarkdown`.
+ * Restituisce { history, savedCursor } da applicare DOPO il posizionamento del cursore.
+ * history=null → il caller deve chiamare clearHistory(); savedCursor=null → usare il fallback del caller.
+ * Regola chiave: setHistory va SEMPRE chiamato DOPO setCursor per non lasciare un selection event
+ * in cima allo stack (che CM5 skeppa al Ctrl+Z rimuovendo 2 entry invece di 1).
+ */
+const restoreCmStateForTab = (cm, id, storeMarkdown) => {
+  if (cmStatePerTab.has(id)) {
+    const { content, history, cursor: savedCursor } = cmStatePerTab.get(id)
+    if (typeof storeMarkdown === 'string' && storeMarkdown !== content) {
+      // Snapshot stale rispetto allo store (modifiche in Muya nel frattempo) → usa store, history azzerata.
+      cm.setValue(storeMarkdown)
+      return { history: null, savedCursor: null }
+    }
+    // Snapshot allineato: ripristina contenuto + history (preserva undo cross-tab).
+    cm.setValue(content)
+    return { history, savedCursor }
+  }
+  // Prima visita: carica dallo store.
+  if (typeof storeMarkdown === 'string') {
+    cm.setValue(storeMarkdown)
+  }
+  return { history: null, savedCursor: null }
 }
 
 const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop, forceReload, renderCursor }) => {
@@ -217,28 +257,9 @@ const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop, forceR
 
   prepareTabSwitch()
 
-  // historyToRestore viene impostato se si ripristina uno snapshot.
-  // setHistory viene chiamato DOPO il cursor positioning (vedi sotto) perché setCursorAtFirstLine
-  // aggiunge un selection event alla history stack: se setHistory fosse prima, quel selection
-  // event finisce sopra e al Ctrl+Z CM5 lo salta (cambia solo cursore) + undoes il cambio sotto
-  // → 2 entry rimosse in un colpo e cursore salta a riga 1 invece di revertire il testo.
-  let historyToRestore = null
-
-  if (cmStatePerTab.has(id)) {
-    // Tab già visitata: ripristina content dallo snapshot. History ripristinata dopo il cursore.
-    const { content, history } = cmStatePerTab.get(id)
-    if (typeof newMarkdown === 'string' && newMarkdown !== content) {
-      // FIX: snapshot stale rispetto allo store (modifiche in Muya nel frattempo) →
-      // usa il contenuto dello store, history azzerata.
-      editor.value.setValue(newMarkdown)
-    } else {
-      editor.value.setValue(content)
-      historyToRestore = history
-    }
-  } else if (typeof newMarkdown === 'string') {
-    // Prima visita: carica dal store, history parte da zero.
-    editor.value.setValue(newMarkdown)
-  }
+  // historyToRestore viene applicato DOPO il cursor positioning (regola spiegata in restoreCmStateForTab).
+  const { history: histSnap } = restoreCmStateForTab(editor.value, id, newMarkdown)
+  let historyToRestore = histSnap
 
   if (typeof newMarkdown === 'string' || cmStatePerTab.has(id)) {
     // P-DF8-1: tiny line + crash "Cannot read properties of undefined (reading 'map')".
@@ -304,6 +325,18 @@ const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop, forceR
     const s = getMarkdownAndCursor(editor.value)
     seedUnified(id, s.markdown, s.cursor)
     lastUndoSize = editor.value.historySize().undo
+  }
+
+  // R4: degrade expensive CM options on very large files to prevent freeze/lag.
+  if (editor.value) {
+    const fileSize = (newMarkdown || currentTab.value?.markdown || '').length
+    const isHuge = fileSize > 10 * 1024 * 1024 // 10 MB
+    editor.value.setOption('highlightSelectionMatches', isHuge ? false : {
+      minChars: 2,
+      wordsOnly: true,
+      showToken: false
+    })
+    editor.value.setOption('styleActiveLine', !isHuge)
   }
 
   // Switch source→source (nessun remount del componente): il setValue qui sopra ha cancellato
@@ -372,23 +405,6 @@ const handleToLowerCase = () => {
   editor.value.replaceSelections(updated, 'around')
 }
 
-// Replica di adjustTrailingNewlines (editor.js, privata) per normalizzare cm.getValue()
-// prima del confronto N12. Senza questo, trailing newline presenti in CM ma strippate
-// dallo store causano false-dirty su ogni click cursore dopo il salvataggio.
-const normalizeMarkdown = (md, trimOption) => {
-  if (!md) return ''
-  const trimEnd = (s) => s.replace(/[\r\n]+$/, '')
-  if (trimOption === 0) return trimEnd(md)
-  if (trimOption === 1) {
-    if (md[md.length - 1] === '\n') {
-      if (md.length === 1) return ''
-      if (md[md.length - 2] !== '\n') return md
-    }
-    const trimmed = trimEnd(md)
-    return trimmed.length === 0 ? '' : trimmed + '\n'
-  }
-  return md
-}
 
 // Flush sincronizzato CM→store prima del salvataggio (Ctrl+S / Save As).
 // FILE_SAVE emette 'pre-save' via bus (mitt = sincrono) PRIMA di leggere tab.markdown.
@@ -415,33 +431,183 @@ const handlePreSave = () => {
   }
 }
 
-// Intercetta eventi format in source mode per operazioni riga (Ctrl+D / Ctrl+L)
+// Avvolge la selezione (o inserisce marcatori vuoti al cursore) con `before`/`after`.
+const wrapSelection = (cm, before, after = before) => {
+  if (cm.somethingSelected()) {
+    cm.replaceSelection(before + cm.getSelection() + after)
+  } else {
+    const cursor = cm.getCursor()
+    cm.replaceRange(before + after, cursor)
+    cm.setCursor({ line: cursor.line, ch: cursor.ch + before.length })
+  }
+  cm.focus()
+}
+
+// Intercetta eventi 'format' in source mode.
+// 'del' e 'link' sono selection-aware: selezione → sintassi markdown; cursore nudo → line-op legacy.
 const handleFormatInSource = (type) => {
   if (!sourceCode.value || !editor.value) return
+  const cm = editor.value
   if (type === 'del') {
-    // Ctrl+D in source = duplica. Con selezione → duplica tutte le righe coperte.
-    const cm = editor.value
-    const from = cm.getCursor('from')
-    const to = cm.getCursor('to')
-    const hasSel = from.line !== to.line || from.ch !== to.ch
-    if (!hasSel) {
-      // nessuna selezione → duplica la riga corrente
-      const line = cm.getLine(from.line)
-      cm.replaceRange(line + '\n', { line: from.line, ch: 0 })
+    if (cm.somethingSelected()) {
+      // Selezione presente → strikethrough ~~testo~~
+      wrapSelection(cm, '~~')
     } else {
-      // selezione attiva → duplica l'intero blocco di righe coperte
-      // edge case: selezione finisce a ch=0 → l'ultima riga non è realmente toccata → escludila
-      const endLine = (to.ch === 0 && to.line > from.line) ? to.line - 1 : to.line
-      const lines = []
-      for (let i = from.line; i <= endLine; i++) lines.push(cm.getLine(i))
-      cm.replaceRange(lines.join('\n') + '\n', { line: from.line, ch: 0 })
+      // Nessuna selezione (Ctrl+D) → duplica riga corrente (line-op legacy)
+      // H1: collassa multi-selezione per evitare duplicazioni incoerenti
+      if (cm.listSelections().length > 1) cm.execCommand('singleSelection')
+      const from = cm.getCursor('from')
+      const to = cm.getCursor('to')
+      const hasSel = from.line !== to.line || from.ch !== to.ch
+      if (!hasSel) {
+        cm.replaceRange(cm.getLine(from.line) + '\n', { line: from.line, ch: 0 })
+      } else {
+        // edge case: selezione finisce a ch=0 → l'ultima riga non è toccata → escludila
+        const endLine = (to.ch === 0 && to.line > from.line) ? to.line - 1 : to.line
+        const lines = []
+        for (let i = from.line; i <= endLine; i++) lines.push(cm.getLine(i))
+        cm.replaceRange(lines.join('\n') + '\n', { line: from.line, ch: 0 })
+      }
+      cm.focus()
+    }
+  } else if (type === 'link') {
+    if (cm.somethingSelected()) {
+      // Selezione presente → inserisci link [testo]()
+      const sel = cm.getSelection()
+      cm.replaceSelection(`[${sel}]()`)
+      const pos = cm.getCursor()
+      cm.setCursor({ line: pos.line, ch: pos.ch - 1 }) // cursore dentro ()
+      cm.focus()
+    } else {
+      // Nessuna selezione (Ctrl+L) → elimina riga corrente (line-op legacy)
+      cm.execCommand('deleteLine')
+      cm.focus()
+    }
+  } else if (type === 'strong') {
+    wrapSelection(cm, '**')
+  } else if (type === 'em') {
+    wrapSelection(cm, '_')
+  } else if (type === 'u') {
+    wrapSelection(cm, '<u>', '</u>')
+  } else if (type === 'mark') {
+    wrapSelection(cm, '==')
+  } else if (type === 'sup') {
+    wrapSelection(cm, '^')
+  } else if (type === 'sub') {
+    wrapSelection(cm, '~')
+  } else if (type === 'inline_code') {
+    wrapSelection(cm, '`')
+  } else if (type === 'inline_math') {
+    wrapSelection(cm, '$')
+  } else if (type === 'image') {
+    const sel = cm.somethingSelected() ? cm.getSelection() : ''
+    cm.replaceSelection(`![${sel}]()`)
+    if (!sel) {
+      const pos = cm.getCursor()
+      // Posiziona il cursore sull'alt text (![|]()); 3 chars back da ')' = dentro '[]'
+      cm.setCursor({ line: pos.line, ch: pos.ch - 3 })
     }
     cm.focus()
-  } else if (type === 'link') {
-    // Ctrl+L in source = elimina riga corrente
-    editor.value.execCommand('deleteLine')
-    editor.value.focus()
+  } else if (type === 'clear') {
+    if (cm.somethingSelected()) {
+      const text = cm.getSelection()
+      // Rimuove i wrapper markdown più comuni (solo se simmetrici)
+      const stripped = text
+        .replace(/^\*\*(.*)\*\*$/, '$1')
+        .replace(/^__(.*)__$/, '$1')
+        .replace(/^\*(.*)\*$/, '$1')
+        .replace(/^_(.*)_$/, '$1')
+        .replace(/^~~(.*)~~$/, '$1')
+        .replace(/^`(.*)`$/, '$1')
+        .replace(/^<u>(.*)<\/u>$/, '$1')
+        .replace(/^==(.*)==$/, '$1')
+        .replace(/^\^(.*)\^$/, '$1')
+      cm.replaceSelection(stripped)
+      cm.focus()
+    }
   }
+}
+
+// Intercetta eventi 'paragraph' in source mode: inserisce sintassi markdown reale via CM.
+// Solo per file markdown; no-op per altri tipi di file.
+const handleParagraphInSource = (type) => {
+  if (!sourceCode.value || !editor.value) return
+  if (!isMarkdownPath(currentTab.value?.pathname)) return
+  const cm = editor.value
+
+  // Applica `prefix` all'inizio di ogni riga coperta dalla selezione.
+  // Rimuove prefissi heading/blockquote/list preesistenti prima di applicare il nuovo.
+  const setLinePrefix = (prefix) => {
+    const from = cm.getCursor('from')
+    const to = cm.getCursor('to')
+    const endLine = (to.ch === 0 && to.line > from.line) ? to.line - 1 : to.line
+    cm.operation(() => {
+      for (let i = from.line; i <= endLine; i++) {
+        const text = cm.getLine(i)
+        const clean = text.replace(/^#{1,6}\s?/, '').replace(/^>\s?/, '')
+          .replace(/^- \[ \] /, '').replace(/^- \[x\] /, '').replace(/^[-*+]\s/, '')
+          .replace(/^\d+\.\s/, '')
+        cm.replaceRange(prefix + clean, { line: i, ch: 0 }, { line: i, ch: text.length })
+      }
+    })
+    cm.focus()
+  }
+
+  if (type.startsWith('heading ')) {
+    const level = parseInt(type.split(' ')[1])
+    setLinePrefix('#'.repeat(level) + ' ')
+  } else if (type === 'paragraph' || type === 'reset-to-paragraph') {
+    setLinePrefix('')
+  } else if (type === 'upgrade heading') {
+    const lineText = cm.getLine(cm.getCursor().line)
+    const match = lineText.match(/^(#{1,5})\s/)
+    if (match) setLinePrefix('#'.repeat(match[1].length + 1) + ' ')
+  } else if (type === 'degrade heading') {
+    const lineText = cm.getLine(cm.getCursor().line)
+    const match = lineText.match(/^(#{2,6})\s/)
+    if (match) setLinePrefix('#'.repeat(match[1].length - 1) + ' ')
+  } else if (type === 'blockquote') {
+    setLinePrefix('> ')
+  } else if (type === 'ol-bullet') {
+    setLinePrefix('1. ')
+  } else if (type === 'ul-bullet') {
+    setLinePrefix('- ')
+  } else if (type === 'ul-task') {
+    setLinePrefix('- [ ] ')
+  } else if (type === 'hr') {
+    const line = cm.getCursor().line
+    cm.replaceRange('\n---\n', { line, ch: cm.getLine(line).length })
+    cm.setCursor({ line: line + 2, ch: 0 })
+    cm.focus()
+  } else if (type === 'pre') {
+    const line = cm.getCursor().line
+    cm.replaceRange('\n```\n\n```', { line, ch: cm.getLine(line).length })
+    cm.setCursor({ line: line + 2, ch: 0 })
+    cm.focus()
+  } else if (type === 'mathblock') {
+    const line = cm.getCursor().line
+    cm.replaceRange('\n$$\n\n$$', { line, ch: cm.getLine(line).length })
+    cm.setCursor({ line: line + 2, ch: 0 })
+    cm.focus()
+  } else if (type === 'table') {
+    const line = cm.getCursor().line
+    cm.replaceRange('\n| Col 1 | Col 2 |\n| --- | --- |\n| Cell | Cell |',
+      { line, ch: cm.getLine(line).length })
+    cm.setCursor({ line: line + 1, ch: 0 })
+    cm.focus()
+  } else if (type === 'html') {
+    const line = cm.getCursor().line
+    cm.replaceRange('\n<div>\n\n</div>', { line, ch: cm.getLine(line).length })
+    cm.setCursor({ line: line + 2, ch: 0 })
+    cm.focus()
+  } else if (type === 'front-matter') {
+    if (cm.getLine(0) !== '---') {
+      cm.replaceRange('---\n\n---\n\n', { line: 0, ch: 0 })
+      cm.setCursor({ line: 1, ch: 0 })
+      cm.focus()
+    }
+  }
+  // 'loose-list-item': semantica complessa (blank line dopo list item) → no-op in source
 }
 
 // ---- Ricerca CodeMirror (Ctrl+F in source) ----------------------------------
@@ -509,12 +675,15 @@ const highlightSourceMatches = (value, opt, jump) => {
   const cm = editor.value
   const caseFold = !(opt && opt.isCaseSensitive)
   const cursor = cm.getSearchCursor(query, { line: 0, ch: 0 }, { caseFold })
+  // P-REV5: cap mark a 1000 per evitare freeze su ricerche broad (es. "e" su file grande).
+  const MAX_MARKS = 1000
   while (cursor.findNext()) {
     const from = cursor.from()
     const to = cursor.to()
     if (from.line === to.line && from.ch === to.ch) break // match a lunghezza zero → stop
     searchPositions.push({ from, to })
     searchMarks.push(cm.markText(from, to, { className: 'cm-search-match' }))
+    if (searchMarks.length >= MAX_MARKS) break
   }
   if (searchPositions.length && jump) {
     // Match corrente = primo a partire dal cursore (in avanti), altrimenti il primo.
@@ -640,7 +809,6 @@ const handleImageAction = ({ id, result, alt }) => {
 
 const listenChange = () => {
   editor.value.on('cursorActivity', (cm) => {
-    const { cursor, markdown: newMarkdown } = getMarkdownAndCursor(cm)
     // Traccia la selezione CM per i trigger di ricerca (Ctrl+F / Ctrl+Shift+F su selezione).
     editorStore.SET_SELECTION(cm.getSelection())
     // v2: emette posizione cursor per status bar (Ln/Col)
@@ -652,15 +820,24 @@ const listenChange = () => {
       })
     }
 
+    // P-REV2: confronta la changeGeneration CM: se non è cambiata rispetto all'ultimo evento,
+    // il contenuto è invariato (puro spostamento cursore) → skip del percorso costoso
+    // (getValue O(n), adjustTrailingNewlines×2, getWordCount O(n), commitTimer reset).
+    const currentGen = cm.changeGeneration()
+    if (currentGen === lastChangeGen) return
+    lastChangeGen = currentGen
+
+    const { cursor, markdown: newMarkdown } = getMarkdownAndCursor(cm)
+
     // N12: check immediato isSaved (no debounce) per feedback bollino istantaneo dopo Ctrl+Z.
     // Normalizza ENTRAMBI i lati con adjustTrailingNewlines: originalMarkdown dopo un
     // load/reload è il contenuto GREZZO del disco (non normalizzato). Se i trailing-newline
     // del file ≠ forma normalizzata, confrontare grezzo vs normalizzato dava false-dirty
-    // su ogni click cursore anche senza modifiche. normalizeMarkdown è idempotente → sicuro.
+    // su ogni click cursore anche senza modifiche. adjustTrailingNewlines è idempotente → sicuro.
     if (currentTab.value && currentTab.value.originalMarkdown !== null) {
       const trim = currentTab.value.trimTrailingNewline
-      const normalizedNew = normalizeMarkdown(newMarkdown, trim)
-      const normalizedOrig = normalizeMarkdown(currentTab.value.originalMarkdown, trim)
+      const normalizedNew = adjustTrailingNewlines(newMarkdown, trim)
+      const normalizedOrig = adjustTrailingNewlines(currentTab.value.originalMarkdown, trim)
       if (normalizedNew === normalizedOrig && !currentTab.value.isSaved) {
         currentTab.value.isSaved = true
       } else if (normalizedNew !== normalizedOrig && currentTab.value.isSaved) {
@@ -713,13 +890,21 @@ onMounted(() => {
     lineWrapping: preferencesStore.wordWrap !== false,
     styleActiveLine: true,
     direction: textDirection,
-    undoDepth: 10000,
+    undoDepth: 1000, // R2: reduced from 10000; unified history (H8) handles Ctrl+Z for md files
     // Ctrl+Shift+↑/↓ liberi → sposta riga su/giù solo in source mode
     // Alt+↑/↓ in source mode = sposta riga su/giù (come Notepad++).
     // Ctrl+Shift+↑/↓ torna al default CM (estensione selezione).
     extraKeys: codeMirror.normalizeKeyMap({
       'Alt-Up': 'swapLineUp',
-      'Alt-Down': 'swapLineDown'
+      'Alt-Down': 'swapLineDown',
+      // H1: Esc collassa la multi-selezione se attiva; altrimenti passa al handler find-panel.
+      'Escape': (cm) => {
+        if (cm.listSelections().length > 1) {
+          cm.execCommand('singleSelection')
+        } else {
+          return codeMirror.Pass
+        }
+      }
     }),
     // Evidenzia le altre occorrenze della parola selezionata (solo source mode).
     // showToken:false → evidenzia solo la selezione esplicita, non la parola sotto cursore.
@@ -756,6 +941,7 @@ onMounted(() => {
   bus.on('toUpperCase', handleToUpperCase)
   bus.on('toLowerCase', handleToLowerCase)
   bus.on('format', handleFormatInSource)
+  bus.on('paragraph', handleParagraphInSource)
   bus.on('pre-save', handlePreSave)
   // Ricerca CodeMirror (Ctrl+F in source): il riquadro find emette questi eventi.
   bus.on('searchValue', handleSourceSearch)
@@ -813,6 +999,31 @@ onMounted(() => {
     event.stopPropagation()
   })
 
+  // H1: traccia Ctrl per multi-selezione additiva da tastiera.
+  // keydown/keyup sul wrapper CM (dove va il focus); blur su window per "stuck-modifier"
+  // (es. alt-tab con Ctrl premuto → keyup si perde → blocca in modalità additiva).
+  const wrapperEl = codeMirrorInstance.getWrapperElement()
+  wrapperEl.addEventListener('keydown', onCtrlKeyDown)
+  wrapperEl.addEventListener('keyup', onCtrlKeyUp)
+  window.addEventListener('blur', onCtrlBlur)
+  codeMirrorInstance.on('blur', onCtrlBlur)
+
+  // H1: beforeSelectionChange — mantiene le selezioni non-vuote esistenti quando
+  // il movimento da tastiera (Ctrl+frecce) tenterebbe di collassarle a una sola.
+  // Scatta SOLO se: ctrlHeld=true, ≥1 selezione non-vuota esistente, origin=*move|+move,
+  // e il nuovo set è più piccolo → previene il collasso.
+  codeMirrorInstance.on('beforeSelectionChange', (cm, obj) => {
+    if (!ctrlHeld) return
+    const current = cm.listSelections()
+    const nonEmpty = current.filter(r => !r.empty())
+    if (nonEmpty.length < 1) return
+    const origin = obj.origin || ''
+    if (!/\*move|\+move/.test(origin)) return
+    if (obj.ranges.length >= current.length) return
+    // Mantiene le selezioni non-vuote + aggiunge la nuova posizione primaria
+    obj.update([...nonEmpty, obj.ranges[0]])
+  })
+
   // Bug 6: scroll listener su surface CM (.CodeMirror-scroll) — sostituisce ex
   // listener su .source-code (ora overflow:hidden, non emette scroll).
   codeMirrorInstance.on('scroll', () => {
@@ -821,38 +1032,24 @@ onMounted(() => {
 
   // Ripristino da snapshot salvato in onBeforeUnmount (cambio tab → smonta/rimonta).
   // cmStatePerTab è a livello modulo → sopravvive ai remount.
-  // setHistory va DOPO setCursor per non lasciare un selection event in cima allo stack.
-  if (cmStatePerTab.has(id)) {
-    const { content, history, cursor: savedCursor } = cmStatePerTab.get(id)
-    const storeMarkdown = props.markdown
-    if (typeof storeMarkdown === 'string' && storeMarkdown !== content) {
-      // FIX: snapshot stale (modifiche fatte in Muya dopo aver lasciato source mode).
-      // Lo store è la verità → carica il contenuto dello store; history azzerata perché
-      // l'undo dello snapshot sarebbe incoerente col nuovo contenuto.
-      codeMirrorInstance.setValue(storeMarkdown)
-      setCursorAtFirstLine(codeMirrorInstance)
-    } else {
-      // snapshot allineato allo store → ripristina contenuto + history (preserva undo cross-tab)
-      codeMirrorInstance.setValue(content)
-      if (savedCursor) {
-        codeMirrorInstance.setCursor(savedCursor)
-      } else {
-        setCursorAtFirstLine(codeMirrorInstance)
-      }
-      codeMirrorInstance.setHistory(history)
-    }
+  const { history: histToRestore, savedCursor } = restoreCmStateForTab(codeMirrorInstance, id, props.markdown)
+  // Cursor: preferisce snapshot → muyaIndexCursor → prima riga.
+  if (savedCursor) {
+    codeMirrorInstance.setCursor(savedCursor)
+  } else if (muyaIndexCursor && muyaIndexCursor.anchor && muyaIndexCursor.focus) {
+    const { anchor, focus } = muyaIndexCursor
+    codeMirrorInstance.setSelection(anchor, focus, { scroll: true })
   } else {
-    // Prima visita a questa tab: cursor da muyaIndexCursor (se disponibile)
-    if (muyaIndexCursor && muyaIndexCursor.anchor && muyaIndexCursor.focus) {
-      const { anchor, focus } = muyaIndexCursor
-      codeMirrorInstance.setSelection(anchor, focus, { scroll: true })
-    } else {
-      setCursorAtFirstLine(codeMirrorInstance)
-    }
+    setCursorAtFirstLine(codeMirrorInstance)
   }
+  // setHistory DOPO il cursore (regola spiegata in restoreCmStateForTab).
+  if (histToRestore) codeMirrorInstance.setHistory(histToRestore)
 
   editor.value = codeMirrorInstance
   tabId.value = id
+  // P-REV2: risincronizza con la generazione corrente al mount (il CM inizializzato può avere
+  // una generazione > -1 dopo setValue/setCursor) → primo cursorActivity calcola correttamente.
+  lastChangeGen = codeMirrorInstance.changeGeneration()
 
   // H8 — seed baseline unificata al mount (prima visita alla tab).
   // seedUnified è idempotente: no-op se la tab ha già una entry (non sovrascrive history esistente).
@@ -916,6 +1113,14 @@ onBeforeUnmount(() => {
     containerResizeObs = null
   }
 
+  // H1: rimuove i listener Ctrl (registrati sul wrapper CM e su window).
+  if (editor.value) {
+    editor.value.getWrapperElement().removeEventListener('keydown', onCtrlKeyDown)
+    editor.value.getWrapperElement().removeEventListener('keyup', onCtrlKeyUp)
+  }
+  window.removeEventListener('blur', onCtrlBlur)
+  ctrlHeld = false
+
   bus.off('file-loaded', handleFileChange)
   bus.off('invalidate-image-cache', handleInvalidateImageCache)
   bus.off('file-changed', handleFileChange)
@@ -927,6 +1132,7 @@ onBeforeUnmount(() => {
   bus.off('toUpperCase', handleToUpperCase)
   bus.off('toLowerCase', handleToLowerCase)
   bus.off('format', handleFormatInSource)
+  bus.off('paragraph', handleParagraphInSource)
   bus.off('pre-save', handlePreSave)
   bus.off('searchValue', handleSourceSearch)
   bus.off('find-action', handleSourceFindAction)

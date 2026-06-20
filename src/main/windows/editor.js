@@ -1,5 +1,5 @@
 import path from 'path'
-import { BrowserWindow, dialog, ipcMain } from 'electron'
+import { BrowserWindow, dialog, ipcMain, screen } from 'electron'
 import { enable as remoteEnable } from '@electron/remote/main/index.js'
 import log from 'electron-log'
 import windowStateKeeper from 'electron-window-state'
@@ -82,7 +82,12 @@ class EditorWindow extends BaseWindow {
     // il `minWidth` passato al costruttore non viene applicato in modo affidabile (resize sotto
     // il minimo → controlli destra tagliati). `setMinimumSize` (coordinate finestra) lo forza.
     // Single source: editorWinOptions in config.js.
-    win.setMinimumSize(editorWinOptions.minWidth, editorWinOptions.minHeight)
+    // R5: clamp minWidth to workArea so the window never exceeds screen bounds on small/scaled screens.
+    const safeMinWidth = Math.min(
+      editorWinOptions.minWidth,
+      screen.getPrimaryDisplay().workAreaSize.width
+    )
+    win.setMinimumSize(safeMinWidth, editorWinOptions.minHeight)
 
     // v2: nasconde menu bar nativa anche quando frame=true (titlebar nativa Windows).
     // Tasto Alt la mostra/nasconde dinamicamente.

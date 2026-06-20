@@ -1,6 +1,6 @@
 import equal from 'deep-equal'
 import bus from '../bus'
-import { hasKeys, getUniqueId, deepClone, isMarkdownPath } from '../util'
+import { hasKeys, getUniqueId, deepClone, isMarkdownPath, adjustTrailingNewlines } from '../util'
 import { clearUnified } from './unifiedHistory'
 import listToTree from '../util/listToTree'
 import {
@@ -585,7 +585,7 @@ export const useEditorStore = defineStore('editor', {
       const preferencesStore = usePreferencesStore()
       const { lightTouch } = preferencesStore
       const unsavedFiles = tabs
-        .filter((file) => !(file.isSaved && /[^\n]/.test(file.markdown)))
+        .filter((file) => !file.isSaved)
         .map((file) => {
           const { id, filename, pathname, markdown, originalMarkdown } = file
           const options = getOptionsFromState(file)
@@ -944,9 +944,19 @@ export const useEditorStore = defineStore('editor', {
       ])
     },
 
+    // H4: flippa il flag pinned e riordina: pinnate prima (ordine relativo preservato).
+    TOGGLE_PIN_TAB(id) {
+      const tab = this.tabs.find(t => t.id === id)
+      if (!tab) return
+      tab.pinned = !tab.pinned
+      const pinned = this.tabs.filter(t => t.pinned)
+      const unpinned = this.tabs.filter(t => !t.pinned)
+      this.tabs.splice(0, this.tabs.length, ...pinned, ...unpinned)
+    },
+
     CLOSE_OTHER_TABS(file) {
       this.tabs
-        .filter((f) => f.id !== file.id)
+        .filter((f) => f.id !== file.id && !f.pinned)  // H4: le tab pinnate sono protette
         .forEach((tab) => {
           this.CLOSE_TAB(tab)
         })
@@ -961,7 +971,7 @@ export const useEditorStore = defineStore('editor', {
     },
 
     CLOSE_ALL_TABS() {
-      this.tabs.slice().forEach((tab) => {
+      this.tabs.slice().filter(t => !t.pinned).forEach((tab) => {  // H4: skip pinnate
         this.CLOSE_TAB(tab)
       })
     },
@@ -1034,12 +1044,30 @@ export const useEditorStore = defineStore('editor', {
       const fromIndex = tabs.findIndex((t) => t.id === fromId)
       if (fromIndex === -1) return
 
+      const fromPinned = tabs[fromIndex].pinned
+
       if (!toId) {
-        moveItem(tabs, fromIndex, tabs.length - 1)
+        if (fromPinned) {
+          // Pinnata → va solo alla fine della zona pinnata
+          const lastPinned = tabs.reduce((acc, t, i) => t.pinned ? i : acc, fromIndex)
+          moveItem(tabs, fromIndex, lastPinned)
+        } else {
+          moveItem(tabs, fromIndex, tabs.length - 1)
+        }
       } else {
         const toIndex = tabs.findIndex((t) => t.id === toId)
         if (toIndex === -1) return
-        const realToIndex = fromIndex < toIndex ? toIndex - 1 : toIndex
+        let realToIndex = fromIndex < toIndex ? toIndex - 1 : toIndex
+
+        // H4: zone clamping — pinnata resta nella zona pinnata, non-pinnata in quella non-pinnata
+        if (fromPinned) {
+          const lastPinned = tabs.reduce((acc, t, i) => t.pinned ? i : acc, fromIndex)
+          realToIndex = Math.min(realToIndex, lastPinned)
+        } else {
+          const firstUnpinned = tabs.findIndex(t => !t.pinned)
+          if (firstUnpinned >= 0) realToIndex = Math.max(realToIndex, firstUnpinned)
+        }
+
         moveItem(tabs, fromIndex, realToIndex)
       }
     },
@@ -1430,7 +1458,7 @@ export const useEditorStore = defineStore('editor', {
       })
     },
 
-    LINTEN_FOR_EXPORT_SUCCESS() {
+    LISTEN_FOR_EXPORT_SUCCESS() {
       window.electron.ipcRenderer.on('mt::export-success', (_, { filePath }) => {
         notice
           .notify({
@@ -1450,7 +1478,7 @@ export const useEditorStore = defineStore('editor', {
       window.electron.ipcRenderer.send('mt::response-print')
     },
 
-    LINTEN_FOR_PRINT_SERVICE_CLEARUP() {
+    LISTEN_FOR_PRINT_SERVICE_CLEARUP() {
       window.electron.ipcRenderer.on('mt::print-service-clearup', () => {
         bus.emit('print-service-clearup')
       })
@@ -1466,7 +1494,7 @@ export const useEditorStore = defineStore('editor', {
       }
     },
 
-    LINTEN_FOR_SET_LINE_ENDING() {
+    LISTEN_FOR_SET_LINE_ENDING() {
       window.electron.ipcRenderer.on('mt::set-line-ending', (_, lineEnding) => {
         this.SET_LINE_ENDING(lineEnding)
       })
@@ -1475,7 +1503,7 @@ export const useEditorStore = defineStore('editor', {
       })
     },
 
-    LINTEN_FOR_SET_ENCODING() {
+    LISTEN_FOR_SET_ENCODING() {
       // Accetta sia stringa (legacy) sia oggetto {encoding, isBom} per supporto BOM
       bus.on('mt::set-file-encoding', (payload) => {
         const encodingName = typeof payload === 'string' ? payload : payload.encoding
@@ -1489,7 +1517,7 @@ export const useEditorStore = defineStore('editor', {
       })
     },
 
-    LINTEN_FOR_SET_FINAL_NEWLINE() {
+    LISTEN_FOR_SET_FINAL_NEWLINE() {
       bus.on('mt::set-final-newline', (value) => {
         const { trimTrailingNewline } = this.currentFile
         if (trimTrailingNewline !== value) {
@@ -1654,58 +1682,6 @@ const getRootFolderFromState = (projectStore) => {
   return ''
 }
 
-/**
- * Trim the final newlines according `trimTrailingNewlineOption`.
- *
- * @param {string} markdown The text to trim.
- * @param {*} trimTrailingNewlineOption The option how we should trim the final newlines.
- */
-const adjustTrailingNewlines = (markdown, trimTrailingNewlineOption) => {
-  if (!markdown) {
-    return ''
-  }
-
-  switch (trimTrailingNewlineOption) {
-    // Trim trailing newlines.
-    case 0: {
-      return trimTrailingNewlines(markdown)
-    }
-    // Ensure single trailing newline.
-    case 1: {
-      // Muya will always add a final new line to the markdown text. Check first whether
-      // only one newline exist to prevent copying the string.
-      const lastIndex = markdown.length - 1
-      if (markdown[lastIndex] === '\n') {
-        if (markdown.length === 1) {
-          // Just return nothing because adding a final new line makes no sense.
-          return ''
-        } else if (markdown[lastIndex - 1] !== '\n') {
-          return markdown
-        }
-      }
-
-      // Otherwise trim trailing newlines and add one.
-      markdown = trimTrailingNewlines(markdown)
-      if (markdown.length === 0) {
-        // Just return nothing because adding a final new line makes no sense.
-        return ''
-      }
-      return markdown + '\n'
-    }
-    // Disabled, use text as it is.
-    default:
-      return markdown
-  }
-}
-
-/**
- * Trim trailing newlines from `text`.
- *
- * @param {string} text The text to trim.
- */
-const trimTrailingNewlines = (text) => {
-  return text.replace(/[\r\n]+$/, '')
-}
 
 /**
  * Normalizes a block of text for semantic comparison.
@@ -1719,13 +1695,19 @@ const normalizeBlock = (text) => {
   return text
     // Normalize line endings
     .replace(/\r\n/g, '\n')
-    // Remove trailing spaces from lines
+    // B-REV5: protect markdown hard-breaks (2+ trailing spaces before \n) with a sentinel.
+    // Without this, "hello  \n" → "hello\n" → hard-break edit looks identical to original
+    // → never written to disk. Sentinel \x02 survives the whitespace-strip and space-collapse
+    // steps below because it is neither a space nor a tab.
+    .replace(/ {2,}(\n)/g, '\x02$1')
+    // Remove trailing spaces from lines (sentinel \x02 at EOL is not matched)
     .replace(/[ \t]+$/gm, '')
     // Normalize all blank line variations to single newline for comparison
-    // This treats "no blank line" and "one or more blank lines" as equivalent
     .replace(/\n+/g, '\n')
-    // Collapse multiple spaces to single space (but not newlines)
+    // Collapse multiple inline spaces to single space (\x02 is not a space, survives)
     .replace(/[ \t]+/g, ' ')
+    // Restore hard-breaks AFTER the inline-space collapse so "  " is not re-collapsed
+    .replace(/\x02/g, '  ')
     // Trim
     .trim()
 }

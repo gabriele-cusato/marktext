@@ -209,6 +209,8 @@
       "showInFolder": "Show In Folder"
     },
     "tabs": {
+      "pin": "Pin Tab",
+      "unpin": "Unpin Tab",
       "close": "Close",
       "closeOthers": "Close others",
       "closeSavedTabs": "Close saved tabs",
@@ -1111,7 +1113,9 @@
       "fileChangedTitle": "File changed on disk",
       "fileChangedReloadWarn": "\"{name}\" has been changed by another program. Reloading will discard the unsaved changes in the editor.",
       "fileChangedReloadNoWarn": "\"{name}\" has been changed by another program. Do you want to reload it?",
-      "reloadFromDisk": "Reload"
+      "reloadFromDisk": "Reload",
+      "tooManyTabsTitle": "Many tabs open",
+      "tooManyTabsMsg": "You have {count} tabs open. A large number of tabs may slow the editor down — consider closing some you no longer need."
     },
     "help": {
       "lineEndingAssertionError": "Line ending assertion error"
@@ -1387,7 +1391,26 @@
   },
   "statusBar": {
     "toggleWrap": "Toggle Word Wrap",
-    "resetZoom": "Reset Zoom (Ctrl+0)"
+    "resetZoom": "Reset Zoom (Ctrl+0)",
+    "toggleSource": "Toggle Source / Markdown (Ctrl+E)",
+    "nonMarkdown": "Source only: non-markdown file",
+    "wrapUnavailable": "Wrap not available in markdown mode",
+    "otherCharsets": "Other character sets",
+    "encodingGroup": {
+      "arabic": "Arabic",
+      "baltic": "Baltic",
+      "cyrillic": "Cyrillic",
+      "centralEuropean": "Central European",
+      "chinese": "Chinese",
+      "easternEuropean": "Eastern European",
+      "greek": "Greek",
+      "hebrew": "Hebrew",
+      "japanese": "Japanese",
+      "korean": "Korean",
+      "northernEuropean": "Northern European",
+      "turkish": "Turkish",
+      "westernEuropean": "Western European"
+    }
   },
   "theme": {
     "cadmiumLight": "Cadmium Light",

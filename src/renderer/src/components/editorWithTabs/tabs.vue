@@ -23,13 +23,24 @@
           :title="file.pathname || file.filename"
           :class="['v2-tab', {
             'v2-tab-active': currentFile.id === file.id,
-            'v2-tab-active-hidden': currentFile.id === file.id && pinnedTab && pinnedTab.id === file.id
+            'v2-tab-active-hidden': currentFile.id === file.id && pinnedTab && pinnedTab.id === file.id,
+            'is-pinned': !!file.pinned
           }]"
           :data-id="file.id"
           @click.stop="selectFile(file)"
           @click.middle="closeTab(file.id)"
           @contextmenu.prevent="handleContextMenu($event, file)"
         >
+          <!-- H4: indicatore pin (puntina da disegno) — solo tab pinnate -->
+          <span
+            v-if="file.pinned"
+            class="v2-tab-pin"
+            title="Pinned"
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z" />
+            </svg>
+          </span>
           <!-- Dot unsaved -->
           <span
             v-if="!file.isSaved"
@@ -528,7 +539,7 @@ const updateTabRowsLayout = () => {
 const recomputePinnedTab = (items = null, multiRow = null) => {
   const ul = tabDropContainer.value
   if (!ul) return
-  if (!items) items = Array.from(ul.querySelectorAll('li.v2-tab'))
+  if (!items) items = Array.from(ul.querySelectorAll('li.v2-tab:not(.v2-tab-pinned)'))
   if (multiRow === null) multiRow = hasMultiRow.value
 
   if (!multiRow || !items.length) {
@@ -599,7 +610,28 @@ onMounted(() => {
     revertOnSpill: true,
     mirrorContainer: tabDropContainer.value,
     ignoreInputTextSelection: false,
-    moves: (el) => el.classList.contains('v2-tab')
+    moves: (el) => el.classList.contains('v2-tab'),
+    // H4: impedisce drag cross-zona: pinnate restano nella zona pinnata, non-pinnate in quella non-pinnata.
+    accepts: (el, _target, _source, sibling) => {
+      const draggedId = el.getAttribute('data-id')
+      const draggedTab = tabs.value.find(t => t.id === draggedId)
+      if (!draggedTab) return true
+
+      // Ricava il tab a cui appartiene il sibling (elemento dopo il punto di drop)
+      const isValidSibling = (s) => s && !s.classList.contains('v2-tab-new-li') && !s.classList.contains('gu-mirror')
+      const siblingId = isValidSibling(sibling) ? sibling.getAttribute('data-id') : null
+      const siblingTab = siblingId ? tabs.value.find(t => t.id === siblingId) : null
+
+      if (draggedTab.pinned) {
+        // Pinnata → il sibling deve essere pinnato; se null (fine lista) accetta solo se non ci sono non-pinnate
+        if (!siblingTab) return !tabs.value.some(t => !t.pinned && t.id !== draggedId)
+        return siblingTab.pinned
+      } else {
+        // Non-pinnata → il sibling non deve essere pinnato
+        if (!siblingTab) return true
+        return !siblingTab.pinned
+      }
+    }
   })
   .on('drag', () => {
     currentDragDropHandled = false
@@ -692,30 +724,9 @@ watch(
 )
 
 // B5: aggiorna pinnedTab al cambio di tab attiva.
-// - Se la nuova tab attiva è in riga 1 → pinned sparisce
-// - Se è su riga 2+ → diventa pinned (cloned in riga 1)
 watch(() => currentFile.value && currentFile.value.id, () => {
   nextTick(() => {
-    const ul = tabDropContainer.value
-    if (!ul) return
-    const realTabs = Array.from(ul.querySelectorAll('li.v2-tab:not(.v2-tab-pinned)'))
-    if (realTabs.length === 0) {
-      pinnedTab.value = null
-      return
-    }
-    const firstTop = realTabs[0].offsetTop
-    const activeEl = realTabs.find((el) => el.getAttribute('data-id') === String(currentFile.value.id))
-    if (!activeEl) {
-      pinnedTab.value = null
-      return
-    }
-    if (activeEl.offsetTop > firstTop) {
-      // Tab attiva è in riga 2+ → mostra pinned
-      pinnedTab.value = tabs.value.find((t) => t.id === currentFile.value.id) || null
-    } else {
-      // Tab attiva è in riga 1 → nessun pinned
-      pinnedTab.value = null
-    }
+    recomputePinnedTab()
     // P1A: rAF garantisce misura post-paint → offsetTop stabili → no false multi-row con 2 tab
     requestAnimationFrame(() => updateTabRowsLayout())
   })
@@ -723,14 +734,9 @@ watch(() => currentFile.value && currentFile.value.id, () => {
 
 // B2: clone non scompare quando si compatta a riga singola.
 // Se hasMultiRow passa a false (resize finestra/chiusura tab), pinnedTab va azzerato.
-// Se torna a true, ricalcola pinnedTab usando stessa logica del watch currentFile.id.
+// Se torna a true, ricalcola pinnedTab.
 watch(hasMultiRow, (newVal) => {
   // P-DF8-3 (rev S7-fix): lock ridotto da 500ms → 150ms.
-  // Post B14e (topright-dynamic width fissa 150px) la padding-right tabbar non
-  // cambia mai → transition CSS non si attiva → flicker quasi impossibile.
-  // 150ms = sotto soglia percezione umana, mantiene debounce contro burst
-  // ResizeObserver (es. drag-resize finestra continuo) e protezione parziale
-  // per eventuali future regressioni su transition dimensionali.
   layoutLockUntil = Date.now() + 150
   setTimeout(() => {
     nextTick(() => requestAnimationFrame(() => updateTabRowsLayout()))
@@ -739,22 +745,7 @@ watch(hasMultiRow, (newVal) => {
     pinnedTab.value = null
     return
   }
-  nextTick(() => {
-    const ul = tabDropContainer.value
-    if (!ul) return
-    const realTabs = Array.from(ul.querySelectorAll('li.v2-tab:not(.v2-tab-pinned)'))
-    if (!realTabs.length) {
-      pinnedTab.value = null
-      return
-    }
-    const firstTop = realTabs[0].offsetTop
-    const activeEl = realTabs.find((el) => el.getAttribute('data-id') === String(currentFile.value.id))
-    if (!activeEl || activeEl.offsetTop <= firstTop) {
-      pinnedTab.value = null
-    } else {
-      pinnedTab.value = tabs.value.find((t) => t.id === currentFile.value.id) || null
-    }
-  })
+  nextTick(() => recomputePinnedTab())
 })
 </script>
 
@@ -1004,6 +995,26 @@ watch(hasMultiRow, (newVal) => {
   border-radius: 1px;
   background: var(--v2-accent);
   opacity: 0.75;
+}
+
+/* H4: Pin tab — icona puntina + sfondo in rilievo + accento ("spicchio") SULLA tab pinnata */
+.v2-tab-pin {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-right: 3px;
+  color: var(--v2-accent);
+  opacity: 0.85;
+}
+
+/* Sfondo leggermente in rilievo + accento verticale a sinistra (lo "spicchio" ora è sulla tab
+   pinnata, non più sulla vicina). `.v2-tab.is-pinned` ha specificità > `.v2-tab-active` (2 classi
+   vs 1) → l'accento resta anche quando la tab pinnata è attiva. */
+.v2-tab.is-pinned {
+  box-shadow: inset 2px 0 0 var(--v2-accent), var(--v2-shadow-sm);
+}
+.v2-tab.is-pinned:not(.v2-tab-active) {
+  background: var(--v2-surface2);
 }
 
 /* Dot unsaved (amber) */

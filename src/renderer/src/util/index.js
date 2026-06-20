@@ -174,3 +174,24 @@ export const isMarkdownPath = (pathname) => {
   const ext = (window.path.extname(pathname) || '').toLowerCase()
   return ext === '' || MARKDOWN_EXTENSIONS.includes(ext)
 }
+
+/**
+ * Normalizza il markdown in base all'opzione trailing-newline dell'utente.
+ * trimOption 0 = rimuovi tutti i trailing newlines; 1 = assicura esattamente uno; default = invariato.
+ * Unica copia condivisa tra sourceCode.vue (N12 check) e store/editor.js (save/commit).
+ */
+export const adjustTrailingNewlines = (text, trimOption) => {
+  if (!text) return ''
+  const trimEnd = (s) => s.replace(/[\r\n]+$/, '')
+  if (trimOption === 0) return trimEnd(text)
+  if (trimOption === 1) {
+    const last = text.length - 1
+    if (text[last] === '\n') {
+      if (text.length === 1) return ''
+      if (text[last - 1] !== '\n') return text
+    }
+    const trimmed = trimEnd(text)
+    return trimmed.length === 0 ? '' : trimmed + '\n'
+  }
+  return text
+}
