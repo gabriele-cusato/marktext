@@ -24,6 +24,12 @@ class EditorWindow extends BaseWindow {
     this._filesToOpen = [] // {doc: IMarkdownDocumentRaw, options: any, selected: boolean}
     this._markdownToOpen = [] // List of markdown strings or an empty string will open a new untitled tab
 
+    // H2: finestra di ripristino sessione → niente blank tab automatica (le tab arrivano dal restore).
+    this._isRestoreSession = false
+    // H2: finestra "owner" della sessione (la prima editor window) → unica a fare backup periodico
+    // e chiusura silenziosa, come NPP che fa il periodic backup solo per la prima istanza.
+    this._isSessionOwner = false
+
     // Root directory and file list that are currently opened. These lists are
     // used to find the best window to open new files in.
     this._openedRootDirectory = ''
@@ -40,7 +46,9 @@ class EditorWindow extends BaseWindow {
    */
   createWindow(rootDirectory = null, fileList = [], markdownList = [], options = {}) {
     const { menu: appMenu, env, preferences } = this._accessor
-    const addBlankTab = !rootDirectory && fileList.length === 0 && markdownList.length === 0
+    // H2: in restore NON aprire la blank tab — le tab vengono ricostruite da mt::restore-session.
+    const addBlankTab =
+      !this._isRestoreSession && !rootDirectory && fileList.length === 0 && markdownList.length === 0
 
     const mainWindowState = windowStateKeeper({
       defaultWidth: 1200,
@@ -155,7 +163,10 @@ class EditorWindow extends BaseWindow {
         lineEnding,
         sideBarVisibility,
         tabBarVisibility,
-        sourceCodeModeEnabled
+        sourceCodeModeEnabled,
+        // H2: il renderer chiede il restore se isRestore; solo l'owner arma backup periodico + close silenzioso.
+        isRestore: this._isRestoreSession,
+        isSessionOwner: this._isSessionOwner
       })
 
       this._doOpenFilesToOpen()

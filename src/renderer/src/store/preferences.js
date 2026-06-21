@@ -15,6 +15,10 @@ export const usePreferencesStore = defineStore('preferences', {
     fileSortBy: 'created',
     startUpAction: 'lastState',
     defaultDirectoryToOpen: '',
+    // H2 — Session snapshot & periodic backup (stile Notepad++).
+    sessionSnapshotEnabled: true,
+    sessionBackupPath: '',
+    sessionBackupInterval: 7,
     treePathExcludePatterns: [],
     language: 'en',
 
@@ -163,6 +167,11 @@ export const usePreferencesStore = defineStore('preferences', {
 
     SELECT_DEFAULT_DIRECTORY_TO_OPEN() {
       window.electron.ipcRenderer.send('mt::select-default-directory-to-open')
+    },
+
+    // H2: folder-picker per la cartella di backup sessione (il main risponde con mt::user-preference).
+    SELECT_SESSION_BACKUP_PATH() {
+      window.electron.ipcRenderer.send('mt::select-session-backup-path')
     },
 
     LISTEN_FOR_VIEW() {

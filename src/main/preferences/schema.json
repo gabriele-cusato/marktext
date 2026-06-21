@@ -56,6 +56,22 @@
     "description": "General--The default directory that should be opened on startup when startUp=folder.",
     "type": "string"
   },
+  "sessionSnapshotEnabled": {
+    "description": "General--Enable session snapshot and periodic backup: restore all tabs on next launch and don't ask to save on close (Notepad++ style).",
+    "type": "boolean",
+    "default": true
+  },
+  "sessionBackupPath": {
+    "description": "General--Directory for session snapshot and periodic backup. Empty means <userData>/backup.",
+    "type": "string",
+    "default": ""
+  },
+  "sessionBackupInterval": {
+    "description": "General--Interval in seconds between periodic session backups.",
+    "type": "number",
+    "minimum": 1,
+    "default": 7
+  },
   "language": {
     "description": "General--The language MarkText use.",
     "type": "string",

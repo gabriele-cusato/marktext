@@ -10,6 +10,9 @@
   "fileSortBy": "created",
   "startUpAction": "lastState",
   "defaultDirectoryToOpen": "",
+  "sessionSnapshotEnabled": true,
+  "sessionBackupPath": "",
+  "sessionBackupInterval": 7,
   "treePathExcludePatterns": [],
   "language": "en",
 

@@ -133,6 +133,38 @@
 
     <compound>
       <template #head>
+        <h6 class="title">Session snapshot &amp; periodic backup</h6>
+      </template>
+      <template #children>
+        <bool
+          description="Enable session snapshot and periodic backup: restore all tabs on next launch and do not ask to save on close (Notepad++ style)."
+          :bool="sessionSnapshotEnabled"
+          :on-change="(value) => onSelectChange('sessionSnapshotEnabled', value)"
+        />
+        <range
+          description="Periodic backup interval."
+          :value="sessionBackupInterval"
+          :min="1"
+          :max="600"
+          unit="s"
+          :step="1"
+          :on-change="(value) => onSelectChange('sessionBackupInterval', value)"
+        />
+        <section class="startup-action-ctrl">
+          <div class="startup-option">
+            <span>Backup location</span>
+            <el-button size="small" @click="selectSessionBackupPath">
+              Select folder
+            </el-button>
+            <span v-if="sessionBackupPath" class="directory-path">{{ sessionBackupPath }}</span>
+            <span v-else class="directory-path">Default: &lt;userData&gt;/backup</span>
+          </div>
+        </section>
+      </template>
+    </compound>
+
+    <compound>
+      <template #head>
         <h6 class="title">
           {{ t('preferences.general.misc.title') }}
         </h6>
@@ -183,7 +215,10 @@ const {
   hideScrollbar,
   wordWrapInToc,
   fileSortBy,
-  language
+  language,
+  sessionSnapshotEnabled,
+  sessionBackupPath,
+  sessionBackupInterval
 } = storeToRefs(preferenceStore)
 
 const startUpAction = computed({
@@ -200,6 +235,10 @@ const onSelectChange = (type, value) => {
 
 const selectDefaultDirectoryToOpen = () => {
   preferenceStore.SELECT_DEFAULT_DIRECTORY_TO_OPEN()
+}
+
+const selectSessionBackupPath = () => {
+  preferenceStore.SELECT_SESSION_BACKUP_PATH()
 }
 </script>
 

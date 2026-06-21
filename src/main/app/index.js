@@ -9,12 +9,13 @@ import { isLinux, isOsx, isWindows } from '../config'
 import parseArgs from '../cli/parser'
 import { normalizeAndResolvePath } from '../filesystem'
 import { normalizeMarkdownPath } from '../filesystem/markdown'
+import { writeSession, hasSessionSync, loadSessionTabs } from '../filesystem/session'
 import { registerKeyboardListeners } from '../keyboard'
 import { selectTheme } from '../menu/actions/theme'
 import { dockMenu } from '../menu/templates'
 import registerSpellcheckerListeners from '../spellchecker'
 import { watchers } from '../utils/imagePathAutoComplement'
-import { WindowType } from '../windows/base'
+import { WindowType, WindowLifecycle } from '../windows/base'
 import EditorWindow from '../windows/editor'
 import SettingWindow from '../windows/setting'
 import { setLanguage } from '../i18n'
@@ -340,8 +341,17 @@ class App {
       ])
     }
 
+    const { sessionSnapshotEnabled } = preferences.getAll()
     const createWindow = () => {
-      if (_openFilesCache.length) {
+      if (sessionSnapshotEnabled && hasSessionSync(preferences)) {
+        // H2: ripristina SEMPRE la sessione (tutte le tab della scorsa volta) e ACCODA gli eventuali
+        // file/cartella da CLI/doppio-click nella stessa finestra (dedup nel renderer) — comportamento NPP.
+        const appendFiles = _openFilesCache.filter((p) => !p.isDir).map((p) => p.path)
+        const rootDir = (_openFilesCache.find((p) => p.isDir) || {}).path || null
+        _openFilesCache.length = 0
+        this._restoreSessionWindow(appendFiles, rootDir)
+      } else if (_openFilesCache.length) {
+        // Feature OFF (o nessuna sessione): apri i file da CLI normalmente.
         this._openFilesToOpen()
       } else {
         this._createEditorWindow()
@@ -410,6 +420,17 @@ class App {
 
   // --- private --------------------------------
 
+  // H2: ritorna la prima editor window viva (non chiusa), READY o ancora in LOADING (i metodi open*
+  // accodano da soli se non è ancora READY). Serve per il single-window stile Notepad++.
+  _getExistingEditorWindow() {
+    for (const window of this._windowManager.windows.values()) {
+      if (window.type === WindowType.EDITOR && window.lifecycle !== WindowLifecycle.QUITTED) {
+        return window
+      }
+    }
+    return null
+  }
+
   /**
    * Creates a new editor window.
    *
@@ -420,8 +441,53 @@ class App {
    * @returns {EditorWindow} The created editor window.
    */
   _createEditorWindow(rootDirectory = null, fileList = [], markdownList = [], options = {}) {
+    // H2: single-window stile Notepad++. Con la feature attiva NON si apre mai una seconda finestra:
+    // ogni richiesta (New Window, --new-window, apertura file da CLI/doppio-click, ecc.) viene
+    // dirottata sulla finestra esistente — apre lì le tab (dedup nel renderer) e la porta in primo piano.
+    if (this._accessor.preferences.getItem('sessionSnapshotEnabled')) {
+      const existing = this._getExistingEditorWindow()
+      if (existing) {
+        if (rootDirectory) existing.openFolder(rootDirectory)
+        if (fileList.length) existing.openTabsFromPaths(fileList)
+        if (markdownList.length) {
+          markdownList.forEach((md, i) => existing.openUntitledTab(i === 0, md))
+        }
+        // "New Window" puro (niente da aprire) → nuova tab vuota nella finestra unica (come Ctrl+N di NPP).
+        if (!rootDirectory && !fileList.length && !markdownList.length) {
+          existing.openUntitledTab(true, '')
+        }
+        existing.bringToFront()
+        return existing
+      }
+    }
+
     const editor = new EditorWindow(this._accessor)
+    // H2: owner della sessione = unica editor window viva al momento della creazione (determinato in modo
+    // dinamico → corretto anche su macOS dopo chiusura+riapertura, e con feature OFF resta "prima finestra").
+    editor._isSessionOwner = this._getExistingEditorWindow() === null
     editor.createWindow(rootDirectory, fileList, markdownList, options)
+    this._windowManager.add(editor)
+    if (this._windowManager.windowCount === 1) {
+      this._accessor.menu.setActiveWindow(editor.id)
+    }
+    return editor
+  }
+
+  /**
+   * H2: crea la finestra di ripristino sessione (nessuna blank tab; le tab arrivano via mt::restore-session).
+   * Eventuali file/cartella da CLI vengono ACCODATI alla sessione ripristinata (dedup nel renderer).
+   * @param {string[]} [appendFiles] File da aprire dopo il restore.
+   * @param {string|null} [rootDirectory] Cartella da aprire dopo il restore.
+   * @returns {EditorWindow}
+   */
+  _restoreSessionWindow(appendFiles = [], rootDirectory = null) {
+    const editor = new EditorWindow(this._accessor)
+    editor._isSessionOwner = this._getExistingEditorWindow() === null
+    editor._isRestoreSession = true
+    // Stash: il main li apre nella stessa finestra DOPO aver inviato mt::restore-session (ordine garantito).
+    editor._restoreAppendFiles = appendFiles
+    editor._restoreRootDirectory = rootDirectory
+    editor.createWindow()
     this._windowManager.add(editor)
     if (this._windowManager.windowCount === 1) {
       this._accessor.menu.setActiveWindow(editor.id)
@@ -720,6 +786,95 @@ class App {
       })
       if (filePaths && filePaths[0]) {
         preferences.setItems({ defaultDirectoryToOpen: filePaths[0] })
+      }
+    })
+
+    // H2 — Session snapshot & periodic backup -------------------------------------------------
+
+    // Backup periodico (dall'owner): scrive la sessione senza chiudere nulla.
+    ipcMain.on('mt::session-save', (e, payload) => {
+      const { preferences } = this._accessor
+      if (!preferences.getItem('sessionSnapshotEnabled')) return
+      writeSession(preferences, payload).catch((err) => log.error('[session] save failed:', err))
+    })
+
+    // Chiusura silenziosa: scrivi la sessione (await) e POI chiudi la finestra — niente popup "salvare?".
+    ipcMain.on('mt::session-save-and-close', async (e, payload) => {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      const { preferences } = this._accessor
+      try {
+        if (preferences.getItem('sessionSnapshotEnabled')) {
+          await writeSession(preferences, payload)
+        }
+      } catch (err) {
+        log.error('[session] final save failed:', err)
+      }
+      if (win && win.id) {
+        ipcMain.emit('window-close-by-id', win.id)
+      }
+    })
+
+    // Il renderer (finestra di restore) chiede di ricostruire la sessione.
+    ipcMain.on('mt::request-session-restore', async (e) => {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      if (!win) return
+      const editorWin = this._windowManager.get(win.id)
+      const { preferences, menu: appMenu } = this._accessor
+      try {
+        const result = await loadSessionTabs(preferences)
+        if (result && result.tabs.length) {
+          // Per le tab con pathname: attiva watcher + recently-used dalla pipeline standard.
+          for (const t of result.tabs) {
+            if (t.pathname && editorWin) {
+              editorWin.addToOpenedFiles(t.pathname)
+              appMenu.addRecentlyUsedDocument(t.pathname)
+            }
+          }
+          win.webContents.send('mt::restore-session', result)
+          if (result.missing && result.missing.length) {
+            win.webContents.send('mt::show-notification', {
+              title: 'Session restore',
+              type: 'warning',
+              message: 'Some files could not be fully restored:\n' + result.missing.join('\n')
+            })
+          }
+        } else {
+          // Niente da ripristinare → tab vuota normale.
+          win.webContents.send('mt::new-untitled-tab', true, '')
+        }
+      } catch (err) {
+        log.error('[session] restore failed:', err)
+        win.webContents.send('mt::new-untitled-tab', true, '')
+      }
+
+      // H2: DOPO aver inviato il restore, accoda gli eventuali file/cartella da CLI/doppio-click nella
+      // stessa finestra. mt::restore-session è già stato spedito → arriva prima di open-new-tab (ordine
+      // dei messaggi sullo stesso webContents) → RESTORE_SESSION costruisce le tab, poi NEW_TAB_WITH_CONTENT
+      // accoda/deduplica il file (se già in sessione → porta solo il focus su quella tab).
+      if (editorWin) {
+        if (editorWin._restoreRootDirectory) {
+          editorWin.openFolder(editorWin._restoreRootDirectory)
+        }
+        if (editorWin._restoreAppendFiles && editorWin._restoreAppendFiles.length) {
+          editorWin.openTabsFromPaths(editorWin._restoreAppendFiles)
+        }
+        editorWin._restoreAppendFiles = null
+        editorWin._restoreRootDirectory = null
+      }
+    })
+
+    // Folder-picker per la cartella di backup (mirror di select-default-directory-to-open).
+    ipcMain.on('mt::select-session-backup-path', async (e) => {
+      const { preferences } = this._accessor
+      const win = BrowserWindow.fromWebContents(e.sender)
+      const { sessionBackupPath } = preferences.getAll()
+      const { filePaths } = await dialog.showOpenDialog(win, {
+        defaultPath: sessionBackupPath || undefined,
+        properties: ['openDirectory', 'createDirectory']
+      })
+      if (filePaths && filePaths[0]) {
+        preferences.setItems({ sessionBackupPath: filePaths[0] })
+        win.webContents.send('mt::user-preference', { sessionBackupPath: filePaths[0] })
       }
     })
 

@@ -12,20 +12,28 @@
 
 ---
 
-## PUNTO DELLA SITUAZIONE (2026-06-20)
+## PUNTO DELLA SITUAZIONE (2026-06-21)
 
 **Fatto (codice):** tutti i micro-fix §7 + refactor M-REV; H8 (undo unificato, verificato runtime);
 H4 Pin tab (logica + revisione cosmetica); BUG-CP1 + CP1b (markdown reale in source); BUG-SAVE-UNLINK
-(falso "removed from disk" al save); ITEM-PERF-WARN (avviso "troppe tab"); R1/R4/R5/R7; R2 **rivisto**
-(cap undo rimosso → history piena in sessione). Dettagli implementativi: sezione TESTING → "Sessione 2026-06-20".
+(falso "removed from disk" al save); ITEM-PERF-WARN (avviso "troppe tab"); R1/R4/R5/R7; R2 **rivisto**;
+**H2-a/b/c — persistenza sessione + single-window stile Notepad++ (2026-06-21, ✅ VERIFICATO DALL'UTENTE:
+"funziona tutto perfettamente")**. Dettagli implementativi: sezione TESTING → "Sessione 2026-06-21".
 
-**Rimane da fare (in ordine di peso):**
-- 🔶 **H2-a/b/c** — ripristino sessione stile Notepad++ (draft in `userData` + restore + chiusura silenziosa).
-  **Piano pronto in §H2, codice NON iniziato** — è il task grande/rischioso, prossimo step. Finché non c'è,
-  il popup di chiusura resta (toglierlo = perdita dati).
-- 🔶 **H5-1 / H5-2** — detach tab fuori finestra (context menu + drag-out). OPUS, non iniziato.
-- **H3** — `Ctrl+K C/U` commenta per linguaggio. Bloccato: serve T-M1 (`MEDIUM-TASK.md`) + permesso.
-- **BUG-CP2** — switch source↔Muya non ri-renderizza md inserito via palette. Serve REPRO runtime.
+### 🔖 RIPRENDERE DOMANI (handoff 2026-06-21)
+
+**H2 è FATTO e verificato a runtime** (backup periodico 7s + chiusura silenziosa + restore di tutte le tab + crash-safe +
+single-window + apri-file accoda alla sessione). Bug `An object could not be cloned` risolto (deepClone). Restano:
+
+- 🔶 **H5-1 / H5-2** — detach tab fuori finestra (context menu + drag-out). **OPUS, non iniziato — PROSSIMO STEP.**
+  Piano in §H5. Fase 1 (context menu "sposta in nuova finestra") = ~80% del valore, rischio basso.
+  ⚠️ **MA**: con il single-window di H2 (feature ON riusa sempre la finestra), il detach va ripensato — detach DEVE poter
+  creare una 2ª finestra. Decidere: il detach **bypassa** il gate single-window (è un'azione esplicita), oppure H5 si
+  attiva solo con `sessionSnapshotEnabled=false`. Da chiarire con l'utente prima di implementare.
+- **H3** — `Ctrl+K C/U` commenta per linguaggio. Bloccato: serve T-M1 (`MEDIUM-TASK.md`) + permesso esplicito.
+- **BUG-CP2** — switch source↔Muya non ri-renderizza md inserito via palette. Serve REPRO runtime dall'utente.
+- **Smoke-test H2 su macOS/Linux** (vedi nota piattaforme in fondo alla sezione "Sessione 2026-06-21"): il path
+  `app.getPath('userData')/backup` è cross-platform corretto, ma non testato su Mac/Linux reali.
 
 **Minori / da testare:** bug unpin (tab non torna a posizione originale, accettato); B-REV5 (hard-break 2 spazi,
 test rimandato); B-REV11 (accelerator duplicati, serve runtime); M-REV10 (resync drag, serve test);
@@ -45,9 +53,9 @@ Legenda stato: ⬜ da fare · 🔧 in corso · ✅ fatto (codice) · 🧪 da tes
 |----|------|-------|------|
 | BUG-1 | Fix wrap tab bar (§1) | ✔️ già ok (verificato nel codice: while loop `row1Count>1` presente, PLUS_W rimosso) | 2 · 1,6% |
 | H1 | Multi-selez additiva Ctrl (source) | ✅ 🧪 (ctrlHeld + beforeSelectionChange + Esc + Ctrl+D guard) | 5 · 4,0% |
-| H2-a | Draft storage userData | ⬜ 🔶 OPUS — **piano dettagliato pronto §H2 (2026-06-20), utente APPROVA la feature, esecuzione da fare** | 8 · 6,4% |
-| H2-b | Session restore | ⬜ 🔶 OPUS — piano pronto §H2; esecuzione dopo H2-a | 8 · 6,4% |
-| H2-c | Chiusura silenziosa finestra | ⏸️ (dopo a+b) 🔶 OPUS — DECISO 2026-06-20: dietro preferenza, default OFF finché testato | 3 · 2,4% |
+| H2-a | Snapshot storage userData | ✅ ✔️ (2026-06-21, verificato utente, OPUS — NPP-style: `<userData>/backup/` + `session.json` indice + `<id>.snapshot` per-tab; scrittura atomica; backup periodico ogni N**secondi** gated su `contentVersion`; path+intervallo configurabili) | 8 · 6,4% |
+| H2-b | Session restore | ✅ ✔️ (2026-06-21, verificato utente — restore al boot di TUTTE le tab: untitled vuote/con contenuto, file esterni dirty, file salvati ri-letti da disco; file sparito → Untitled+notifica) | 8 · 6,4% |
+| H2-c | Chiusura silenziosa finestra | ✅ ✔️ (2026-06-21, verificato utente — **REVISIONE decisione utente: default ON** stile Notepad++, niente popup; solo finestra owner; crash-safe via backup periodico) | 3 · 2,4% |
 | H3 | Ctrl+K C/U commenta (source) | ⏸️ (serve T-M1 → LEGGERE `MEDIUM-TASK.md`, permesso esplicito) | 3 · 2,4% |
 | H4 | Pin tab | ✅ 🧪 (pinned in help.js + TOGGLE_PIN_TAB + close protection + zone clamp + dragula accepts + CSS + i18n) — **revisione cosmetica 2026-06-20**: icona ⊞ → puntina SVG; sfondo "in rilievo" + accento verticale SULLA tab pinnata; rimosso il bordo-sliver sulla vicina (era fuorviante, sembrava un indicatore pin). Logica ordine/drag/menu Pin↔Unpin già corrette (confermato leggendo il codice). | 5 · 4,0% |
 | H5-1 | Detach via context menu | ⬜ 🔶 OPUS (rischioso, per ultimi) | 5 · 4,0% |
@@ -310,8 +318,145 @@ H4 → `MEDIUM-TASK.md` (§7 + T-M6); BUG-CP1 fix B si appoggia all'infrastruttu
 - **B-REV5** (hard-break 2 spazi finali) → **test rimandato** (minore, da verificare in futuro). Resta ✅ 🧪.
 - **Item 7 — Save All**: è nelle icone in testa alla **sidebar file-tree** (`tree.vue` → `saveAll(false)` = salva tutti, `saveAll(true)` = salva e chiudi). Nessuna scorciatoia tastiera assegnata (eventuale TODO).
 
-**⛔ NON fatto — richiede decisione (vedi sotto):**
-- **H2-a/b/c (ITEM-4 utente)** — chiusura silenziosa + ripristino sessione: **NON implementato**. Lo stato attuale: i file aperti **non vengono persistiti da nessuna parte** → niente restore, e il popup "salvare?" alla chiusura **deve restare** (rimuoverlo ora = perdita dati senza recovery). Vedi §H2 per l'architettura. È il task 🔶 OPUS grande/rischioso.
+**✅ H2-a/b/c (ITEM-4 utente) — IMPLEMENTATO 2026-06-21 (OPUS).** Vedi sezione dedicata sotto.
+
+---
+
+### Sessione 2026-06-21 (OPUS) — H2 persistenza sessione stile Notepad++ (a+b+c insieme)
+
+**Revisione decisioni utente (2026-06-21, soppiantano le LOCKED 2026-06-20 su H2-c):**
+- **silentClose default ON** (non OFF): comportamento Notepad++ diretto, niente popup "salvare?" alla chiusura.
+- **Crash-safety OBBLIGATORIA**: i file non salvati vivono su disco via **backup periodico** (come NPP "session snapshot
+  and periodic backup") → qualunque chiusura (crash, kill, power-loss) è recuperabile, NON solo la chiusura pulita.
+- **Cartella di backup configurabile** (NPP la ha hardcoded, issue #3096) + **intervallo configurabile in secondi**
+  (default = stesso di NPP = **7s**).
+- Restore al boot di **TUTTE** le tab a prescindere da come è stato chiuso: untitled con contenuto, untitled vuote,
+  file esterni con modifiche non salvate, file esterni salvati.
+
+**Ricerca NPP (fonti ufficiali, vedi link in fondo alla sezione):** feature "Enable session snapshot and periodic backup"
+(Settings→Preferences→Backup): auto-salva i file modificati ogni N secondi in `%AppData%\Notepad++\backup\`; alla chiusura
+con modifiche non salvate NON chiede di salvare, tiene il backup e ricarica da lì al riavvio; default timer **7 secondi**;
+path hardcoded (#3096); il periodic backup funziona solo per la **prima istanza** (→ da noi: solo la finestra "owner").
+
+**Architettura realizzata (main = IO, renderer = stato):**
+- **Layout su disco** (`<userData>/backup/`, o cartella scelta): `session.json` = indice ordinato delle tab
+  (pathname, isSaved, isActive, pinned, hasBackup, cursor, encoding/eol); `<id>.snapshot` = contenuto delle SOLE tab non
+  al sicuro su disco (untitled o file dirty). I file salvati NON hanno snapshot → al restore si rileggono dal disco.
+  Scrittura **atomica** (tmp+rename, riusa il pattern R7) sia per `session.json` sia per gli snapshot. Cleanup snapshot
+  orfani ad ogni scrittura (simmetria create/delete, §9).
+- **Backup periodico** (renderer, finestra owner): `setTimeout` ricorsivo con intervallo = pref secondi; scrive solo se
+  `contentVersion` è cambiato dall'ultimo flush (niente I/O inutile); `bus.emit('pre-save')` prima di leggere `tab.markdown`
+  (flush sincrono del source debounced, invariante B-REV3).
+- **Chiusura silenziosa** (owner + feature ON): in `LISTEN_FOR_CLOSE`, intercetta `mt::ask-for-close` → `pre-save` →
+  `mt::session-save-and-close` (il main scrive **await** e POI `window-close-by-id`) → nessun popup. Feature OFF o finestra
+  non-owner → flusso popup attuale **identico** (zero regressioni).
+- **Restore al boot**: `app/index.js createWindow()` → se `sessionSnapshotEnabled` && `hasSessionSync` && nessun file da CLI
+  → `_restoreSessionWindow()` (finestra con `_isRestoreSession=true` → NIENTE blank tab; bootstrap manda `isRestore`).
+  Il renderer, su bootstrap `isRestore`, invia `mt::request-session-restore`; il main risolve le tab (file da disco freschi
+  + watcher via `addToOpenedFiles`; snapshot per dirty/untitled; baseline dirty = contenuto disco) e risponde con
+  `mt::restore-session` → action `RESTORE_SESSION` ricostruisce le tab in ordine, attiva quella giusta (`isActive`),
+  riordina pinnate-prima (invariante H4). File sparito → riaperto come Untitled + notifica `mt::show-notification`.
+- **Owner** = prima editor window (`_sessionOwnerAssigned` in `app/index.js`; flag `_isSessionOwner` nella EditorWindow →
+  bootstrap → module var `isSessionOwner` nel renderer). Multi-finestra: solo l'owner fa backup+close silenzioso, le altre
+  mantengono il popup (no perdita dati) — **stesso limite di NPP** (solo prima istanza).
+
+**File toccati (8):**
+- NUOVO `src/main/filesystem/session.js` — IO: `resolveBackupDir`, `writeSession` (snapshot+indice+cleanup atomici),
+  `hasSessionSync`, `loadSessionTabs` (risolve file da disco + snapshot, gestisce file mancanti).
+- `src/main/windows/editor.js` — flag `_isRestoreSession`/`_isSessionOwner`; `addBlankTab` soppressa in restore;
+  `isRestore`/`isSessionOwner` nel payload `mt::bootstrap-editor`.
+- `src/main/app/index.js` — import session + `WindowLifecycle`; **single-window gate in `_createEditorWindow`**
+  (riusa la finestra esistente quando feature ON) + helper `_getExistingEditorWindow`; owner dinamico;
+  `_restoreSessionWindow(appendFiles, rootDir)`; branch restore-first+append in `createWindow()`; append dei file CLI
+  nel handler `mt::request-session-restore`; 4 handler IPC (`mt::session-save`, `mt::session-save-and-close`,
+  `mt::request-session-restore`, `mt::select-session-backup-path`).
+- `src/main/preferences/schema.json` + `static/preference.json` — 3 pref (`sessionSnapshotEnabled` default **true**,
+  `sessionBackupPath` default `""`, `sessionBackupInterval` default **7**). ⚠️ I default REALI vengono dal preference.json
+  STATICO, non dallo schema (schema = solo validazione electron-store); `Preference.init` migra le chiavi nuove sugli
+  install esistenti via `hasSameKeys`.
+- `src/renderer/src/store/preferences.js` — 3 default mirror + action `SELECT_SESSION_BACKUP_PATH`.
+- `src/renderer/src/store/editor.js` — module vars `isSessionOwner`/`sessionBackupTimer`/`lastBackupVersion`; bootstrap
+  branch `isRestore`; close silenzioso in `LISTEN_FOR_CLOSE`; nuove action `COLLECT_SESSION`/`RESTORE_SESSION`/`LISTEN_FOR_SESSION`.
+- `src/renderer/src/pages/app.vue` — registra `LISTEN_FOR_SESSION()` in onMounted.
+- `src/renderer/src/prefComponents/general/index.vue` — sezione "Session snapshot & periodic backup" (bool + range secondi
+  + folder-picker). Testi **hardcoded in inglese** per evitare chiavi i18n grezze (lezione ITEM-PERF-WARN).
+
+**Complessità:** alta (~450 righe). **Rischio:** medio — contenuto da: canale sessione PARALLELO (non passa da `FILE_SAVE`,
+non tocca `handlePreSave`/baseline/`pendingSavedMarkdown`, invarianti B8/B9/B13); gate `contentVersion`; feature gated da
+preferenza (OFF = comportamento identico a oggi); riuso pipeline standard per watcher/disk-read.
+
+**Single-window stile Notepad++ (revisione 2026-06-21, feedback utente — i "limiti 1 e 2" del primo giro sono RISOLTI):**
+- **Limite 1 RISOLTO** — aprire un file (CLI/doppio-click) con feature ON: ora **ripristina la sessione E accoda** il
+  file come ultima tab; se il file è **già aperto** in sessione, porta solo il focus su quella tab (no doppione).
+  Boot: `createWindow()` fa restore-first + passa i file CLI a `_restoreSessionWindow` → il main, DOPO `mt::restore-session`,
+  chiama `openTabsFromPaths` (dedup in `NEW_TAB_WITH_CONTENT` via `isSamePathSync`). NPP-exact.
+- **Limite 2 RISOLTO** — **single-window**: con feature ON NON si apre mai una 2ª finestra. Chokepoint UNICO
+  `_createEditorWindow` (tutto passa di lì: New Window, `--new-window`, apertura file, `openFilesInNewWindow`): se esiste
+  già una editor window la **riusa** (apre lì le tab + `bringToFront`); "New Window" puro → nuova tab vuota (come Ctrl+N
+  di NPP). L'OS-level single-instance lock già esiste in produzione (`index.js:70`). L'owner è quindi sempre l'unica
+  finestra → determinato in modo dinamico (`_getExistingEditorWindow()===null`, corretto anche su macOS re-activate).
+  Con feature OFF: multi-finestra come prima (zero regressioni).
+- Backup periodico = finestra di perdita ≤ intervallo (default 7s) in caso di crash; chiusura pulita = zero perdita
+  (flush finale sincrono).
+
+**⚠️ File MAIN (no hot reload): `session.js`, `windows/editor.js`, `app/index.js`, `preferences/schema.json`,
+`static/preference.json` → RIAVVIARE `npm run dev`.** Renderer (editor.js/app.vue/preferences.js/general) = hot reload
+(full reload Ctrl+R consigliato).
+
+**macOS / Linux (risposta domanda utente 2026-06-21):** la **cartella è presa correttamente su tutti e 3 gli OS** —
+`app.getPath('userData')` è API Electron cross-platform → Win `%APPDATA%\marktext`, macOS `~/Library/Application Support/marktext`,
+Linux `~/.config/marktext` (o `$XDG_CONFIG_HOME`); il `/backup` + scrittura atomica (fs-extra) sono OS-agnostici. La logica
+di auto-save (timer renderer + IPC + fs) è **identica** su tutte le piattaforme → funziona. Routing apertura-file verificato
+anche per il path macOS `open-file` (Finder): cold launch → `createWindow()` (restore+append); app già pronta →
+`_openFilesToOpen` → riusa la finestra unica → stesso flusso gated. **Caveat (non testato su Mac/Linux reali — vedi R6):**
+(1) su macOS `window-all-closed` NON chiude l'app → chiudendo la finestra la sessione si salva comunque (parte il flusso
+`close`), e al re-activate dal dock scatta il restore (owner ricalcolato dinamicamente, ok); (2) i build **mas** (Mac App
+Store) disabilitano il single-instance lock (`index.js:69`, `!process.mas`) → 2 istanze possibili (raro). → **smoke-test
+consigliato su Mac/Linux**, ma nessun problema architetturale atteso.
+
+**Bug runtime risolto (2026-06-21, primo avvio):** `Error: An object could not be cloned` ai `send` di
+`mt::session-save` (tick periodico) e `mt::session-save-and-close` (X chiusura, che bloccava anche la chiusura della
+finestra). Causa: `COLLECT_SESSION` ritorna oggetti con **proxy reattivi Pinia/Vue** (cursor/encoding) → structured-clone
+IPC non li serializza. **Fix:** `deepClone(this.COLLECT_SESSION())` ai due `send` (stesso idioma già usato per
+`deepClone(unsavedFiles)`). Auditati gli altri send sessione: gli altri 2 non hanno payload, i send main→renderer sono
+oggetti plain → nessun altro punto colpito.
+
+**TEST RUNTIME (da eseguire con `npm run dev`):**
+- [ ] **T1 default ON**: prima apertura → in Preferences→General c'è "Session snapshot & periodic backup" **spuntato**,
+  intervallo 7s, location "Default: &lt;userData&gt;/backup".
+- [ ] **T2 chiusura silenziosa**: apri tab con modifiche → chiudi finestra → **NESSUN popup** "salvare?", si chiude subito.
+- [ ] **T3 restore completo**: apri 3 untitled scritte + 1 untitled vuota + 2 file esterni con modifiche + 2 file salvati →
+  chiudi → riapri → ritrovi **tutte 8** le tab, stesso ordine, tab attiva giusta, bollino dirty su quelle non salvate,
+  contenuto corretto, untitled vuota presente.
+- [ ] **T4 crash-safety**: scrivi in una untitled, **attendi ~8s** (un ciclo di backup), poi **killa il processo** (Task
+  Manager / chiudi il terminale di dev) → riapri → il contenuto non salvato è ripristinato (≤ intervallo perso).
+- [ ] **T5 path configurabile**: Preferences → "Select folder" → scegli una cartella → chiudi/riapri → la sessione è in
+  quella cartella (verifica `session.json` + eventuali `.snapshot`).
+- [ ] **T6 intervallo**: porta l'intervallo a 1s → verifica che `session.json` si aggiorni più spesso (mtime) mentre scrivi.
+- [ ] **T7 file esterno cambiato fuori**: tra chiusura e riapertura, modifica da un'altra app un file salvato ripristinato →
+  alla riapertura scatta il dialog reload del watcher (riuso meccanismo esistente).
+- [ ] **T8 file esterno cancellato**: cancella su disco un file dirty tra le sessioni → al restore si riapre come **Untitled**
+  col contenuto del backup + notifica.
+- [ ] **T9 feature OFF = nessuna regressione**: spegni la pref → chiusura mostra di nuovo il **popup** "salvare?"; al riavvio
+  NON ripristina (tab vuota/normale). Comportamento identico al pre-H2.
+- [ ] **T10 pinned + source/Muya**: pinna 2 tab, lasciane una in source mode con testo non committato → chiudi/riapri →
+  pinnate restano prime, il testo source non committato è salvato (grazie al `pre-save` nel flush).
+- [ ] **T11 cleanup**: salva su disco una tab che prima era dirty → al ciclo di backup successivo il suo `.snapshot` sparisce
+  dalla cartella; chiudi una tab → al backup successivo non è più in `session.json`.
+- [ ] **T12 apertura file = restore + append**: con feature ON + sessione esistente, apri un file da CLI/doppio-click →
+  ripristina **tutta la sessione** E aggiunge quel file come ultima tab (focus su di esso). Se il file era **già** in
+  sessione → niente doppione, porta solo il focus su quella tab.
+- [ ] **T13 single-window**: con app già aperta, apri un altro file (doppio-click/CLI) → **nessuna 2ª finestra**, la tab
+  si aggiunge a quella esistente (portata in primo piano). "New Window" (Ctrl+N) → **nuova tab**, non nuova finestra.
+- [ ] **T14 feature OFF = multi-finestra**: spegni la pref → "New Window"/apertura-in-nuova-finestra tornano a creare
+  finestre separate (comportamento storico, nessuna regressione).
+
+**Link usati per le info (NPP):**
+- Notepad++ User Manual — Preferences/Backup: https://npp-user-manual.org/docs/preferences/
+- Default backup path `%AppData%\Notepad++\backup` + path hardcoded (issue #3096):
+  https://github.com/notepad-plus-plus/notepad-plus-plus/issues/3096
+- Default timer 7 secondi + "Backup in every X seconds":
+  https://community.notepad-plus-plus.org/topic/21782/faq-periodic-backup-vs-autosave-plugin
 
 ---
 

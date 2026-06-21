@@ -228,6 +228,7 @@ onMounted(async () => {
   preferencesStore.LISTEN_TOGGLE_VIEW()
   editorStore.LISTEN_SCREEN_SHOT()
   editorStore.LISTEN_FOR_CLOSE()
+  editorStore.LISTEN_FOR_SESSION()
   editorStore.LISTEN_FOR_SAVE_AS()
   editorStore.LISTEN_FOR_MOVE_TO()
   editorStore.LISTEN_FOR_SAVE()

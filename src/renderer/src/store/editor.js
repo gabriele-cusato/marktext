@@ -25,6 +25,11 @@ import { useMainStore } from '.'
 import { i18n } from '../i18n'
 
 const autoSaveTimers = new Map()
+// H2 — stato sessione (module-scope, non reattivo): owner = solo questa finestra fa backup/close silenzioso;
+// timer del backup periodico; ultima contentVersion salvata (gate: niente scrittura se nulla è cambiato).
+let isSessionOwner = false
+let sessionBackupTimer = null
+let lastBackupVersion = -1
 // Tracks the exact markdown payload we asked the main process to write.
 // Used to update `originalMarkdown` after save so Light Touch doesn't drift.
 //
@@ -539,6 +544,16 @@ export const useEditorStore = defineStore('editor', {
         // B-REV3: flush sincrono del contenuto source (commit debounced ~1s) prima di leggere
         // tab.markdown, altrimenti chiudendo entro 1s dall'ultima battuta si salva una versione vecchia.
         bus.emit('pre-save')
+
+        // H2: chiusura silenziosa stile Notepad++ — solo la finestra owner con la feature attiva.
+        // Scrive la sessione (incl. untitled e dirty) e chiude SENZA popup "salvare?".
+        if (preferencesStore.sessionSnapshotEnabled && isSessionOwner) {
+          // deepClone OBBLIGATORIO: COLLECT_SESSION contiene proxy reattivi Pinia (cursor/encoding) →
+          // structured-clone IPC fallisce ("An object could not be cloned"). JSON-clone li appiattisce.
+          window.electron.ipcRenderer.send('mt::session-save-and-close', deepClone(this.COLLECT_SESSION()))
+          return
+        }
+
         const { lightTouch } = preferencesStore
         const unsavedFiles = this.tabs
           .filter((file) => !file.isSaved)
@@ -786,8 +801,13 @@ export const useEditorStore = defineStore('editor', {
           lineEnding,
           sideBarVisibility,
           tabBarVisibility,
-          sourceCodeModeEnabled
+          sourceCodeModeEnabled,
+          isRestore = false,
+          isSessionOwner: owner = false
         } = config
+
+        // H2: memorizza se questa finestra è l'owner della sessione (backup periodico + close silenzioso).
+        isSessionOwner = !!owner
 
         window.electron.ipcRenderer.send('mt::window-initialized')
         mainStore.SET_INITIALIZED()
@@ -803,7 +823,10 @@ export const useEditorStore = defineStore('editor', {
           checked: !!sourceCodeModeEnabled
         })
 
-        if (addBlankTab) {
+        if (isRestore) {
+          // H2: finestra di ripristino → chiedi al main le tab della scorsa sessione (mt::restore-session).
+          window.electron.ipcRenderer.send('mt::request-session-restore')
+        } else if (addBlankTab) {
           this.NEW_UNTITLED_TAB({ selected: true })
         } else if (markdownList.length) {
           let isFirst = true
@@ -840,6 +863,104 @@ export const useEditorStore = defineStore('editor', {
       bus.on('mt::new-untitled-tab', ({ selected = true, markdown = '' }) => {
         this.NEW_UNTITLED_TAB({ markdown, selected })
       })
+    },
+
+    // H2: raccoglie lo stato di TUTTE le tab per il backup di sessione
+    // (ordine + quale attiva + pinnate + contenuto + opzioni encoding/eol).
+    COLLECT_SESSION() {
+      const activeId = this.currentFile && this.currentFile.id
+      return {
+        tabs: this.tabs.map((f) => ({
+          id: f.id,
+          pathname: f.pathname || '',
+          filename: f.filename,
+          markdown: f.markdown,
+          isSaved: f.isSaved,
+          isActive: f.id === activeId,
+          pinned: !!f.pinned,
+          cursor: f.cursor || null,
+          encoding: f.encoding,
+          lineEnding: f.lineEnding,
+          adjustLineEndingOnSave: f.adjustLineEndingOnSave,
+          trimTrailingNewline: f.trimTrailingNewline
+        }))
+      }
+    },
+
+    // H2: ricostruisce le tab dalla sessione GIÀ risolta dal main (mt::restore-session).
+    RESTORE_SESSION(result) {
+      if (!result || !Array.isArray(result.tabs) || !result.tabs.length) {
+        this.NEW_UNTITLED_TAB({ selected: true })
+        return
+      }
+
+      // Pulizia difensiva (la finestra di restore non ha blank tab, ma evitiamo residui).
+      this.tabs.splice(0, this.tabs.length)
+      this.currentFile = {}
+
+      let activeState = null
+      for (const t of result.tabs) {
+        const docState = createDocumentState({
+          markdown: t.markdown,
+          filename: t.filename,
+          pathname: t.pathname || '',
+          encoding: t.encoding,
+          lineEnding: t.lineEnding,
+          adjustLineEndingOnSave: t.adjustLineEndingOnSave,
+          trimTrailingNewline: t.trimTrailingNewline,
+          cursor: t.cursor || null
+        })
+        docState.pinned = !!t.pinned
+        docState.isSaved = !!t.isSaved
+        // Baseline: per i file da disco è il contenuto su disco (bollino corretto); untitled resta null.
+        if (t.originalMarkdown !== undefined) {
+          docState.originalMarkdown = t.originalMarkdown
+        }
+        // justLoaded (finestra settle 400ms) SOLO per i file da disco puliti → assorbe la normalizzazione
+        // iniziale di Muya senza falso-dirty. Tab dirty/untitled: 0 → restano dirty correttamente (B8/NB12).
+        docState.justLoaded = docState.pathname && docState.isSaved ? Date.now() : 0
+        this.tabs.push(docState)
+        if (t.isActive && !activeState) activeState = docState
+      }
+
+      // Riordina pinnate-prima (invariante H4), preservando l'ordine relativo.
+      const pinned = this.tabs.filter((t) => t.pinned)
+      const unpinned = this.tabs.filter((t) => !t.pinned)
+      this.tabs.splice(0, this.tabs.length, ...pinned, ...unpinned)
+
+      const active = activeState || this.tabs[0]
+      this.SHOW_TAB_VIEW(true)
+      this.UPDATE_CURRENT_FILE(active)
+      bus.emit('file-loaded', { id: active.id, markdown: active.markdown, cursor: active.cursor })
+    },
+
+    // H2: registra il restore + arma il backup periodico (solo finestra owner). Da app.vue onMounted.
+    LISTEN_FOR_SESSION() {
+      const preferencesStore = usePreferencesStore()
+
+      window.electron.ipcRenderer.on('mt::restore-session', (_, result) => {
+        this.RESTORE_SESSION(result)
+      })
+
+      // Backup periodico stile Notepad++: scrive solo se il contenuto è cambiato dall'ultimo flush
+      // (gate su contentVersion → niente I/O inutile). L'intervallo (secondi) è una preferenza.
+      const tick = () => {
+        const seconds = Math.max(1, Number(preferencesStore.sessionBackupInterval) || 7)
+        if (
+          preferencesStore.sessionSnapshotEnabled &&
+          isSessionOwner &&
+          this.tabs.length &&
+          this.contentVersion !== lastBackupVersion
+        ) {
+          lastBackupVersion = this.contentVersion
+          bus.emit('pre-save') // flush sincrono del source debounced prima di leggere tab.markdown
+          // deepClone: vedi nota in LISTEN_FOR_CLOSE (proxy reattivi non clonabili via IPC).
+          window.electron.ipcRenderer.send('mt::session-save', deepClone(this.COLLECT_SESSION()))
+        }
+        sessionBackupTimer = setTimeout(tick, seconds * 1000)
+      }
+      if (sessionBackupTimer) clearTimeout(sessionBackupTimer)
+      sessionBackupTimer = setTimeout(tick, 1000)
     },
 
     CLOSE_TAB(file = null) {
