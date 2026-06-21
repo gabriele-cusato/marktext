@@ -32,8 +32,8 @@ single-window + apri-file accoda alla sessione). Bug `An object could not be clo
   attiva solo con `sessionSnapshotEnabled=false`. Da chiarire con l'utente prima di implementare.
 - **H3** — `Ctrl+K C/U` commenta per linguaggio. Bloccato: serve T-M1 (`MEDIUM-TASK.md`) + permesso esplicito.
 - **BUG-CP2** — switch source↔Muya non ri-renderizza md inserito via palette. Serve REPRO runtime dall'utente.
-- **Smoke-test H2 su macOS/Linux** (vedi nota piattaforme in fondo alla sezione "Sessione 2026-06-21"): il path
-  `app.getPath('userData')/backup` è cross-platform corretto, ma non testato su Mac/Linux reali.
+- **Smoke-test H2 su Linux** (macOS ✅ già verificato dall'utente 2026-06-21, su build firmato): il path
+  `app.getPath('userData')/backup` è cross-platform corretto; resta solo Linux (`~/.config/marktext`), nessun problema atteso.
 
 **Minori / da testare:** bug unpin (tab non torna a posizione originale, accettato); B-REV5 (hard-break 2 spazi,
 test rimandato); B-REV11 (accelerator duplicati, serve runtime); M-REV10 (resync drag, serve test);
@@ -408,11 +408,13 @@ preferenza (OFF = comportamento identico a oggi); riuso pipeline standard per wa
 Linux `~/.config/marktext` (o `$XDG_CONFIG_HOME`); il `/backup` + scrittura atomica (fs-extra) sono OS-agnostici. La logica
 di auto-save (timer renderer + IPC + fs) è **identica** su tutte le piattaforme → funziona. Routing apertura-file verificato
 anche per il path macOS `open-file` (Finder): cold launch → `createWindow()` (restore+append); app già pronta →
-`_openFilesToOpen` → riusa la finestra unica → stesso flusso gated. **Caveat (non testato su Mac/Linux reali — vedi R6):**
-(1) su macOS `window-all-closed` NON chiude l'app → chiudendo la finestra la sessione si salva comunque (parte il flusso
-`close`), e al re-activate dal dock scatta il restore (owner ricalcolato dinamicamente, ok); (2) i build **mas** (Mac App
-Store) disabilitano il single-instance lock (`index.js:69`, `!process.mas`) → 2 istanze possibili (raro). → **smoke-test
-consigliato su Mac/Linux**, ma nessun problema architetturale atteso.
+`_openFilesToOpen` → riusa la finestra unica → stesso flusso gated. **✅ macOS VERIFICATO DALL'UTENTE (2026-06-21,
+build firmato con `CSC_IDENTITY_AUTO_DISCOVERY=false`): "funziona tutto"** — backup in `~/Library/Application Support/marktext/backup`,
+restore + chiusura silenziosa OK. Note di comportamento macOS confermate: (1) `window-all-closed` NON chiude l'app →
+chiudendo la finestra la sessione si salva comunque (flusso `close`), re-activate dal dock → restore (owner ricalcolato
+dinamicamente). **Resta da smoke-testare solo Linux** (nessun problema architetturale atteso; `app.getPath('userData')`
+risolve `~/.config/marktext`). Caveat residuo: i build **mas** (Mac App Store) disabilitano il single-instance lock
+(`index.js:69`, `!process.mas`) → 2 istanze possibili (raro, non riguarda il build normale macOS).
 
 **Bug runtime risolto (2026-06-21, primo avvio):** `Error: An object could not be cloned` ai `send` di
 `mt::session-save` (tick periodico) e `mt::session-save-and-close` (X chiusura, che bloccava anche la chiusura della
