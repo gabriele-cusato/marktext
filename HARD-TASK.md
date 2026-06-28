@@ -25,11 +25,16 @@ H4 Pin tab (logica + revisione cosmetica); BUG-CP1 + CP1b (markdown reale in sou
 **H2 è FATTO e verificato a runtime** (backup periodico 7s + chiusura silenziosa + restore di tutte le tab + crash-safe +
 single-window + apri-file accoda alla sessione). Bug `An object could not be cloned` risolto (deepClone). Restano:
 
-- 🔶 **H5-1 / H5-2** — detach tab fuori finestra (context menu + drag-out). **OPUS, non iniziato — PROSSIMO STEP.**
-  Piano in §H5. Fase 1 (context menu "sposta in nuova finestra") = ~80% del valore, rischio basso.
-  ⚠️ **MA**: con il single-window di H2 (feature ON riusa sempre la finestra), il detach va ripensato — detach DEVE poter
-  creare una 2ª finestra. Decidere: il detach **bypassa** il gate single-window (è un'azione esplicita), oppure H5 si
-  attiva solo con `sessionSnapshotEnabled=false`. Da chiarire con l'utente prima di implementare.
+- 🔶 **H5-B + H5-1 + H5-2 ✅ codice fatto (2026-06-26, OPUS) — DA TESTARE A RUNTIME.** Ordine eseguito: B → H5-1 → H5-2.
+  **PROSSIMO STEP: test runtime** (riavviare `npm run dev` — modificati file MAIN: `app/index.js`, `session.js`). Sequenza consigliata:
+  B1/B7 (1 finestra, no regressioni) → H5-1 (context menu "Move to New Window" → nasce 2ª finestra, tab migra) → B2–B6
+  (2 finestre: snapshot `<winId>-<id>` distinti, race, Q1 chiusura finestra non scarta tab) → H5-2 (trascina tab fuori → nuova finestra).
+  Dettagli implementativi B in §H5 "🅱️ PIANO IMPLEMENTATIVO B" (header "✅ IMPLEMENTATO"); H5-1/H5-2 nelle Fasi sotto.
+  ✅ **Domanda gate RISOLTA (2026-06-25):** il detach **bypassa** il gate single-window; le finestre multiple condividono UNA
+  sessione (modello NPP — vedi §H5 "MODELLO MULTI-FINESTRA / SESSIONE UNICA"). Chiudere una finestra NON scarta le sue tab
+  (restano in sessione, merge al riavvio in ordine di apertura finestra). ⚠️ Il pezzo grosso/rischioso NON è il detach ma B:
+  oggi il backup gira solo nell'owner (`store/editor.js:951`) e `session.json` è flat, sovrascritto da una sola finestra
+  (`session.js:91`) → 6 criticità verificate + fix in §H5 "🅱️".
 - **H3** — `Ctrl+K C/U` commenta per linguaggio. Bloccato: serve T-M1 (`MEDIUM-TASK.md`) + permesso esplicito.
 - **BUG-CP2** — switch source↔Muya non ri-renderizza md inserito via palette. Serve REPRO runtime dall'utente.
 - **Smoke-test H2 su Linux** (macOS ✅ già verificato dall'utente 2026-06-21, su build firmato): il path
@@ -41,11 +46,39 @@ BUILD-1 (patch-package, serve npm). Vari ✅ 🧪 da spot-check runtime (vedi co
 
 ---
 
+### 🔖 RIPRENDERE (handoff 2026-06-28, OPUS) — H5 polish/bug + H3
+
+> **Test H5 runtime (utente, 2026-06-28): tutti POSITIVI** — B1–B7, H5-1, H5-2, H5-RE funzionano.
+> → H5-B / H5-1 / H5-2 passano a ✅ ✔️ una volta chiusi i 2 bug sotto. Restano da fare:
+
+**BUG-H5-EMPTYWIN** ⬜ — una finestra (detached / non-owner) con **tutte le tab chiuse resta aperta e vuota** (solo il bottone "+" per creare una tab), non si chiude e non è più chiudibile. **Deve auto-chiudersi** quando si chiude l'ultima tab di una finestra non-owner. Investigare il flusso di chiusura tab nelle finestre detached + interazione col gate single-window (la owner NON deve chiudersi quando resta vuota — lì la blank tab è attesa; il fix vale solo per le finestre nate dal detach).
+
+**BUG-H5-UNTITLED** ⬜ — il **counter Untitled non è lineare tra finestre**: una nuova finestra riparte da `Untitled-1`, invece deve continuare dal massimo globale (prima finestra fino a `Untitled-5` → nuova tab in altra finestra = `Untitled-6`). Oggi il numero è calcolato per-renderer dalle sole tab locali (B-REV8, `store/editor.js`). Serve coordinare il prossimo indice Untitled a livello di sessione/main tra tutte le finestre.
+
+**H5-RE-BUG1** ⬜ (già noto) — ri-drag di **tab omonime** non funziona. Sospetto: match per `filename`/`pathname` invece che per `id` univoco in qualche punto del flusso detach/insert/close. Investigazione **statica** (Agent-Explorer): grep i confronti `filename`/`pathname` nel percorso re-attach e nel drag-back.
+
+> ⚠️ **SUPERATO 2026-06-28 → piano spostato in `DRAG-TASK.md`:** il polish H5-RE + il raise-finestre confluiscono nella **migrazione del drag tab a HTML5 native DnD** (parità VS Code: anteprima d'inserimento + hover-taskbar che rivela le finestre + drop-fuori = nuova finestra). **koffi/raise-Win32 SCARTATO** (reso inutile dal drag OLE nativo). I 3 bug sotto (EMPTYWIN, UNTITLED, RE-BUG1) restano validi. Il blocco "Path A" e "RAISE/RESTORE" qui sotto è storico.
+
+**H5-RE polish — DECISIONE UTENTE: Path A (stile VS Code, drag DOM).** Hover-taskbar nativo ESCLUSO (richiede `startDrag` nativo che su Windows congela il processo → incompatibile col feedback live; conflitto verificato via ricerca 2026-06-28). Da implementare:
+- **Bring-to-front LIVE** della finestra destinazione durante il drag: nel main, poll `screen.getCursorScreenPoint()` ~16ms + hit-test `win.getBounds()` → alza la finestra sotto il cursore. Meccanismo: `win.moveTop()` (Electron puro, no addon, non garantito 100% su ogni build Win) **oppure** `SetWindowPos(HWND_TOP, SWP_NOACTIVATE)` via FFI nativa (più solido). `showInactive()`/`setAlwaysOnTop()` = bug noti, NON usare.
+- **Anteprima / insert-marker** nella tab bar destinazione: il main fa da relay → `webContents.send('drag-over', x)` alla finestra target → disegna un placeholder all'indice di inserimento calcolato da `x` client.
+- **Ghost window** leggera opzionale (DOM minimale, no framework) che segue il cursore.
+
+**RAISE/RESTORE finestre come target di drop (richiesta utente) — fattibile, ⏸️ DECISIONE APERTA.** Ricerca 2026-06-28: de-iconizzare + alzare le altre finestre **senza rompere il drag dragula** è possibile SOLO con `ShowWindow(hWnd, SW_SHOWNOACTIVATE)` + `SetWindowPos(SWP_NOACTIVATE|SWP_NOMOVE|SWP_NOSIZE)` su `win.getNativeWindowHandle()`, via **FFI nativa (`koffi`, no rebuild)**, innescato al **cursor-exit** (NON al drag-start: troppo intrusivo, il drag è quasi sempre riordino). Perché funziona: dragula usa listener mouse sul `document` + Chromium tiene `SetCapture` sull'HWND sorgente → la finestra A continua a ricevere `mousemove` (coord fuori bounds = segnale d'uscita) e con NOACTIVATE non perde focus/capture. `win.restore()` NO (attiva → rischio rilascio capture → drag rotto). **Limiti:** finestre su altro desktop virtuale Windows non alzabili (escluderle dai target); multi-monitor ok. **Costo:** dipendenza nativa `koffi`. **Alternativa senza dipendenza:** pattern Chrome/VS Code (minimizzate non sono target; drop fuori = nuova finestra). → **DA DECIDERE: aggiungere `koffi` per il raise robusto, oppure restare sul pattern Chrome/VS Code.**
+
+**H3 (commenti per linguaggio) — piano (corretto 2026-06-28):**
+- Mappare **SOLO** `Ctrl+K C` (commenta) e `Ctrl+K U` (decommenta). **NIENTE** `Ctrl+K Ctrl+C`/`Ctrl+K Ctrl+U` (l'utente ha corretto la richiesta iniziale).
+- **`Ctrl+K` è libero da liberare:** `view.toggle-toc` è **di fatto morto** — la sidebar v2 (`sideBar/index.vue:33`) renderizza solo `<side-bar-search/>`, `sideBar/toc.vue` NON è montato da nessuna parte (orfano post-T4A); l'action `showTableOfContents` (`menu/actions/view.js:63`) imposta `rightColumn='toc'` che nessuno disegna → no-op. Azzerare l'accelerator `'view.toggle-toc' → ''` nelle 3 mappe (`keybindingsWindows.js:101`, `Linux:102`, `Darwin:98`), **lasciando** la voce comando/menu (mai rimuovere l'oggetto).
+- **Prerequisito duro: T-M1** (`MEDIUM-TASK.md` §T-M1, "mode CM per estensione", foundational). Senza, `sourceCode.vue:718` forza `mode='markdown'` per tutti → commento sempre `<!-- -->`. T-M1 = helper `setModeForFile(cm, filename)` in `codeMirror/index.js` (riusa `mode/meta`+`loadmode` già presenti) al posto della riga 718 + in `handleFileChange`. Decisione T-M1 già LOCKED ("sì, riusando l'infrastruttura CM").
+- **Implementazione H3:** `import 'codemirror/addon/comment/comment'`; handler che iterano `cm.listSelections()` e applicano `lineComment`/`uncomment` a ogni range; fallback `blockComment` se il mode non ha line-comment (leggere `cm.getModeAt(pos).lineComment`, niente euristiche sul contenuto); binding in `extraKeys` `'Ctrl-K C'`/`'Ctrl-K U'`. Solo source (in Muya l'addon non agisce). Conviene agganciare **T-M2** (`Ctrl+/` toggleComment, stesso addon, già pianificato).
+
+---
+
 ## STATO TASK (aggiornato ad ogni task completato)
 
 Legenda stato: ⬜ da fare · 🔧 in corso · ✅ fatto (codice) · 🧪 da testare a runtime · ⏸️ bloccato (serve decisione/verifica runtime) · ❌ scartato · ✔️ già ok (nessun lavoro)
 
-**Completamento PESATO: 83 / 127 pt (≈65%)** — peso per sforzo (1 pt ≈ 0,8% del totale; colonna *Peso* in tabella, somma attiva = 127 pt). Conteggio semplice task: 35/52 (67%). Aggiornato 2026-06-20 (sessione 2). Escludono dal peso H6 (scartato), H7/R6/R8/R9/R10/S-REV1/M-REV14 (note o già ok), R3 (= P-REV3) e DESIGN-HISTORY-SPLIT (= H8) per non doppiare. H8 (undo unificato) ✅ verificato runtime 2026-06-15. **Legenda pesi + validazione decisioni sul codice: blocco sotto la tabella (2026-06-20).**
+**Completamento PESATO: 101 / 135 pt (≈75%)** — peso per sforzo (1 pt ≈ 0,8% del totale; colonna *Peso* in tabella, somma attiva = 135 pt). Conteggio semplice task: 39/54 (72%). Aggiornato 2026-06-26 (H5-B + H5-1 + H5-2 + H5-RE codice fatto, 18 pt). Prima 2026-06-25 (+H5-B aggiunto), 2026-06-20 (sessione 2). Escludono dal peso H6 (scartato), H7/R6/R8/R9/R10/S-REV1/M-REV14 (note o già ok), R3 (= P-REV3) e DESIGN-HISTORY-SPLIT (= H8) per non doppiare. H8 (undo unificato) ✅ verificato runtime 2026-06-15. **Legenda pesi + validazione decisioni sul codice: blocco sotto la tabella (2026-06-20).**
 
 > Stato `✅ ✔️` = codice fatto **e verificato runtime OK** · `✅ 🧪` = codice fatto, verifica runtime puntuale non ancora fatta (vedi sezione TESTING).
 
@@ -58,8 +91,10 @@ Legenda stato: ⬜ da fare · 🔧 in corso · ✅ fatto (codice) · 🧪 da tes
 | H2-c | Chiusura silenziosa finestra | ✅ ✔️ (2026-06-21, verificato utente — **REVISIONE decisione utente: default ON** stile Notepad++, niente popup; solo finestra owner; crash-safe via backup periodico) | 3 · 2,4% |
 | H3 | Ctrl+K C/U commenta (source) | ⏸️ (serve T-M1 → LEGGERE `MEDIUM-TASK.md`, permesso esplicito) | 3 · 2,4% |
 | H4 | Pin tab | ✅ 🧪 (pinned in help.js + TOGGLE_PIN_TAB + close protection + zone clamp + dragula accepts + CSS + i18n) — **revisione cosmetica 2026-06-20**: icona ⊞ → puntina SVG; sfondo "in rilievo" + accento verticale SULLA tab pinnata; rimosso il bordo-sliver sulla vicina (era fuorviante, sembrava un indicatore pin). Logica ordine/drag/menu Pin↔Unpin già corrette (confermato leggendo il codice). | 5 · 4,0% |
-| H5-1 | Detach via context menu | ⬜ 🔶 OPUS (rischioso, per ultimi) | 5 · 4,0% |
-| H5-2 | Detach via drag-out | ⏸️ (dopo H5-1) 🔶 OPUS (rischioso, per ultimi) | 5 · 4,0% |
+| H5-B | Sessione multi-finestra-aware (PREREQ detach; piano completo §H5 "🅱️ PIANO IMPLEMENTATIVO B") | ✅ 🧪 (2026-06-26, OPUS — 3 file; registro per-finestra + merge serializzato + snapshot namespacato; da testare B1-B7) | 5 · 4,0% |
+| H5-1 | Detach via context menu | ✅ 🧪 (2026-06-26, OPUS — voce "Move to New Window" + `mt::detach-tab` → `_createDetachWindow` riusa il flusso restore (saved/untitled/dirty uniforme) → ack `mt::detach-tab-ack` chiude la tab sorgente) | 5 · 4,0% |
+| H5-2 | Detach via drag-out | ✅ 🧪 (2026-06-26, OPUS — dragula `drag`/`dragend` + `mousemove` screen-pos; `revertOnSpill` → drop fuori finestra → `DETACH_TAB` in setTimeout(0)) | 5 · 4,0% |
+| H5-RE | Re-attach: drag tab in finestra esistente alla posizione del drop | ✅ 🧪 funziona, ⚠️ **3 problemi noti da fixare** (2026-06-26, OPUS; hit-test `getBounds` + `INSERT_DETACHED_TAB`. Da fixare: ri-drag con tab omonime, no bring-to-front live, no anteprima "miraggio" — vedi §H5 Fase 2b "🔧 DA FIXARE") | 3 · 2,4% |
 | H5-3 | Ghost window | ❌ rimandato | — |
 | H8 | Undo/redo unificato Muya↔source (opzione B) | ✅ ✔️ (verificato runtime 2026-06-15; 6 file. Iterazione bug runtime → sezione TESTING Batch H8) | 8 · 6,4% |
 | H6 | Undo persistente | ❌ scartato | — |
@@ -122,7 +157,7 @@ Legenda stato: ⬜ da fare · 🔧 in corso · ✅ fatto (codice) · 🧪 da tes
 ### Pesi & validazione decisioni (2026-06-20)
 
 **Pesi (peso per sforzo, story-point 1/2/3/5/8 → % sul totale a 1 pt ≈ 0,8%):**
-- Totale attivo = **127 pt** · Fatto (✅/✅🧪) = **83 pt (≈65%)** · Da fare (⬜/⏸️) = **44 pt (≈35%)**.
+- Totale attivo = **135 pt** · Fatto (✅/✅🧪) = **101 pt (≈75%)** · Da fare (⬜/⏸️) = **34 pt (≈25%)** (H5-B + H5-1 + H5-2 + H5-RE fatti 2026-06-26; restano H3 3pt bloccato, BUG-CP2, vari ⏸️ da test runtime).
 - Esclusi dal peso (—): scartati (❌), già-ok/note (✔️), e i duplicati di lavoro R3 (= P-REV3) e DESIGN-HISTORY-SPLIT (= H8).
 - Il numero pesato (32%) è < del conteggio task (42%) perché i pezzi pesanti — H1, H2-a/b, H4, H5-1/2 — sono ancora aperti.
 
@@ -745,7 +780,201 @@ pinnata; 0 pinnate = comportamento odierno identico.
 **Complessità reale: la più alta del file** (~300+ righe cross-process). Implementare a fasi,
 ognuna utile da sola; fermarsi dove il rapporto valore/rischio si esaurisce.
 
+#### 🔄 MODELLO MULTI-FINESTRA / SESSIONE UNICA (NPP) — revisione 2026-06-25 (decisione utente)
+
+**Spec utente (osservato in Notepad++).** Risolve la domanda aperta dell'handoff ("detach bypassa il gate o H5 solo
+con feature OFF?"): **il detach BYPASSA il gate single-window**, e le finestre multiple sono pienamente integrate in
+**UNA sola sessione**. Regole:
+1. **Single-window di default** (già implementato in H2): apertura file / New Window / doppio-click NON aprono mai una 2ª finestra.
+2. **UNICA eccezione → detach**: trascinare una tab fuori (H5-2) o "sposta in nuova finestra" (H5-1) crea una **nuova finestra reale**.
+3. Generalizza a **N finestre**, nessun massimo.
+4. **La sessione è UNICA** = unione di TUTTE le tab di TUTTE le finestre aperte (il "gruppo" di tab). Una tab vive in **una sola**
+   finestra (non duplicata), ma fa parte dell'unico indice di sessione.
+5. **Chiudere una tab** (X sulla tab) chiude **solo** quella, nella sua finestra (comportamento attuale, invariato).
+6. **Aprire/nuova tab quando NESSUNA tab è aperta** (doppio-click / "Apri") → riapre **UNA sola** finestra con **tutte** le tab
+   di tutte le finestre del gruppo, concatenate **nell'ordine di apertura delle finestre** (tab finestra 1, poi finestra 2, …).
+7. Quindi: a runtime possono coesistere più finestre con sottoinsiemi di tab diversi; al riavvio collassano in **una** finestra. = NPP.
+
+**Conseguenze architetturali vs H2 attuale (verificato sul codice 2026-06-25).** Questo modello ALZA la complessità/rischio di H5
+oltre il piano detach originale: il pezzo grosso NON è il detach in sé, ma rendere la **sessione multi-finestra-aware**.
+
+- **A. Bypass del gate (semplice).** Oggi `_createEditorWindow` (`app/index.js:443-462`), con `sessionSnapshotEnabled` ON,
+  dirotta SEMPRE sulla finestra esistente. Il detach deve avere un percorso che crea una **nuova** `EditorWindow` anche a
+  feature ON → param additivo `forceNewWindow` (salta il blocco di riuso) oppure handler dedicato `mt::detach-tab`. Rischio basso.
+- **B. Aggregazione sessione multi-finestra (il cuore, rischio ALTO — lavoro NUOVO non previsto nel piano §H2/§H5 originale).**
+  Oggi: il backup periodico gira **solo nell'owner** (`store/editor.js:951`, `isSessionOwner`); `COLLECT_SESSION`
+  (`editor.js:870`) raccoglie le tab di **una** finestra, **senza** window-id; `writeSession` (`session.js:91`) **sovrascrive**
+  l'intero `session.json` flat. → Con 2+ finestre, una seconda finestra che scrivesse sovrascriverebbe le tab dell'altra.
+  Serve: il **main** tiene un registro in memoria `windowId → { order, tabs }`; **ogni** finestra (non solo l'owner) manda il suo
+  `COLLECT_SESSION` (periodico + alla chiusura); il main aggiorna lo slice di quella finestra e **riscrive il `session.json` flat
+  MERGIATO** ordinando per `order` di creazione finestra, poi ordine tab interno. L'ordine finestre = contatore incrementale
+  assegnato in `_createEditorWindow`/`_restoreSessionWindow`. → Il gating `isSessionOwner` del tick va tolto/cambiato; la firma di
+  `writeSession` cambia (riceve windowId+order, aggiorna slice, merge, write). ⚠️ Grep tutti i `mt::session-save*` prima di toccare.
+- **C. Restore = singola finestra merge — GIÀ FUNZIONA.** `RESTORE_SESSION` (`editor.js:891`) ricostruisce TUTTE le tab in UNA
+  finestra dalla lista flat, pinnate-prima, tab attiva. Se il main produce la lista flat già nell'ordine merge (B), il restore
+  collassa correttamente in una finestra **senza modifiche**. Punto 6/7 dello spec = gratis.
+- **D. Apri file / nuova tab con più finestre aperte (🟡 default).** Il gate oggi sceglie "la prima finestra trovata"
+  (`_getExistingEditorWindow`, arbitraria). Con più finestre → indirizzare alla finestra **focalizzata**. Minore.
+- **E. Detach dell'ultima tab di una finestra.** Disabilitare la voce/azione quando la finestra **sorgente ha 1 sola tab**
+  (spostarla = no-op: chiuderebbe la sorgente vuota e ricreerebbe la stessa tab). Raffina lo step 5 di Fase 1.
+
+**✅ Q1 RISOLTO (2026-06-25, decisione utente) — chiusura di UNA finestra mentre altre restano aperte → opzione (b): le tab
+RESTANO nella sessione.** Chiudere una FINESTRA è **silenzioso** (niente popup) e **non scarta nulla**: le sue tab (ordine +
+eventuali snapshot) **restano nell'indice di sessione unico** e riappaiono nel merge al prossimo riavvio completo. L'UNICO modo di
+togliere una tab dalla sessione resta chiudere la **tab** (X sulla tab), che mantiene il dialog di salvataggio se dirty (decisione 0.3).
+→ Nessuna perdita dati pur con `silentClose` ON.
+
+**Conseguenze su B (registro main):** lo slice di una finestra **NON va cancellato alla sua chiusura** — resta "congelato" (non
+riceve più `session-save`, ma partecipa al merge) finché non avviene un **riavvio completo**, dove `RESTORE_SESSION` collassa tutto
+in UNA finestra e il registro riparte con quel solo slice. Mentre vivono più finestre, gli `order` di creazione (incl. quelli delle
+finestre già chiuse) determinano l'ordine di concatenazione al restart (finestra 1, poi 2, poi 3…). Il gate single-window **resta**
+per le aperture normali (doppio-click/menu → finestra esistente focalizzata, mai una nuova); **solo il detach** crea finestre nuove,
+senza limite di numero (una 3ª/4ª finestra può nascere dal detach di una finestra già detachata). 🟡 Minori da definire in
+implementazione: quale tab è attiva al restart (ultima finestra focalizzata vs prima); a quale finestra va un'apertura normale con
+più finestre vive (default = focalizzata).
+
+#### 🅱️ PIANO IMPLEMENTATIVO B — Sessione multi-finestra-aware (PREREQUISITO dei detach H5) — 2026-06-25
+
+> **✅ IMPLEMENTATO 2026-06-26 (OPUS) — codice fatto nei 3 file, DA TESTARE a runtime (B1–B7 sotto).** File toccati:
+> `src/main/filesystem/session.js` (writeSession → `mergedTabs` + snapshot namespacato `${winId}-${id}` + cleanup sul merge);
+> `src/main/app/index.js` (campi `_sessionRegistry`/`_sessionWriteQueue`/`_sessionOrderSeq`; helper `_mergeSession`/`_enqueueSessionWrite`;
+> `editor._sessionOrder` in `_createEditorWindow`+`_restoreSessionWindow`; handler `mt::session-save`/`mt::session-save-and-close`
+> riscritti = registro per-finestra + merge serializzato); `src/renderer/src/store/editor.js` (FIX 6 close silenzioso ogni
+> finestra; tick senza gate owner; FIX 5 `contentVersion++` in 6 azioni tab; var `isSessionOwner` rimossa = ora morta).
+> ⚠️ **MAIN (session.js, app/index.js) = niente hot reload → riavviare `npm run dev`.** Nota runtime: il **primo tick** di ogni
+> finestra scrive sempre (lastBackupVersion=-1) → ogni finestra registra il suo slice anche senza edit (risolve "finestra detachata
+> mai editata"). Restano da fare i **detach** (H5-1/H5-2) per poter testare B2–B6 con 2 finestre reali.
+
+> **Sessione pulita (anche Sonnet): questo blocco è AUTOSUFFICIENTE.** Anchor di riga verificati 2026-06-25 → i nomi-simbolo
+> sono stabili, le **righe possono shiftare**: ri-grep prima di editare. File **MAIN = niente hot reload** → riavviare `npm run dev`.
+
+**Ordine di esecuzione (LOCKED):** B **prima**, poi H5-1 (detach via menu), poi H5-2 (drag-out). Motivo: senza B una 2ª finestra
+non è crash-safe e l'overwrite dell'owner **corrompe** `session.json`. 🔶 OPUS (rischio medio-alto, cross-process).
+
+**Come funziona la sessione H2 OGGI (i 3 fatti che B modifica):**
+1. `session.json` = `{version:1, tabs:[...]}` **FLAT** — una lista ordinata di tab, **nessun concetto di finestra** (`session.js:91`).
+2. Cuscinetto `<id>.snapshot` scritto **solo** per le tab non al sicuro su disco (`tabNeedsBackup = !(isSaved && pathname)`,
+   `session.js:51`). L'indice memorizza il `backupName` **esplicito** (`session.js:75-88`) → il restore (`loadSessionTabs`,
+   `session.js:125-211`) lo rilegge da lì, **disaccoppiato** da come è generato.
+3. Backup periodico: **solo l'owner** (`store/editor.js:951`, var `isSessionOwner`), gate su `contentVersion` (`:953`).
+   `writeSession(preferences, payload)` **sovrascrive** tutto il file dal payload di UNA finestra.
+
+**Le 6 criticità (verificate sul codice 2026-06-25) che B deve risolvere:**
+
+| # | Sev | Falla | Anchor | Fix |
+|---|-----|-------|--------|-----|
+| 1 | 🔴 | id snapshot **collidono tra finestre**: `getUniqueId` = `` `${ID_PREFEX}${id++}` `` con `ID_PREFEX='mt-'`, `let id=0` a livello **modulo per-renderer** → ogni finestra riparte da `mt-0` → `<id>.snapshot` si sovrascrivono | `util/index.js:22-23,126` | `backupName` namespacato `${winId}-${tab.id}.snapshot` |
+| 2 | 🔴 | il cleanup orfani cancella gli snapshot **delle altre finestre** (calcola `referenced` dal solo payload) | `session.js:93-103` | cleanup sull'**unione mergiata** |
+| 3 | 🔴 | `writeSession` **sovrascrive** tutto `session.json` da un solo payload | `session.js:91` | registry per-finestra nel main + **merge** prima di scrivere |
+| 4 | 🔴 | **race** + tmp a nome fisso `session.json.tmp` (`mt::session-save` è fire-and-forget) → scritture concorrenti collidono | `app/index.js:798` + `session.js:39-43` | **queue serializzata** nel main (risolve anche il merge consistente) |
+| 5 | 🟠 | backup periodico **ignora i cambi struttura tab**: `contentVersion++` solo su contenuto digitato | `editor.js:1380` | bump `contentVersion` nelle 6 azioni che mutano l'array tab |
+| 6 | 🟠 | chiusura silenziosa **solo nell'owner** → le altre finestre mostrano il popup | `editor.js:550` | gate = solo `sessionSnapshotEnabled` |
+
+> **NON sono falle (corretti per design):** il renderer **non** deve conoscere il proprio `win.id` — il main lo ricava da
+> `e.sender` nei 3 handler. `RESTORE_SESSION` resta invariato.
+
+**Decisioni LOCKED (2026-06-25), non ridiscutere:**
+- **Q1** — chiudere una FINESTRA NON scarta le sue tab: lo slice resta **congelato** nel registry, le tab restano nella sessione
+  unica e riappaiono nel merge al riavvio. L'unico modo di togliere una tab è chiudere la **tab** (X sulla tab, mantiene il dialog).
+- **Pin-first GLOBALE** al restore: `RESTORE_SESSION` (`editor.js:927-929`) **INVARIATO** (le pinnate in testa a tutta la lista).
+- **Prima `isActive` trovata** al restore: `RESTORE_SESSION` (`editor.js:923`) **INVARIATO**.
+- **Snapshot namespacato per finestra** (vedi falla 1).
+
+##### IMPLEMENTAZIONE file-per-file
+
+**File 1 — `src/main/filesystem/session.js`** (rischio medio)
+- Cambiare firma: `writeSession(preferences, mergedTabs)` dove `mergedTabs` = array **già mergiato** (piatto, ordinato), ogni
+  elemento = una tab con campo extra `_winId`.
+- Nel loop: `backupName = \`${tab._winId}-${tab.id}${SNAPSHOT_EXT}\`` (**FIX 1**). Resto dell'entry invariato. L'indice scritto
+  resta `{version:1, tabs:entries}` (stesso shape; ora contiene le tab di TUTTE le finestre in ordine).
+- Cleanup (`:93-103`): `referenced` ora contiene i backupName di TUTTO il merge → cancella solo i veri orfani (**FIX 2**). Nessun'altra modifica.
+- `atomicWrite` (`:39-48`): tmp a nome fisso → la serializzazione (File 2) garantisce nessuna scrittura concorrente (**FIX 4**). **NON** toccare atomicWrite.
+- `loadSessionTabs` (`:125-211`) **INVARIATO**. *Migrazione vecchie sessioni:* `backupName` senza prefisso winId → rilette comunque
+  (l'indice ha il nome esatto); al primo restore+write si passa allo schema nuovo e i vecchi orfani vengono puliti.
+
+**File 2 — `src/main/app/index.js`** (cuore di B, rischio medio-alto)
+- Campi nuovi sulla classe App:
+  ```
+  this._sessionRegistry  = new Map()        // win.id → { winId, order, tabs }
+  this._sessionWriteQueue = Promise.resolve()
+  this._sessionOrderSeq  = 0
+  ```
+- Assegnare l'ordine di creazione: in `_createEditorWindow` (`:443`, dopo `new EditorWindow`) e `_restoreSessionWindow` (`:483`):
+  `editor._sessionOrder = this._sessionOrderSeq++`.
+- Helper merge (ordine finestra, poi ordine tab interno):
+  ```
+  _mergeSession() {
+    const slices = [...this._sessionRegistry.values()].sort((a, b) => a.order - b.order)
+    const tabs = []
+    for (const s of slices) for (const t of s.tabs) tabs.push({ ...t, _winId: s.winId })
+    return tabs
+  }
+  ```
+- Helper scrittura serializzata (FIX 4):
+  ```
+  _enqueueSessionWrite(preferences) {
+    this._sessionWriteQueue = this._sessionWriteQueue
+      .then(() => writeSession(preferences, this._mergeSession()))
+      .catch((err) => log.error('[session] write failed:', err))
+    return this._sessionWriteQueue
+  }
+  ```
+- Handler `mt::session-save` (`:795`) — diventa:
+  ```
+  const win = BrowserWindow.fromWebContents(e.sender)
+  const editorWin = win && this._windowManager.get(win.id)
+  if (!preferences.getItem('sessionSnapshotEnabled') || !editorWin) return
+  this._sessionRegistry.set(win.id, { winId: win.id, order: editorWin._sessionOrder ?? 0, tabs: payload.tabs })
+  this._enqueueSessionWrite(preferences)   // fire-and-forget: la queue serializza
+  ```
+- Handler `mt::session-save-and-close` (`:802`): stesso update del registry, ma **`await this._enqueueSessionWrite(preferences)`**
+  PRIMA di `ipcMain.emit('window-close-by-id', win.id)`. Lo slice **NON** si cancella (Q1, resta congelato).
+- `mt::request-session-restore` (`:818`) **INVARIATO** (legge la flat da disco, ricostruisce 1 finestra).
+- ⚠️ Il registry **non si svuota** alla chiusura finestra: si azzera da solo al riavvio (processo nuovo).
+
+**File 3 — `src/renderer/src/store/editor.js`** (rischio basso)
+- **FIX 6** — `LISTEN_FOR_CLOSE` (`:550`): `if (preferencesStore.sessionSnapshotEnabled && isSessionOwner)` → `if (preferencesStore.sessionSnapshotEnabled)`.
+- **Tick** — `LISTEN_FOR_SESSION` (`:951`): togliere `isSessionOwner &&` dalla condizione del backup.
+- **FIX 5** — `this.contentVersion++` in coda alle 6 azioni che mutano l'array tab: `NEW_UNTITLED_TAB` (`:1260`),
+  `NEW_TAB_WITH_CONTENT` (`:1287`), `CLOSE_TABS` (`:1100`), `FORCE_CLOSE_TAB` (`:1009`), `TOGGLE_PIN_TAB` (`:1069`),
+  `EXCHANGE_TABS_BY_ID` (`:1152`). (Effetto collaterale benigno: il content-watcher sidebar P-REV3 ricalcola anche su questi
+  eventi — corretto per open/close, spreco trascurabile su reorder/pin, già debounced 250ms.)
+- `COLLECT_SESSION` (`:870`) **INVARIATO** — manda già `id` + tutti i campi; il `win.id` lo ricava il main da `e.sender`.
+- `isSessionOwner` (var modulo `:30`, ricezione bootstrap `:806/810`) diventa **inutilizzato** da B → lasciare con commento
+  `// vestigiale dopo B; rimuovibile con H5`. Resta settato in `windows/editor.js:169` + `app/index.js:467,485`, innocuo.
+
+##### Invarianti da NON rompere
+- Canale sessione **parallelo**: non passa da `FILE_SAVE`/`handlePreSave`/baseline/`pendingSavedMarkdown` (invarianti B8/B9/B13).
+- `RESTORE_SESSION` invariato → pin-first globale + prima-attiva come deciso.
+- Feature **OFF**: gli handler escono subito (check `sessionSnapshotEnabled`) → multi-finestra storico, **zero regressioni**.
+- Simmetria create/delete: gli snapshot orfani li pulisce `writeSession` sul merge; il registry si azzera al riavvio. **Nessun**
+  delete manuale per-finestra (regola asimmetrie `CLAUDE.md §9`).
+
+##### TEST (con `npm run dev`; File 1+2 = MAIN → riavviare)
+- [ ] **B1** — 1 finestra, feature ON: backup+restore **identici** a H2 attuale (zero regressioni).
+- [ ] **B2** — 2 finestre (serve H5-1; vedi nota): ognuna scrive il suo slice → `session.json` contiene le tab di **entrambe** in ordine di creazione finestra.
+- [ ] **B3** — 2 finestre con untitled: in cartella backup 2 file `<winId>-<id>.snapshot` distinti, nessuna sovrascrittura (falla 1).
+- [ ] **B4** — chiudi finestra A (B aperta): le tab di A **restano** in `session.json`; chiudi B; riapri → 1 finestra con A-tabs poi B-tabs (Q1).
+- [ ] **B5** — cleanup: salva una tab dirty → al backup il suo snapshot sparisce; gli snapshot delle **altre** finestre restano (falla 2).
+- [ ] **B6** — race: 2 finestre che editano insieme con intervallo 1s → `session.json` mai corrotto, contiene sempre entrambe (falla 4).
+- [ ] **B7** — feature OFF: comportamento storico (multi-finestra, popup chiusura).
+- ⚠️ **Nota:** B2–B6 richiedono 2 finestre con feature ON = il detach (H5-1). Finché H5 non esiste, validare B con un trigger
+  temporaneo di debug (forzare una 2ª `_createEditorWindow` bypassando il gate) **oppure** unit test sul main per `_mergeSession`/queue.
+
+---
+
 *Fase 1 — "Sposta in nuova finestra" via context menu (NO drag) — ~80% del valore, rischio basso:*
+
+> **✅ IMPLEMENTATO 2026-06-26 (OPUS).** Scelta finale (diversa dal punto 2 sotto, più semplice/robusta): invece di
+> estendere `openTab` con `initialMarkdown`/`isDraft`, la nuova finestra **riusa il flusso restore** — `_createDetachWindow`
+> (in `app/index.js`, bypassa il gate creando `EditorWindow` direttamente, `_isRestoreSession=true`, stash `_detachTab`/`_detachSource`);
+> il renderer chiede restore → il branch detach in `mt::request-session-restore` invia `mt::restore-session` con la singola tab
+> (gestisce **uniforme** saved/untitled/dirty via `RESTORE_SESSION`, niente nuovo campo rawDocument) → poi ack `mt::detach-tab-ack`
+> alla sorgente → `FORCE_CLOSE_TAB`. Renderer: voce menu (`TabContextMenu.vue` + icona `newWindow` + i18n `moveToNewWindow`),
+> action `DETACH_TAB` (`store/editor.js`, `bus.emit('pre-save')` + payload risolto), listener ack in `LISTEN_FOR_SESSION`.
+> Punto 5 (disabilita su ultima tab) = `disabled: tabs.length <= 1` ✓. **Punto 4 (dedup file già aperto altrove) NON fatto**
+> (come da nota "non risolvere qui": 2 finestre possono watchare lo stesso file, già possibile oggi).
+
 1. Voce in `TabContextMenu.vue` → IPC `mt::detach-tab` con payload completo del tab:
    `{pathname, markdown, cursor, isSaved, originalMarkdown, options(getOptionsFromState)}`.
 2. Main: handler che crea una nuova `EditorWindow` — riusare il percorso esistente
@@ -764,6 +993,13 @@ ognuna utile da sola; fermarsi dove il rapporto valore/rischio si esaurisce.
 5. Disabilitare la voce se è **l'ultima tab dell'unica finestra** (no-op inutile).
 
 *Fase 2 — Drag-out per attivare il detach:*
+
+> **✅ IMPLEMENTATO 2026-06-26 (OPUS)** in `tabs.vue`: su `drag` registra `mousemove` su `window` (init al **centro finestra**
+> per evitare detach spurio se il mouse non si muove); su `dragend` confronta l'ultima `screenX/Y` coi bounds finestra
+> (`window.screenX/Y` + `outerWidth/Height`, **margine 0** = strettamente fuori) → se fuori e ≥2 tab → `DETACH_TAB(tab)` in
+> `setTimeout(0)` (dopo dragula; `revertOnSpill:true` ha già rimesso la tab a posto → nessun conflitto). Listener rimosso su
+> `dragend` e in `onBeforeUnmount`. Riusa tutto il percorso di Fase 1.
+
 - Dragula NON supporta drop fuori container. Rilevazione manuale: su `drag` (dragula) registrare
   `mousemove` su `window`; su `dragend`, se le coordinate `screenX/Y` sono fuori dai bounds della
   finestra (`window.screenX/Y + outer size`, con margine ~40px) → chiamare il percorso Fase 1.
@@ -771,6 +1007,39 @@ ognuna utile da sola; fermarsi dove il rapporto valore/rischio si esaurisce.
 - ⚠️ Interazione con `layoutLockUntil`/`tabsRenderKey` (post-drag): il detach chiude una tab durante
   il ciclo di vita del drop dragula → fare il detach in `setTimeout(0)`/`nextTick` DOPO che dragula ha
   finito (lezione: mai manipolare stato tab dentro i handler drop sincroni).
+
+*Fase 2b — Re-attach in una finestra ESISTENTE (H5-RE) — richiesta utente 2026-06-26:*
+
+> **✅ IMPLEMENTATO 2026-06-26 (OPUS).** Trascinare una tab e droparla **su un'altra finestra esistente**, alla **posizione**
+> del drop (non solo creare una finestra nuova). Estende il drag-out riusando lo stesso canale `mt::detach-tab`:
+> - `tabs.vue` dragend → `DETACH_TAB(tab, {x,y})` passa le **coord schermo** del drop (context menu = nessuna coord).
+> - Main `mt::detach-tab`: se ci sono coord → `_findEditorWindowAt(x,y, sourceId)` (hit-test su `browserWindow.getBounds()`
+>   di ogni editor window ≠ sorgente). Trovata B → `addToOpenedFiles` (watcher su B prima di chiudere la sorgente) +
+>   `mt::receive-detached-tab` {tab, screenX, screenY} + `bringToFront` + ack alla sorgente (chiude la tab migrata).
+>   Nessuna finestra sotto il puntatore → `_createDetachWindow` (nuova finestra, come prima).
+> - B renderer `INSERT_DETACHED_TAB`: costruisce il docState (come RESTORE_SESSION), calcola l'**indice** da coord schermo→client
+>   (`screenX - window.screenX`, confronto coi `getBoundingClientRect` delle `li.v2-tab` sulla riga del puntatore; fallback append),
+>   `splice` all'indice, riordino **pin-first**, attiva la tab. `contentVersion++` (cambio struttura).
+> - ⚠️ Conversione coord assume finestra **frameless** (custom titlebar, default v2): con titlebar **nativa** (`titleBarStyle:'native'`)
+>   il bordo/titlebar OS sfasa l'indice (la tab si aggiunge comunque, posizione meno precisa). Multi-monitor con scaling diverso = idem.
+> - ⚠️ **Limite (accettato):** il trigger drag-out scatta solo quando il puntatore esce dai bounds della finestra **sorgente**
+>   (un drop dentro la sorgente = revert/riordino interno). Quindi NON si può droppare su una finestra B che **si sovrappone**
+>   alla sorgente nel punto di drop (B coperta da A) → serve B con l'area di drop FUORI dal rettangolo di A (finestre affiancate,
+>   caso comune). Topmost-window-at-point non è determinabile in modo affidabile in Electron → non risolto.
+>
+> **🔧 DA FIXARE (problemi noti H5-RE, segnalati utente 2026-06-26 — funziona ma da migliorare):**
+> 1. **Due tab con lo STESSO nome** → il ri-drag per riportare una tab nella finestra originale **non funziona**. Root cause
+>    **da investigare** a runtime (il `data-id` è univoco, quindi sospetto un match/dedup per **nome/pathname** anziché per id
+>    in qualche punto del percorso re-attach o del drag-back, oppure due `Untitled` con lo stesso filename). Riprodurre con 2 tab
+>    omonime, poi grep i punti che confrontano `filename`/`pathname` nel flusso detach/insert/close.
+> 2. **Nessun feedback visivo durante il drag tra finestre** (manca polish, la Fase 3 "ghost window" copriva in parte):
+>    - la finestra di **destinazione** sotto il mouse **non va in primo piano DURANTE** il drag (solo DOPO il drop) → l'utente
+>      non vede dove sta per droppare. Servirebbe un `bringToFront` live al passaggio del puntatore (hit-test continuo lato main
+>      su `mousemove`, non solo a `dragend`).
+>    - manca un **"miraggio"/anteprima** della tab trascinata dentro la tab bar di destinazione (placeholder/insert-marker che
+>      mostra la posizione di inserimento) → l'utente non ha conferma visiva che l'azione sta funzionando né dell'ordine finale.
+>      Richiede comunicazione cross-finestra del drag in corso (es. main inoltra la posizione alla finestra sotto il puntatore,
+>      che mostra un indicatore di drop) — costo medio, è il grosso di una vera "ghost window" (Fase 3).
 
 *Fase 3 — Ghost window che segue il cursore: 🟡 RIMANDARE.* Costo alto (finestra trasparente
 borderless + sync posizione via IPC a 60fps), valore estetico. Decidere solo dopo Fase 2 in uso.

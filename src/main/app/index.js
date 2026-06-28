@@ -31,6 +31,11 @@ class App {
     this._openFilesCache = []
     this._openFilesTimer = null
     this._windowManager = this._accessor.windowManager
+    // B (2026-06-25): sessione multi-finestra-aware. Registro per-finestra (win.id → slice),
+    // queue di scrittura serializzata (no race + no collisione tmp), contatore ordine creazione.
+    this._sessionRegistry = new Map() // win.id → { winId, order, tabs }
+    this._sessionWriteQueue = Promise.resolve()
+    this._sessionOrderSeq = 0
     // this.launchScreenshotWin = null // The window which call the screenshot.
     // this.shortcutCapture = null
 
@@ -432,6 +437,55 @@ class App {
   }
 
   /**
+   * H5-RE: trova la finestra editor (≠ sorgente) i cui bounds schermo contengono il punto (x, y).
+   * Usata dal drag-out per droppare la tab in una finestra esistente sotto il puntatore.
+   * @param {number} x Coordinata schermo X del drop.
+   * @param {number} y Coordinata schermo Y del drop.
+   * @param {number} excludeId id della finestra sorgente da escludere.
+   * @returns {EditorWindow|null}
+   */
+  _findEditorWindowAt(x, y, excludeId) {
+    for (const w of this._windowManager.windows.values()) {
+      if (w.type !== WindowType.EDITOR || w.lifecycle === WindowLifecycle.QUITTED) continue
+      if (w.id === excludeId) continue
+      const bw = w.browserWindow
+      if (!bw || bw.isDestroyed() || !bw.isVisible()) continue
+      const b = bw.getBounds()
+      if (x >= b.x && x <= b.x + b.width && y >= b.y && y <= b.y + b.height) return w
+    }
+    return null
+  }
+
+  /**
+   * B: fonde gli slice di tutte le finestre in una lista piatta ordinata per `order` di creazione
+   * (finestra1-tab, poi finestra2-tab, ...). Ogni tab porta `_winId` per lo snapshot namespacato.
+   * Gli slice delle finestre chiuse restano (congelati) finché non si riavvia → al restart il
+   * processo è nuovo e il registro riparte vuoto (le tab collassano in una sola finestra). Q1.
+   * @returns {Array}
+   */
+  _mergeSession() {
+    const slices = [...this._sessionRegistry.values()].sort((a, b) => a.order - b.order)
+    const tabs = []
+    for (const s of slices) {
+      for (const t of s.tabs) tabs.push({ ...t, _winId: s.winId })
+    }
+    return tabs
+  }
+
+  /**
+   * B: scrittura sessione SERIALIZZATA (FIX 4 — niente race tra finestre, niente collisione su
+   * session.json.tmp). Ritorna la promise dell'ultima scrittura (la chiusura silenziosa la attende).
+   * @param {Preference} preferences
+   * @returns {Promise}
+   */
+  _enqueueSessionWrite(preferences) {
+    this._sessionWriteQueue = this._sessionWriteQueue
+      .then(() => writeSession(preferences, this._mergeSession()))
+      .catch((err) => log.error('[session] write failed:', err))
+    return this._sessionWriteQueue
+  }
+
+  /**
    * Creates a new editor window.
    *
    * @param {string} [rootDirectory] The root directory to open.
@@ -465,6 +519,8 @@ class App {
     // H2: owner della sessione = unica editor window viva al momento della creazione (determinato in modo
     // dinamico → corretto anche su macOS dopo chiusura+riapertura, e con feature OFF resta "prima finestra").
     editor._isSessionOwner = this._getExistingEditorWindow() === null
+    // B: ordine di creazione → determina la concatenazione delle tab nel merge sessione.
+    editor._sessionOrder = this._sessionOrderSeq++
     editor.createWindow(rootDirectory, fileList, markdownList, options)
     this._windowManager.add(editor)
     if (this._windowManager.windowCount === 1) {
@@ -483,6 +539,8 @@ class App {
   _restoreSessionWindow(appendFiles = [], rootDirectory = null) {
     const editor = new EditorWindow(this._accessor)
     editor._isSessionOwner = this._getExistingEditorWindow() === null
+    // B: la finestra di restore è la prima → order 0 (o successivo se già esistono finestre).
+    editor._sessionOrder = this._sessionOrderSeq++
     editor._isRestoreSession = true
     // Stash: il main li apre nella stessa finestra DOPO aver inviato mt::restore-session (ordine garantito).
     editor._restoreAppendFiles = appendFiles
@@ -492,6 +550,28 @@ class App {
     if (this._windowManager.windowCount === 1) {
       this._accessor.menu.setActiveWindow(editor.id)
     }
+    return editor
+  }
+
+  /**
+   * H5-1: crea una NUOVA finestra che riceve UNA tab detachata da un'altra finestra. Bypassa il gate
+   * single-window (è un'azione esplicita): crea direttamente l'EditorWindow, non passa da _createEditorWindow.
+   * Riusa il flusso restore (no blank tab; la tab arriva via mt::restore-session) → gestione uniforme
+   * di saved/untitled/dirty. Stash `_detachTab`/`_detachSource`: usati nel handler mt::request-session-restore.
+   * @param {Object} resolvedTab Tab già risolta dal renderer sorgente (shape di RESTORE_SESSION).
+   * @param {number} sourceWinId id BrowserWindow sorgente (per l'ack di chiusura tab).
+   * @param {string} sourceTabId id della tab nella finestra sorgente.
+   * @returns {EditorWindow}
+   */
+  _createDetachWindow(resolvedTab, sourceWinId, sourceTabId) {
+    const editor = new EditorWindow(this._accessor)
+    editor._isSessionOwner = this._getExistingEditorWindow() === null
+    editor._sessionOrder = this._sessionOrderSeq++
+    editor._isRestoreSession = true // niente blank tab; la tab arriva via mt::restore-session
+    editor._detachTab = resolvedTab
+    editor._detachSource = { winId: sourceWinId, tabId: sourceTabId }
+    editor.createWindow()
+    this._windowManager.add(editor)
     return editor
   }
 
@@ -791,20 +871,35 @@ class App {
 
     // H2 — Session snapshot & periodic backup -------------------------------------------------
 
-    // Backup periodico (dall'owner): scrive la sessione senza chiudere nulla.
+    // B: backup periodico — ogni finestra invia il PROPRIO slice; il main aggiorna il registro per-finestra
+    // e scrive il merge in modo SERIALIZZATO (la queue evita race e collisione sul tmp di session.json).
     ipcMain.on('mt::session-save', (e, payload) => {
       const { preferences } = this._accessor
-      if (!preferences.getItem('sessionSnapshotEnabled')) return
-      writeSession(preferences, payload).catch((err) => log.error('[session] save failed:', err))
+      const win = BrowserWindow.fromWebContents(e.sender)
+      const editorWin = win && this._windowManager.get(win.id)
+      if (!preferences.getItem('sessionSnapshotEnabled') || !editorWin) return
+      this._sessionRegistry.set(win.id, {
+        winId: win.id,
+        order: editorWin._sessionOrder ?? 0,
+        tabs: (payload && payload.tabs) || []
+      })
+      this._enqueueSessionWrite(preferences) // fire-and-forget: la queue serializza
     })
 
-    // Chiusura silenziosa: scrivi la sessione (await) e POI chiudi la finestra — niente popup "salvare?".
+    // B: chiusura silenziosa — aggiorna lo slice, scrivi il merge (await) e POI chiudi (niente popup "salvare?").
+    // Lo slice NON viene cancellato (Q1): le tab della finestra chiusa restano in sessione fino al riavvio.
     ipcMain.on('mt::session-save-and-close', async (e, payload) => {
       const win = BrowserWindow.fromWebContents(e.sender)
       const { preferences } = this._accessor
       try {
-        if (preferences.getItem('sessionSnapshotEnabled')) {
-          await writeSession(preferences, payload)
+        if (win && preferences.getItem('sessionSnapshotEnabled')) {
+          const editorWin = this._windowManager.get(win.id)
+          this._sessionRegistry.set(win.id, {
+            winId: win.id,
+            order: (editorWin && editorWin._sessionOrder) ?? 0,
+            tabs: (payload && payload.tabs) || []
+          })
+          await this._enqueueSessionWrite(preferences)
         }
       } catch (err) {
         log.error('[session] final save failed:', err)
@@ -820,6 +915,29 @@ class App {
       if (!win) return
       const editorWin = this._windowManager.get(win.id)
       const { preferences, menu: appMenu } = this._accessor
+
+      // H5-1: finestra di DETACH → ricostruisci la SINGOLA tab passata dalla finestra sorgente
+      // (NON leggere la sessione da disco), poi conferma alla sorgente che può chiudere la sua tab.
+      if (editorWin && editorWin._detachTab) {
+        const tab = editorWin._detachTab
+        const src = editorWin._detachSource
+        editorWin._detachTab = null
+        editorWin._detachSource = null
+        if (tab.pathname) {
+          editorWin.addToOpenedFiles(tab.pathname)
+          appMenu.addRecentlyUsedDocument(tab.pathname)
+        }
+        win.webContents.send('mt::restore-session', { tabs: [tab] })
+        // Ack alla sorgente DOPO il restore → la tab vecchia si chiude solo a contenuto migrato.
+        if (src) {
+          const srcWin = BrowserWindow.fromId(src.winId)
+          if (srcWin && !srcWin.isDestroyed()) {
+            srcWin.webContents.send('mt::detach-tab-ack', { tabId: src.tabId })
+          }
+        }
+        return
+      }
+
       try {
         const result = await loadSessionTabs(preferences)
         if (result && result.tabs.length) {
@@ -860,6 +978,32 @@ class App {
         }
         editorWin._restoreAppendFiles = null
         editorWin._restoreRootDirectory = null
+      }
+    })
+
+    // H5-1: detach di una tab in una NUOVA finestra. Crea la finestra bypassando il gate single-window
+    // (azione esplicita); la tab arriva al renderer via il flusso restore (request-session-restore → _detachTab).
+    ipcMain.on('mt::detach-tab', (e, payload) => {
+      const sourceWin = BrowserWindow.fromWebContents(e.sender)
+      if (!sourceWin || !payload || !payload.tab) return
+      const { tab, sourceTabId, screenX, screenY } = payload
+      const { menu: appMenu } = this._accessor
+      // H5-RE: drag-out CON coordinate → se il puntatore è su una finestra editor esistente, droppa la tab LÌ
+      // (alla posizione del drop). Altrimenti (o context menu = coord null) → nuova finestra (detach classico).
+      const targetWin =
+        typeof screenX === 'number'
+          ? this._findEditorWindowAt(screenX, screenY, sourceWin.id)
+          : null
+      if (targetWin) {
+        if (tab.pathname) {
+          targetWin.addToOpenedFiles(tab.pathname) // watcher sulla finestra di destinazione PRIMA di chiudere la sorgente
+          appMenu.addRecentlyUsedDocument(tab.pathname)
+        }
+        targetWin.browserWindow.webContents.send('mt::receive-detached-tab', { tab, screenX, screenY })
+        targetWin.bringToFront()
+        sourceWin.webContents.send('mt::detach-tab-ack', { tabId: sourceTabId }) // la sorgente chiude la tab migrata
+      } else {
+        this._createDetachWindow(tab, sourceWin.id, sourceTabId)
       }
     })
 

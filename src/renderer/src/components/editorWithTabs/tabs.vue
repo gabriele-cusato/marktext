@@ -215,6 +215,10 @@ const tabDropContainer = ref(null)
 const topRightEl = ref(null) // B14: zona topright (.v2-topright) — misurata runtime per padding tabbar
 let autoScroller = null
 let drake = null
+// H5-2: drag-out → detach. Traccia l'ultima posizione SCHERMO del mouse durante il drag;
+// su dragend, se è fuori dalla finestra, la tab trascinata va in una nuova finestra.
+let lastDragScreen = { x: 0, y: 0 }
+const onDragMove = (e) => { lastDragScreen = { x: e.screenX, y: e.screenY } }
 let tabResizeObs = null
 let topRightResizeObs = null // B14: ResizeObserver su topright — clone width cambia con file/filename
 let tabbarResizeObs = null // ResizeObserver su tabbar root → trigger recalc su resize finestra
@@ -635,8 +639,33 @@ onMounted(() => {
   })
   .on('drag', () => {
     currentDragDropHandled = false
+    // H5-2: init al CENTRO finestra → se il mouse non si muove, "outside" resta falso (niente detach spurio).
+    lastDragScreen = {
+      x: window.screenX + window.outerWidth / 2,
+      y: window.screenY + window.outerHeight / 2
+    }
+    window.addEventListener('mousemove', onDragMove)
   })
-  .on('dragend', () => {
+  .on('dragend', (el) => {
+    window.removeEventListener('mousemove', onDragMove)
+    // H5-2: drop FUORI dalla finestra (revertOnSpill ha già rimesso la tab a posto) → detach in una nuova
+    // finestra. Eseguito DOPO dragula (setTimeout 0) per non toccare lo stato tab dentro il suo ciclo di drop.
+    const m = lastDragScreen
+    const outside =
+      m.x < window.screenX ||
+      m.x > window.screenX + window.outerWidth ||
+      m.y < window.screenY ||
+      m.y > window.screenY + window.outerHeight
+    if (outside && el) {
+      const id = el.getAttribute('data-id')
+      const tab = tabs.value.find((t) => t.id === id)
+      if (tab && tabs.value.length > 1) {
+        // H5-RE: passa le coord schermo del drop → il main decide se droppare in una finestra esistente
+        // (sotto il puntatore, alla posizione) o creare una nuova finestra.
+        const drop = { x: lastDragScreen.x, y: lastDragScreen.y }
+        setTimeout(() => editorStore.DETACH_TAB(tab, drop), 0)
+      }
+    }
     nextTick(() => {
       resyncDomToStore()
       // Forza Vue a ricreare tutti i li.v2-tab con key fresca → azzera .el stale nel vdom
@@ -672,6 +701,8 @@ onBeforeUnmount(() => {
   if (el) el.removeEventListener('wheel', handleTabScroll)
   if (autoScroller) autoScroller.destroy(true)
   if (drake) drake.destroy()
+  // H5-2: rimuovi il listener mousemove se lo smontaggio avviene durante un drag
+  window.removeEventListener('mousemove', onDragMove)
 
   bus.off('TABS::close-this', closeTab)
   bus.off('TABS::close-others', closeOthers)

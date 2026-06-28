@@ -34,6 +34,13 @@ const items = computed(() => {
       iconKey: 'pin',
       action: () => editorStore.TOGGLE_PIN_TAB(tab.id)
     },
+    // H5-1: sposta la tab in una nuova finestra (disabilitato se è l'unica tab → no-op).
+    {
+      label: t('contextMenu.tabs.moveToNewWindow', 'Move to New Window'),
+      iconKey: 'newWindow',
+      disabled: editorStore.tabs.length <= 1,
+      action: () => editorStore.DETACH_TAB(tab)
+    },
     '---',
     {
       label: t('contextMenu.tabs.close'),

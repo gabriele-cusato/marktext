@@ -52,22 +52,27 @@ const tabNeedsBackup = (tab) => !(tab.isSaved && tab.pathname)
 
 /**
  * Scrive la sessione corrente: snapshot dei contenuti non salvati + indice + cleanup orfani.
+ * B (2026-06-25): riceve le tab GIÀ mergiate da tutte le finestre (vedi App._mergeSession),
+ * ognuna con `_winId` per namespacizzare lo snapshot — evita collisioni di id tra renderer diversi
+ * (getUniqueId è un contatore per-modulo: ogni finestra riparte da mt-0). Il cleanup orfani gira
+ * sull'intera lista mergiata → non cancella più gli snapshot delle altre finestre.
  * @param {Preference} preferences
- * @param {{tabs: Array}} payload Le tab raccolte dal renderer (COLLECT_SESSION).
+ * @param {Array} mergedTabs Lista piatta ordinata (finestra1-tab, poi finestra2-tab, ...).
  */
-export const writeSession = async (preferences, payload) => {
-  if (!payload || !Array.isArray(payload.tabs)) return
+export const writeSession = async (preferences, mergedTabs) => {
+  if (!Array.isArray(mergedTabs)) return
   const dir = resolveBackupDir(preferences)
   await ensureDir(dir)
 
   const referenced = new Set() // snapshot ancora vivi → tutto il resto è orfano e va cancellato
   const entries = []
 
-  for (const tab of payload.tabs) {
+  for (const tab of mergedTabs) {
     const needsBackup = tabNeedsBackup(tab)
     let backupName = null
     if (needsBackup) {
-      backupName = `${tab.id}${SNAPSHOT_EXT}`
+      // FIX 1 (B): namespacizza per finestra — gli id tab collidono tra renderer (getUniqueId per-modulo).
+      backupName = `${tab._winId}-${tab.id}${SNAPSHOT_EXT}`
       referenced.add(backupName)
       await atomicWrite(path.join(dir, backupName), tab.markdown ?? '')
     }

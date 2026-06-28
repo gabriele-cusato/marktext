@@ -25,9 +25,8 @@ import { useMainStore } from '.'
 import { i18n } from '../i18n'
 
 const autoSaveTimers = new Map()
-// H2 — stato sessione (module-scope, non reattivo): owner = solo questa finestra fa backup/close silenzioso;
-// timer del backup periodico; ultima contentVersion salvata (gate: niente scrittura se nulla è cambiato).
-let isSessionOwner = false
+// H2/B — stato sessione (module-scope, non reattivo): timer del backup periodico; ultima contentVersion
+// salvata (gate: niente scrittura se nulla è cambiato). B: ogni finestra fa backup → niente più "owner".
 let sessionBackupTimer = null
 let lastBackupVersion = -1
 // Tracks the exact markdown payload we asked the main process to write.
@@ -545,9 +544,9 @@ export const useEditorStore = defineStore('editor', {
         // tab.markdown, altrimenti chiudendo entro 1s dall'ultima battuta si salva una versione vecchia.
         bus.emit('pre-save')
 
-        // H2: chiusura silenziosa stile Notepad++ — solo la finestra owner con la feature attiva.
-        // Scrive la sessione (incl. untitled e dirty) e chiude SENZA popup "salvare?".
-        if (preferencesStore.sessionSnapshotEnabled && isSessionOwner) {
+        // B: chiusura silenziosa stile Notepad++ — OGNI finestra con la feature attiva (non solo l'owner).
+        // Invia il PROPRIO slice (incl. untitled e dirty) e chiude SENZA popup "salvare?".
+        if (preferencesStore.sessionSnapshotEnabled) {
           // deepClone OBBLIGATORIO: COLLECT_SESSION contiene proxy reattivi Pinia (cursor/encoding) →
           // structured-clone IPC fallisce ("An object could not be cloned"). JSON-clone li appiattisce.
           window.electron.ipcRenderer.send('mt::session-save-and-close', deepClone(this.COLLECT_SESSION()))
@@ -802,12 +801,8 @@ export const useEditorStore = defineStore('editor', {
           sideBarVisibility,
           tabBarVisibility,
           sourceCodeModeEnabled,
-          isRestore = false,
-          isSessionOwner: owner = false
+          isRestore = false
         } = config
-
-        // H2: memorizza se questa finestra è l'owner della sessione (backup periodico + close silenzioso).
-        isSessionOwner = !!owner
 
         window.electron.ipcRenderer.send('mt::window-initialized')
         mainStore.SET_INITIALIZED()
@@ -942,13 +937,24 @@ export const useEditorStore = defineStore('editor', {
         this.RESTORE_SESSION(result)
       })
 
+      // H5-1: la nuova finestra ha ricostruito la tab detachata → ora chiudi la tab nella finestra sorgente.
+      // Ordine garantito (ack DOPO il restore della nuova finestra) → niente perdita di contenuto.
+      window.electron.ipcRenderer.on('mt::detach-tab-ack', (_, { tabId }) => {
+        const t = this.tabs.find((x) => x.id === tabId)
+        if (t) this.FORCE_CLOSE_TAB(t)
+      })
+
+      // H5-RE: questa finestra riceve una tab trascinata da un'altra finestra → inseriscila alla posizione del drop.
+      window.electron.ipcRenderer.on('mt::receive-detached-tab', (_, payload) => {
+        this.INSERT_DETACHED_TAB(payload)
+      })
+
       // Backup periodico stile Notepad++: scrive solo se il contenuto è cambiato dall'ultimo flush
       // (gate su contentVersion → niente I/O inutile). L'intervallo (secondi) è una preferenza.
       const tick = () => {
         const seconds = Math.max(1, Number(preferencesStore.sessionBackupInterval) || 7)
         if (
           preferencesStore.sessionSnapshotEnabled &&
-          isSessionOwner &&
           this.tabs.length &&
           this.contentVersion !== lastBackupVersion
         ) {
@@ -961,6 +967,87 @@ export const useEditorStore = defineStore('editor', {
       }
       if (sessionBackupTimer) clearTimeout(sessionBackupTimer)
       sessionBackupTimer = setTimeout(tick, 1000)
+    },
+
+    // H5-1: sposta la tab in una NUOVA finestra (detach via context menu). Bypassa il gate single-window.
+    // Riusa il flusso restore: il main crea una finestra "di restore" con questa SINGOLA tab già risolta
+    // (gestisce uniforme saved/untitled/dirty). Alla conferma (mt::detach-tab-ack) la tab sorgente si chiude.
+    DETACH_TAB(tab, screen = null) {
+      if (this.tabs.length <= 1) return // ultima tab → niente da separare
+      bus.emit('pre-save') // flush sincrono del source debounced prima di leggere il markdown
+      const t = this.tabs.find((x) => x.id === tab.id)
+      if (!t) return
+      const resolved = {
+        pathname: t.pathname || '',
+        filename: t.filename || 'Untitled',
+        markdown: t.markdown,
+        // baseline dirty: per i salvati = contenuto attuale (no drift Light Touch); per dirty/untitled = originalMarkdown.
+        originalMarkdown: t.isSaved ? t.markdown : (t.originalMarkdown ?? null),
+        isSaved: t.isSaved,
+        isActive: true,
+        pinned: !!t.pinned,
+        cursor: t.cursor || null,
+        encoding: t.encoding,
+        lineEnding: t.lineEnding,
+        adjustLineEndingOnSave: t.adjustLineEndingOnSave,
+        trimTrailingNewline: t.trimTrailingNewline
+      }
+      window.electron.ipcRenderer.send('mt::detach-tab', deepClone({
+        tab: resolved,
+        sourceTabId: t.id,
+        // H5-RE: coord schermo del drop (solo dal drag-out) → il main prova a droppare in una FINESTRA ESISTENTE
+        // sotto il puntatore; se non ce n'è, crea una nuova finestra (context menu = sempre null → nuova finestra).
+        screenX: screen ? screen.x : null,
+        screenY: screen ? screen.y : null
+      }))
+    },
+
+    // H5-RE: inserisce una tab arrivata da un'altra finestra (drag tra finestre) alla POSIZIONE del drop.
+    // L'indice è calcolato dalle coord schermo→client confrontate coi rect delle tab (DOM nel renderer).
+    INSERT_DETACHED_TAB({ tab, screenX, screenY }) {
+      const docState = createDocumentState({
+        markdown: tab.markdown,
+        filename: tab.filename,
+        pathname: tab.pathname || '',
+        encoding: tab.encoding,
+        lineEnding: tab.lineEnding,
+        adjustLineEndingOnSave: tab.adjustLineEndingOnSave,
+        trimTrailingNewline: tab.trimTrailingNewline,
+        cursor: tab.cursor || null
+      })
+      docState.pinned = !!tab.pinned
+      docState.isSaved = !!tab.isSaved
+      if (tab.originalMarkdown !== undefined) docState.originalMarkdown = tab.originalMarkdown
+      // settle 400ms solo per file da disco puliti (assorbe la normalizzazione Muya, niente falso-dirty).
+      docState.justLoaded = docState.pathname && docState.isSaved ? Date.now() : 0
+
+      // Indice di inserimento dalle coord (fallback = append). window.screenX/Y valido per finestra frameless.
+      let index = this.tabs.length
+      try {
+        const clientX = screenX - window.screenX
+        const clientY = screenY - window.screenY
+        const els = [...document.querySelectorAll('li.v2-tab:not(.v2-tab-pinned):not(.gu-mirror)')]
+        for (let i = 0; i < els.length; i++) {
+          const r = els[i].getBoundingClientRect()
+          // sulla riga del puntatore + prima della metà della tab → inserisci qui
+          if (clientY >= r.top && clientY <= r.bottom && clientX < r.left + r.width / 2) {
+            index = i
+            break
+          }
+        }
+      } catch {
+        // fallback: append in coda
+      }
+
+      this.SHOW_TAB_VIEW(true)
+      const clamped = Math.max(0, Math.min(index, this.tabs.length))
+      this.tabs.splice(clamped, 0, docState)
+      // mantieni l'invariante pin-first (pinnate prima, ordine relativo preservato)
+      const pinned = this.tabs.filter((t) => t.pinned)
+      const unpinned = this.tabs.filter((t) => !t.pinned)
+      this.tabs.splice(0, this.tabs.length, ...pinned, ...unpinned)
+      this.contentVersion++ // cambio struttura → arma il backup sessione
+      this.UPDATE_CURRENT_FILE(docState) // attiva la tab appena inserita (no doppio push, vedi :750)
     },
 
     CLOSE_TAB(file = null) {
@@ -1007,6 +1094,7 @@ export const useEditorStore = defineStore('editor', {
     },
 
     FORCE_CLOSE_TAB(file) {
+      this.contentVersion++ // FIX 5 (B): cambio struttura tab → arma il backup periodico sessione
       const { tabs, currentFile } = this
       const index = tabs.findIndex((t) => t.id === file.id)
       if (index > -1) {
@@ -1067,6 +1155,7 @@ export const useEditorStore = defineStore('editor', {
 
     // H4: flippa il flag pinned e riordina: pinnate prima (ordine relativo preservato).
     TOGGLE_PIN_TAB(id) {
+      this.contentVersion++ // FIX 5 (B): pin/riordino → arma il backup periodico sessione
       const tab = this.tabs.find(t => t.id === id)
       if (!tab) return
       tab.pinned = !tab.pinned
@@ -1099,6 +1188,7 @@ export const useEditorStore = defineStore('editor', {
 
     CLOSE_TABS(tabIdList) {
       if (!tabIdList || tabIdList.length === 0) return
+      this.contentVersion++ // FIX 5 (B): chiusura tab(s) → arma il backup periodico sessione
 
       let tabIndex = 0
       tabIdList.forEach((id) => {
@@ -1164,6 +1254,7 @@ export const useEditorStore = defineStore('editor', {
 
       const fromIndex = tabs.findIndex((t) => t.id === fromId)
       if (fromIndex === -1) return
+      this.contentVersion++ // FIX 5 (B): riordino tab → arma il backup periodico sessione
 
       const fromPinned = tabs[fromIndex].pinned
 
@@ -1258,6 +1349,7 @@ export const useEditorStore = defineStore('editor', {
      * and whether the tab should become the selected tab (true if not set).
      */
     NEW_UNTITLED_TAB({ markdown: markdownString, selected }) {
+      this.contentVersion++ // FIX 5 (B): nuova tab → arma il backup periodico sessione
       if (selected == null) {
         selected = true
       }
@@ -1285,6 +1377,7 @@ export const useEditorStore = defineStore('editor', {
      * and optional whether the tab should become the selected tab (true if not set).
      */
     NEW_TAB_WITH_CONTENT({ markdownDocument, options = {}, selected }) {
+      this.contentVersion++ // FIX 5 (B): nuova tab da contenuto → arma il backup periodico sessione
       if (!markdownDocument) {
         console.warn('Cannot create a file tab without a markdown document!')
         this.NEW_UNTITLED_TAB({})

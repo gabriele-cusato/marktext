@@ -211,6 +211,7 @@
     "tabs": {
       "pin": "Pin Tab",
       "unpin": "Unpin Tab",
+      "moveToNewWindow": "Move to New Window",
       "close": "Close",
       "closeOthers": "Close others",
       "closeSavedTabs": "Close saved tabs",
