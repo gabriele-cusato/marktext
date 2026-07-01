@@ -1,4 +1,4 @@
-import { readlinkSync, outputFile, move, remove } from 'fs-extra'
+import { readlinkSync, outputFile, rename, remove } from 'fs-extra'
 import path from 'path'
 import { isDirectory, isFile, isSymbolicLink } from 'common/filesystem'
 
@@ -29,13 +29,25 @@ export const writeFile = (pathname, content, extension, options = 'utf-8') => {
   pathname = !extension || pathname.endsWith(extension) ? pathname : `${pathname}${extension}`
 
   // R7: atomic write via temp-file + rename. Prevents file corruption on crash/power-loss.
-  // outputFile writes the temp file (creates parent dirs if needed), then move renames it
-  // atomically on the same volume. On network volumes rename may not be atomic — acceptable
-  // (best effort). The watcher ignores the final rename event via ignoreChangedEvent.
+  // outputFile writes the temp file (creates parent dirs if needed), poi rename() lo sostituisce
+  // alla destinazione in una singola syscall atomica (MoveFileExW con MOVEFILE_REPLACE_EXISTING su
+  // Windows, rename(2) su POSIX) — nessuno step remove(dest) separato prima, a differenza di
+  // fs-extra's move({overwrite:true}) che internamente farebbe remove(dest) poi rename in due
+  // operazioni distinte, con finestra di race in cui entrambi i file potrebbero andare persi se il
+  // rename fallisce dopo che il remove è già riuscito. rename è importato da 'fs-extra' (non da
+  // fs/promises nativo) per preservare i retry Windows su EACCES/EPERM/EBUSY di graceful-fs (fino a
+  // 60s, utile contro lock transitori di AV/indicizzazione): graceful-fs patcha solo l'API a
+  // callback di fs, non fs/promises, quindi fs-extra la espone già promisificata sopra graceful-fs.
+  // Il watcher ignora l'evento di rename tramite ignoreChangedEvent.
   const tmpPath = `${pathname}.tmp`
   return outputFile(tmpPath, content, options)
-    .then(() => move(tmpPath, pathname, { overwrite: true }))
+    .then(() => rename(tmpPath, pathname))
     .catch((err) => {
+      // Se il rename è già andato a buon fine, il tmp non esiste più: remove fallisce silenziosamente
+      // (ENOENT ignorato) senza toccare il file di destinazione appena scritto. Se invece il rename
+      // fallisce (inclusi i casi già ritentati da graceful-fs, es. EXDEV se tmp e destinazione
+      // finissero su volumi diversi — non atteso dato che il tmp è nella stessa directory), il file
+      // originale non è mai stato toccato: cancellare il tmp qui non causa perdita di dati.
       remove(tmpPath).catch(() => {})
       throw err
     })

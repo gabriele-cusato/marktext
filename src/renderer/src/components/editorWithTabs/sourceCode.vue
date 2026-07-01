@@ -479,7 +479,7 @@ const applyLineCommentAction = (cm, action) => {
   cm.operation(() => {
     for (let i = ranges.length - 1; i >= 0; i--) {
       const range = ranges[i]
-      cm[method](range.from(), range.to())
+      cm[method](range.from(), range.to(), { indent: true })
     }
   })
 
@@ -939,7 +939,7 @@ onMounted(() => {
     // Ctrl+Shift+↑/↓ torna al default CM (estensione selezione).
     extraKeys: codeMirror.normalizeKeyMap({
       'Ctrl-/': (cm) => {
-        cm.execCommand('toggleComment')
+        cm.toggleComment({ indent: true })
       },
       'Ctrl-K C': (cm) => {
         applyLineCommentAction(cm, 'comment')

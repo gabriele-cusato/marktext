@@ -377,42 +377,58 @@ class Watcher {
   /**
    * Check whether we should ignore the current event because the file may be changed from MarkText itself.
    *
+   * NOTE: Non-consuming come `_isPendingIgnore()`: durante la finestra di durata la entry NON viene
+   * rimossa al primo match, ma resta valida per tutta la finestra. Un salvataggio atomico (tmp + rename)
+   * può generare più eventi 'add'/'change' consecutivi sullo stesso path: se la entry venisse consumata
+   * al primo evento, gli eventi successivi non troverebbero più match e passerebbero come modifica
+   * esterna reale, causando un falso prompt "file changed on disk".
+   *
+   * Le entry vengono mantenute oltre `duration` per una finestra di grazia aggiuntiva, per permettere
+   * al fallback "cloud drive" basato su `mtime` (GH#3044) di funzionare anche su eventi che arrivano
+   * appena dopo la scadenza della finestra principale. La pulizia definitiva (per evitare leak) avviene
+   * qui stesso filtrando le entry più vecchie di `duration + grace period`.
+   *
    * @param {number} winId
    * @param {string} pathname
    * @param {string} type
    * @param {boolean} usePolling
    */
   async _shouldIgnoreEvent(winId, pathname, type, usePolling) {
-    if (type === 'file') {
-      const { _ignoreChangeEvents } = this
-      const currentTime = new Date()
-      for (let i = 0; i < _ignoreChangeEvents.length; ++i) {
-        const { windowId, pathname: pathToIgnore, start, duration } = _ignoreChangeEvents[i]
-        if (windowId === winId && pathToIgnore === pathname) {
-          _ignoreChangeEvents.splice(i, 1)
-          --i
+    if (type !== 'file') return false
 
-          // Modification origin is the editor and we should ignore the event.
-          if (currentTime - start < duration) {
+    const now = new Date()
+    // Finestra di grazia oltre `duration` durante la quale la entry resta disponibile solo per il
+    // fallback mtime (non per l'ignore incondizionato), prima di essere rimossa definitivamente.
+    const GRACE_PERIOD = WATCHER_STABILITY_POLL_INTERVAL * 2
+
+    // Rimuovi solo le entry scadute oltre la finestra di grazia (le altre restano leggibili).
+    this._ignoreChangeEvents = this._ignoreChangeEvents.filter(
+      (e) => now - e.start < e.duration + GRACE_PERIOD
+    )
+
+    for (const entry of this._ignoreChangeEvents) {
+      const { windowId, pathname: pathToIgnore, start, duration } = entry
+      if (windowId !== winId || pathToIgnore !== pathname) continue
+
+      // Modification origin is the editor and we should ignore the event.
+      if (now - start < duration) {
+        return true
+      }
+
+      // Try to catch cloud drives that emit the change event not immediately or re-sync the change (GH#3044).
+      if (!usePolling) {
+        try {
+          const fileInfo = await fsPromises.stat(pathname)
+          if (fileInfo.mtime - start < duration) {
+            if (global.MARKTEXT_DEBUG_VERBOSE >= 3) {
+              console.log(
+                `Ignoring file event after "stat": current="${now}", start="${start}", file="${fileInfo.mtime}".`
+              )
+            }
             return true
           }
-
-          // Try to catch cloud drives that emit the change event not immediately or re-sync the change (GH#3044).
-          if (!usePolling) {
-            try {
-              const fileInfo = await fsPromises.stat(pathname)
-              if (fileInfo.mtime - start < duration) {
-                if (global.MARKTEXT_DEBUG_VERBOSE >= 3) {
-                  console.log(
-                    `Ignoring file event after "stat": current="${currentTime}", start="${start}", file="${fileInfo.mtime}".`
-                  )
-                }
-                return true
-              }
-            } catch (error) {
-              console.error('Failed to "stat" file to determine modification time:', error)
-            }
-          }
+        } catch (error) {
+          console.error('Failed to "stat" file to determine modification time:', error)
         }
       }
     }

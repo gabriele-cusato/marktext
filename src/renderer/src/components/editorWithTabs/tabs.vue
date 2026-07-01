@@ -27,9 +27,11 @@
             'is-pinned': !!file.pinned
           }]"
           :data-id="file.id"
+          draggable="true"
           @click.stop="selectFile(file)"
           @click.middle="closeTab(file.id)"
           @contextmenu.prevent="handleContextMenu($event, file)"
+          @dragstart="onTabDragStartSpike(file)"
         >
           <!-- H4: indicatore pin (puntina da disegno) — solo tab pinnate -->
           <span
@@ -257,6 +259,13 @@ const selectFile = (file) => {
   if (file.id !== currentFile.value.id) {
     editorStore.UPDATE_CURRENT_FILE(file)
   }
+}
+
+// SPIKE (drag-html5-dnd-task1, temporaneo/reversibile): verifica se dragstart HTML5
+// nativo scatta su .v2-tab nonostante -webkit-app-region:drag sul contenitore .v2-tabbar.
+// Nessuna logica di drag reale: solo log per il test manuale runtime. Non sostituisce dragula.
+const onTabDragStartSpike = (file) => {
+  console.log('[SPIKE drag-html5-dnd] dragstart fired', file.id)
 }
 
 const removeFileInTab = (file) => {

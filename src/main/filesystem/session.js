@@ -3,7 +3,7 @@ import { app } from 'electron'
 import log from 'electron-log'
 import {
   outputFile,
-  move,
+  rename,
   remove,
   readFile,
   readJson,
@@ -36,12 +36,19 @@ export const resolveBackupDir = (preferences) => {
 
 // Scrittura atomica (tmp + rename), stesso pattern di filesystem/index.js writeFile (R7).
 // Protegge session.json e gli snapshot da troncamenti in caso di crash/power-loss a metà scrittura.
+// rename() (da 'fs-extra', sopra graceful-fs) sostituisce il tmp alla destinazione in una singola
+// syscall atomica, senza lo step remove(dest) separato che avrebbe fs-extra's move({overwrite:true})
+// (race tra remove e rename che potrebbe perdere sia originale che tmp). Vedi commento dettagliato
+// in filesystem/index.js writeFile per la motivazione completa.
 const atomicWrite = async (filePath, content) => {
   const tmp = `${filePath}.tmp`
   try {
     await outputFile(tmp, content, 'utf-8')
-    await move(tmp, filePath, { overwrite: true })
+    await rename(tmp, filePath)
   } catch (err) {
+    // Se rename è già riuscito il tmp non esiste più: remove fallisce silenziosamente (ENOENT
+    // ignorato). Se rename fallisce, filePath originale non è mai stato toccato: cancellare il tmp
+    // qui è sicuro.
     remove(tmp).catch(() => {})
     throw err
   }

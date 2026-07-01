@@ -169,3 +169,13 @@ Consolidate dai doc storici. La migrazione DEVE preservarle.
   procedere col refactor + spike rischio #1.
 - ✅ **Path A** (drag DOM, no `startDrag` nativo per il singolo file) superato: HTML5 DnD dà sia anteprima sia taskbar.
 - ❌ **koffi / raise-finestre Win32**: scartato (reso inutile dal drag OLE nativo di HTML5 DnD).
+- ❌ **Spike rischio #1 (2026-07-02): FAIL.** `draggable="true"` su `.v2-tab` non produce `dragstart`: il
+  window-drag OS intercetta il gesto nonostante `no-drag` sul figlio (dettagli:
+  `Docs/Ai/InProgress/drag-html5-dnd/drag-html5-dnd-task1-worklog.md`, `Docs/Ai/DECISIONS.md` 2026-07-02).
+  Non un bug di configurazione (verificato: nessun hook `WM_NCHITTEST` custom, CSS `no-drag` corretto).
+- ❌ **Strada B (dragula + koffi raise-finestre) scartata esplicitamente dall'utente** (2026-07-02): non riproporla
+  senza nuova richiesta esplicita.
+- 🟡 **Da valutare in sessione futura (non iniziato)**: mitigazione — sostituire `-webkit-app-region: drag` sulla
+  tabbar con drag finestra via JS (mousedown+move → IPC → `win.setPosition` main-side), per eliminare l'ancestor
+  `app-region:drag` e liberare `draggable` sui tab. Richiede ricerca online (pattern non verificato su Electron
+  39/Windows) + nuovo spike dedicato prima di riprendere task2-5.
