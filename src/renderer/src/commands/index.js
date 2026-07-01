@@ -223,6 +223,13 @@ const commands = [
       bus.emit('mt::editor-edit-action', 'findInFolder')
     }
   },
+  {
+    id: 'edit.open-in-browser',
+    execute: async () => {
+      await delay(150)
+      bus.emit('mt::editor-edit-action', 'openInBrowser')
+    }
+  },
 
   // --------------------------------------------------------------------------
   // Paragraph

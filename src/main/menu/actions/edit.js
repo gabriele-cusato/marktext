@@ -94,6 +94,10 @@ export const findInFolder = (win) => {
   edit(win, 'findInFolder')
 }
 
+export const openInBrowser = (win) => {
+  edit(win, 'openInBrowser')
+}
+
 export const edit = (win, type) => {
   if (win && win.webContents) {
     win.webContents.send('mt::editor-edit-action', type)
@@ -142,6 +146,7 @@ export const loadEditCommands = (commandManager) => {
   commandManager.add(COMMANDS.EDIT_FIND_IN_FOLDER, findInFolder)
   commandManager.add(COMMANDS.EDIT_FIND_NEXT, editorFindNext)
   commandManager.add(COMMANDS.EDIT_FIND_PREVIOUS, editorFindPrevious)
+  commandManager.add(COMMANDS.EDIT_OPEN_IN_BROWSER, openInBrowser)
   commandManager.add(COMMANDS.EDIT_PASTE, nativePaste)
   commandManager.add(COMMANDS.EDIT_PASTE_AS_PLAINTEXT, editorPasteAsPlainText)
   commandManager.add(COMMANDS.EDIT_REDO, editorRedo)

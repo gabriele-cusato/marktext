@@ -163,6 +163,13 @@ export default function (keybindings) {
         }
       },
       {
+        label: t('menu.edit.openInBrowser'),
+        accelerator: keybindings.getAccelerator(COMMANDS.EDIT_OPEN_IN_BROWSER),
+        click(menuItem, browserWindow) {
+          actions.openInBrowser(browserWindow)
+        }
+      },
+      {
         type: 'separator'
       },
       {

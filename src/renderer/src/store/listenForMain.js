@@ -3,6 +3,15 @@ import bus from '../bus'
 import { useLayoutStore } from './layout'
 import { useEditorStore } from './editor'
 
+const isHtmlPathname = (pathname) => {
+  if (typeof pathname !== 'string') {
+    return false
+  }
+
+  const lowerPathname = pathname.toLowerCase()
+  return lowerPathname.endsWith('.html') || lowerPathname.endsWith('.htm')
+}
+
 export const useListenForMainStore = defineStore('listenForMain', {
   state: () => ({}),
   actions: {
@@ -38,6 +47,14 @@ export const useListenForMainStore = defineStore('listenForMain', {
         }
         // Sidebar chiusa → find singola tab (Muya: riquadro flottante; source: Stage 2).
         bus.emit('find', 'find')
+        return
+      }
+
+      if (type === 'openInBrowser') {
+        const { pathname } = editorStore.currentFile || {}
+        if (isHtmlPathname(pathname)) {
+          window.electron.ipcRenderer.send('mt::open-file-in-browser', { pathname })
+        }
         return
       }
 

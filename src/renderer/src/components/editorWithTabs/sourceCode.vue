@@ -25,11 +25,11 @@ let lastChangeGen = -1
 </script>
 
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount, nextTick, markRaw, computed } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount, markRaw } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import { usePreferencesStore } from '@/store/preferences'
 import { storeToRefs } from 'pinia'
-import codeMirror, { setMode, setCursorAtFirstLine, setTextDirection } from '../../codeMirror'
+import codeMirror, { setModeForFile, setCursorAtFirstLine, setTextDirection } from '../../codeMirror'
 import { debounce, wordCount as getWordCount } from 'muya/lib/utils'
 import { adjustCursor, adjustTrailingNewlines, isMarkdownPath } from '../../util'
 import bus from '../../bus'
@@ -197,11 +197,17 @@ const restoreCmStateForTab = (cm, id, storeMarkdown) => {
   return { history: null, savedCursor: null }
 }
 
-const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop, forceReload, renderCursor }) => {
+const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop, forceReload, renderCursor, pathname, filename }) => {
   // sourceCode=false significa che il componente sta per smontarsi (tab close o switch).
   // Non processare eventi: evita di caricare contenuto/history di tab estranee in CM
   // e di cambiare tabId (che poi causerebbe emit spurio in onBeforeUnmount).
   if (!sourceCode.value) return
+
+  const eventTab = pathname ? null : editorStore.tabs.find((tab) => tab.id === id)
+  const modeFilename = pathname || eventTab?.pathname || eventTab?.filename || filename || currentTab.value?.pathname || currentTab.value?.filename || ''
+  if (editor.value) {
+    setModeForFile(editor.value, modeFilename)
+  }
 
   // Stessa tab già attiva: skip save/restore per preservare la history.
   // commitTimer (1s) → LISTEN_FOR_CONTENT_CHANGE → store update → parent watch re-emette
@@ -405,6 +411,27 @@ const handleToLowerCase = () => {
   editor.value.replaceSelections(updated, 'around')
 }
 
+const sendSourceCodeFocusState = (focused) => {
+  const { windowId } = global.marktext.env
+  window.electron.ipcRenderer.send('mt::source-code-focus-changed', {
+    windowId,
+    focused: !!focused
+  })
+}
+
+const handleSourceCommentActionFromMain = (action) => {
+  if (!sourceCode.value || !editor.value) return
+  applyLineCommentAction(editor.value, action)
+}
+
+const handleSourceCommentFromMain = () => {
+  handleSourceCommentActionFromMain('comment')
+}
+
+const handleSourceUncommentFromMain = () => {
+  handleSourceCommentActionFromMain('uncomment')
+}
+
 
 // Flush sincronizzato CM→store prima del salvataggio (Ctrl+S / Save As).
 // FILE_SAVE emette 'pre-save' via bus (mitt = sincrono) PRIMA di leggere tab.markdown.
@@ -440,6 +467,22 @@ const wrapSelection = (cm, before, after = before) => {
     cm.replaceRange(before + after, cursor)
     cm.setCursor({ line: cursor.line, ch: cursor.ch + before.length })
   }
+  cm.focus()
+}
+
+// Applicare commento di linea a tutte le selezioni attive, da fondo a cima, per evitare
+// spostamenti di indice sui range successivi.
+const applyLineCommentAction = (cm, action) => {
+  const method = action === 'comment' ? 'lineComment' : 'uncomment'
+  const ranges = cm.listSelections()
+
+  cm.operation(() => {
+    for (let i = ranges.length - 1; i >= 0; i--) {
+      const range = ranges[i]
+      cm[method](range.from(), range.to())
+    }
+  })
+
   cm.focus()
 }
 
@@ -895,6 +938,27 @@ onMounted(() => {
     // Alt+↑/↓ in source mode = sposta riga su/giù (come Notepad++).
     // Ctrl+Shift+↑/↓ torna al default CM (estensione selezione).
     extraKeys: codeMirror.normalizeKeyMap({
+      'Ctrl-/': (cm) => {
+        cm.execCommand('toggleComment')
+      },
+      'Ctrl-K C': (cm) => {
+        applyLineCommentAction(cm, 'comment')
+      },
+      'Ctrl-K Ctrl-C': (cm) => {
+        applyLineCommentAction(cm, 'comment')
+      },
+      'Cmd-K Cmd-C': (cm) => {
+        applyLineCommentAction(cm, 'comment')
+      },
+      'Ctrl-K U': (cm) => {
+        applyLineCommentAction(cm, 'uncomment')
+      },
+      'Ctrl-K Ctrl-U': (cm) => {
+        applyLineCommentAction(cm, 'uncomment')
+      },
+      'Cmd-K Cmd-U': (cm) => {
+        applyLineCommentAction(cm, 'uncomment')
+      },
       'Alt-Up': 'swapLineUp',
       'Alt-Down': 'swapLineDown',
       // H1: Esc collassa la multi-selezione se attiva; altrimenti passa al handler find-panel.
@@ -940,6 +1004,8 @@ onMounted(() => {
   bus.on('redo', handleRedo)
   bus.on('toUpperCase', handleToUpperCase)
   bus.on('toLowerCase', handleToLowerCase)
+  bus.on('sourceComment', handleSourceCommentFromMain)
+  bus.on('sourceUncomment', handleSourceUncommentFromMain)
   bus.on('format', handleFormatInSource)
   bus.on('paragraph', handleParagraphInSource)
   bus.on('pre-save', handlePreSave)
@@ -967,7 +1033,8 @@ onMounted(() => {
   // lineNo orphan → click triggera prepareMeasureForLine con lineN=-1 → cursore non si setta.
   const codeMirrorInstance = markRaw(codeMirror(container, codeMirrorConfig))
 
-  setMode(codeMirrorInstance, 'markdown')
+  const currentFileMode = currentTab.value?.pathname || currentTab.value?.filename || ''
+  setModeForFile(codeMirrorInstance, currentFileMode)
 
   // Bug B: undo word-by-word + Bug 7: include andate-a-capo.
   // CodeMirror default merge changes con origin '+input' se entro historyEventDelay (1250ms).
@@ -1006,7 +1073,16 @@ onMounted(() => {
   wrapperEl.addEventListener('keydown', onCtrlKeyDown)
   wrapperEl.addEventListener('keyup', onCtrlKeyUp)
   window.addEventListener('blur', onCtrlBlur)
-  codeMirrorInstance.on('blur', onCtrlBlur)
+  codeMirrorInstance.on('focus', () => {
+    sendSourceCodeFocusState(true)
+  })
+  codeMirrorInstance.on('blur', () => {
+    onCtrlBlur()
+    sendSourceCodeFocusState(false)
+  })
+
+  // Mount in source mode: allineare subito stato focus nel main.
+  sendSourceCodeFocusState(codeMirrorInstance.hasFocus())
 
   // H1: beforeSelectionChange — mantiene le selezioni non-vuote esistenti quando
   // il movimento da tastiera (Ctrl+frecce) tenterebbe di collassarle a una sola.
@@ -1120,6 +1196,7 @@ onBeforeUnmount(() => {
   }
   window.removeEventListener('blur', onCtrlBlur)
   ctrlHeld = false
+  sendSourceCodeFocusState(false)
 
   bus.off('file-loaded', handleFileChange)
   bus.off('invalidate-image-cache', handleInvalidateImageCache)
@@ -1131,6 +1208,8 @@ onBeforeUnmount(() => {
   bus.off('redo', handleRedo)
   bus.off('toUpperCase', handleToUpperCase)
   bus.off('toLowerCase', handleToLowerCase)
+  bus.off('sourceComment', handleSourceCommentFromMain)
+  bus.off('sourceUncomment', handleSourceUncommentFromMain)
   bus.off('format', handleFormatInSource)
   bus.off('paragraph', handleParagraphInSource)
   bus.off('pre-save', handlePreSave)

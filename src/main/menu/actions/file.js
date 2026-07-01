@@ -1,5 +1,6 @@
 import { rename as fsRename } from 'fs-extra'
 import path from 'path'
+import { pathToFileURL } from 'url'
 import { BrowserWindow, app, dialog, shell, ipcMain } from 'electron'
 import log from 'electron-log'
 import { isDirectory, isFile, exists } from 'common/filesystem'
@@ -217,6 +218,15 @@ const removePrintServiceFromWindow = (win) => {
   win.webContents.send('mt::print-service-clearup')
 }
 
+const isHtmlPathname = (pathname) => {
+  if (typeof pathname !== 'string') {
+    return false
+  }
+
+  const extension = path.extname(pathname).toLowerCase()
+  return extension === '.html' || extension === '.htm'
+}
+
 // --- events -----------------------------------
 
 ipcMain.on('mt::save-tabs', (e, unsavedFiles) => {
@@ -393,6 +403,20 @@ ipcMain.on('mt::response-file-save', handleResponseForSave)
 ipcMain.on('mt::response-export', handleResponseForExport)
 
 ipcMain.on('mt::response-print', handleResponseForPrint)
+
+ipcMain.on('mt::open-file-in-browser', (e, payload = {}) => {
+  const { pathname } = payload
+  if (typeof pathname !== 'string') {
+    return
+  }
+
+  const normalizedPathname = path.normalize(pathname)
+  if (!isHtmlPathname(normalizedPathname)) {
+    return
+  }
+
+  shell.openExternal(pathToFileURL(normalizedPathname).href)
+})
 
 ipcMain.on('mt::window::drop', async (e, fileList) => {
   const win = BrowserWindow.fromWebContents(e.sender)

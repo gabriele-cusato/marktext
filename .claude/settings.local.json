@@ -7,7 +7,11 @@
       "Bash(Get-ChildItem -Path \"C:\\\\Projects\\\\MarkText\\\\marktext\\\\src\\\\renderer\\\\src\" -Filter \"bus*\" -Recurse)",
       "Bash(Select-Object FullName)",
       "Bash(sed -n '195,225p' src/main/filesystem/watcher.js)",
-      "Bash(sed -n '405,460p' src/main/app/windowManager.js)"
+      "Bash(sed -n '405,460p' src/main/app/windowManager.js)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:opencode.ai)",
+      "Read(//c/Users/cusato.gabriele/.config/opencode/skills/**)",
+      "WebFetch(domain:developers.openai.com)"
     ]
   }
 }

@@ -102,12 +102,91 @@ class EditorWindow extends BaseWindow {
     if (!isOsx) {
       win.setMenuBarVisibility(false)
       win.setAutoHideMenuBar(true)
+    }
 
-      // B8: gestione tasto Alt da solo per toggle menu bar (frame=false impedisce
-      // il comportamento nativo). Usa before-input-event nel main: riceve eventi solo
-      // a finestra in focus, nessuna dipendenza dal renderer.
-      let altDown = false
-      win.webContents.on('before-input-event', (event, input) => {
+    // Task6: tracking focus source mode nel renderer per filtrare il chord Ctrl/Cmd+K Ctrl/Cmd+C/U.
+    // Stato per-finestra: non impattare altre editor window.
+    let sourceCodeFocused = false
+    let sourceChordPending = false
+    let sourceChordTimer = null
+    let altDown = false
+    const SOURCE_CHORD_TIMEOUT = 1200
+
+    const resetSourceChordState = () => {
+      sourceChordPending = false
+      if (sourceChordTimer) {
+        clearTimeout(sourceChordTimer)
+        sourceChordTimer = null
+      }
+    }
+
+    const armSourceChordPrefix = () => {
+      sourceChordPending = true
+      if (sourceChordTimer) {
+        clearTimeout(sourceChordTimer)
+      }
+      sourceChordTimer = setTimeout(() => {
+        resetSourceChordState()
+      }, SOURCE_CHORD_TIMEOUT)
+    }
+
+    const hasCtrlOrCmd = (input) => {
+      return !!(input.control || input.meta)
+    }
+
+    const isChordKey = (input, expectedKey) => {
+      return (
+        input.type === 'keyDown' &&
+        hasCtrlOrCmd(input) &&
+        !input.alt &&
+        input.key.toLowerCase() === expectedKey
+      )
+    }
+
+    const onSourceCodeFocusChanged = (event, payload = {}) => {
+      if (event.sender !== win.webContents) {
+        return
+      }
+
+      sourceCodeFocused = !!payload.focused
+      if (!sourceCodeFocused) {
+        resetSourceChordState()
+      }
+    }
+
+    ipcMain.on('mt::source-code-focus-changed', onSourceCodeFocusChanged)
+
+    // before-input-event nel main: intercetta prima degli shortcut globali finestra
+    // (electron-localshortcut). Chord attivo solo quando il focus è nel source editor.
+    win.webContents.prependListener('before-input-event', (event, input) => {
+      if (!sourceCodeFocused) {
+        resetSourceChordState()
+      } else if (isChordKey(input, 'k')) {
+        armSourceChordPrefix()
+        event.preventDefault()
+        return
+      } else if (sourceChordPending && isChordKey(input, 'c')) {
+        resetSourceChordState()
+        win.webContents.send('mt::editor-edit-action', 'sourceComment')
+        event.preventDefault()
+        return
+      } else if (sourceChordPending && isChordKey(input, 'u')) {
+        resetSourceChordState()
+        win.webContents.send('mt::editor-edit-action', 'sourceUncomment')
+        event.preventDefault()
+        return
+      } else if (
+        sourceChordPending &&
+        input.type === 'keyDown' &&
+        !['Control', 'Meta', 'Shift'].includes(input.key)
+      ) {
+        // Qualunque altro tasto chiude il prefisso senza consumare shortcut normali.
+        resetSourceChordState()
+      }
+
+      if (!isOsx) {
+        // B8: gestione tasto Alt da solo per toggle menu bar (frame=false impedisce
+        // il comportamento nativo). Eventi ricevuti solo a finestra in focus.
         if (input.key === 'Alt') {
           if (input.type === 'keyDown') {
             altDown = true
@@ -119,10 +198,8 @@ class EditorWindow extends BaseWindow {
           // Alt + altro tasto → annulla tracking
           altDown = false
         }
-      })
-      // Reset stato quando finestra perde focus (es. Alt+Tab)
-      win.on('blur', () => { altDown = false })
-    }
+      }
+    })
 
     remoteEnable(win.webContents)
     this.id = win.id
@@ -227,6 +304,9 @@ class EditorWindow extends BaseWindow {
     win.on('blur', () => {
       this.emit('window-blur')
       win.webContents.send('mt::window-active-status', { status: false })
+      altDown = false
+      sourceCodeFocused = false
+      resetSourceChordState()
     })
     ;['maximize', 'unmaximize', 'enter-full-screen', 'leave-full-screen'].forEach((channel) => {
       win.on(channel, () => {
@@ -248,6 +328,9 @@ class EditorWindow extends BaseWindow {
     win.on('closed', () => {
       this.lifecycle = WindowLifecycle.QUITTED
       this.emit('window-closed')
+
+      ipcMain.removeListener('mt::source-code-focus-changed', onSourceCodeFocusChanged)
+      resetSourceChordState()
 
       // Free window reference
       win = null

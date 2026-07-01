@@ -84,6 +84,7 @@ const getCommandDescriptions = () => {
     'edit.find-previous': t('commands.edit.findPrevious'),
     'edit.replace': t('commands.edit.replace'),
     'edit.find-in-folder': t('commands.edit.findInFolder'),
+    'edit.open-in-browser': t('commands.edit.openInBrowser'),
 
     // 其他编辑功能
     'edit.screenshot': t('commands.edit.screenshot'),

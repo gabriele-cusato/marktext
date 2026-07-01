@@ -26,3 +26,85 @@
 .CodeMirror.cm-s-railscasts div.CodeMirror-selected {
   background: var(--cmSelectionColor, rgba(56, 139, 253, 0.6)) !important;
 }
+
+/* Source mode: token override scoped per tema railscasts (dark/material-dark).
+   Obiettivo: ridurre effetto "quasi tutto verde" differenziando classi semantiche. */
+.source-code .CodeMirror.cm-s-railscasts .cm-keyword {
+  color: #d870ff;
+}
+
+.source-code .CodeMirror.cm-s-railscasts .cm-def {
+  color: #ffb86b;
+}
+
+.source-code .CodeMirror.cm-s-railscasts .cm-number {
+  color: #8be9fd;
+}
+
+.source-code .CodeMirror.cm-s-railscasts .cm-property {
+  color: #66d9ef;
+}
+
+.source-code .CodeMirror.cm-s-railscasts .cm-variable {
+  color: #f8f8f2;
+}
+
+.source-code .CodeMirror.cm-s-railscasts .cm-variable-2 {
+  color: #8be9fd;
+}
+
+.source-code .CodeMirror.cm-s-railscasts .cm-variable-3 {
+  color: #f1fa8c;
+}
+
+.source-code .CodeMirror.cm-s-railscasts .cm-string {
+  color: #a4f78a;
+}
+
+.source-code .CodeMirror.cm-s-railscasts .cm-operator {
+  color: #ff79c6;
+}
+
+.source-code .CodeMirror.cm-s-railscasts .cm-comment {
+  color: #8c96ab;
+}
+
+.source-code .CodeMirror.cm-s-railscasts .cm-type {
+  color: #f7c56b;
+}
+
+.source-code .CodeMirror.cm-s-railscasts .cm-builtin {
+  color: #ff9e64;
+}
+
+/* Source mode: tema default/light.
+   CodeMirror default lascia neutri variable/property/operator: aggiungere distinzione minima. */
+.source-code .CodeMirror.cm-s-default .cm-variable {
+  color: #005f99;
+}
+
+.source-code .CodeMirror.cm-s-default .cm-property {
+  color: #007a8a;
+}
+
+.source-code .CodeMirror.cm-s-default .cm-operator {
+  color: #7a3ec8;
+}
+
+.source-code .CodeMirror.cm-s-default .cm-type {
+  color: #0b7a5f;
+}
+
+.source-code .CodeMirror.cm-s-default .cm-builtin {
+  color: #6b3fd1;
+}
+
+/* one-dark locale: completare sole classi token mancanti senza duplicare regole esistenti. */
+.source-code .CodeMirror.cm-s-one-dark .cm-variable-2 {
+  color: #56b6c2;
+}
+
+.source-code .CodeMirror.cm-s-one-dark .cm-variable-3,
+.source-code .CodeMirror.cm-s-one-dark .cm-type {
+  color: #e5c07b;
+}

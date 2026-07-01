@@ -2,6 +2,7 @@ import { filter } from 'fuzzaldrin'
 import 'codemirror/addon/search/matchesonscrollbar'
 import 'codemirror/addon/search/match-highlighter'
 import 'codemirror/addon/search/searchcursor'
+import 'codemirror/addon/comment/comment'
 import 'codemirror/addon/edit/closebrackets'
 import 'codemirror/addon/edit/closetag'
 import 'codemirror/addon/selection/active-line'
@@ -201,6 +202,22 @@ export const setMode = (doc, text) => {
       resolve(m)
     })
   })
+}
+
+export const setModeForFile = (doc, filename) => {
+  const fileName = typeof filename === 'string' ? filename : ''
+  const info = fileName && typeof codeMirror.findModeByFileName === 'function'
+    ? codeMirror.findModeByFileName(fileName)
+    : null
+
+  if (!info || !info.mode) {
+    return setMode(doc, 'markdown')
+  }
+
+  doc.setOption('mode', info.mime || info.mode)
+  codeMirror.autoLoadMode(doc, info.mode)
+
+  return Promise.resolve(info)
 }
 
 export const setTextDirection = (cm, textDirection) => {

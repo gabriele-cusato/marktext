@@ -45,6 +45,7 @@ export default new Map([
   ['edit.find-previous', 'Shift+F3'],
   ['edit.replace', 'Ctrl+R'],
   ['edit.find-in-folder', 'Ctrl+Shift+F'],
+  ['edit.open-in-browser', 'Ctrl+Shift+O'],
   ['edit.screenshot', ''], // macOS only
 
   // Paragraph menu
@@ -98,7 +99,7 @@ export default new Map([
   ['view.typewriter-mode', 'Ctrl+Shift+G'],
   ['view.focus-mode', 'Ctrl+Shift+J'],
   ['view.toggle-sidebar', ''],
-  ['view.toggle-toc', 'Ctrl+K'],
+  ['view.toggle-toc', ''],
   ['view.toggle-tabbar', 'Ctrl+Shift+B'],
   ['view.toggle-dev-tools', 'Ctrl+Alt+I'],
   ['view.dev-reload', 'Ctrl+F5'],

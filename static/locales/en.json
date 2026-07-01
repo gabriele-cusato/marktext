@@ -54,6 +54,7 @@
       "findNext": "Find Next",
       "findPrevious": "Find Previous",
       "findInFolder": "Find in Folder",
+      "openInBrowser": "Open in Browser",
       "screenshot": "Screenshot",
       "lineEnding": "Line Ending",
       "lineEndingCrlf": "CRLF(Windows)",
@@ -942,6 +943,7 @@
       "findPrevious": "Find Previous",
       "replace": "Replace",
       "findInFolder": "Find in Folder",
+      "openInBrowser": "Open in Browser",
       "screenshot": "Screenshot",
       "mathBlock": "Math Block"
     },
