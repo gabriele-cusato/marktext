@@ -421,7 +421,7 @@ const sendSourceCodeFocusState = (focused) => {
 
 const handleSourceCommentActionFromMain = (action) => {
   if (!sourceCode.value || !editor.value) return
-  applyLineCommentAction(editor.value, action)
+  applySourceCommentAction(editor.value, action)
 }
 
 const handleSourceCommentFromMain = () => {
@@ -470,16 +470,111 @@ const wrapSelection = (cm, before, after = before) => {
   cm.focus()
 }
 
-// Applicare commento di linea a tutte le selezioni attive, da fondo a cima, per evitare
+const NON_WS_RE = /[^\s\u00a0]/
+
+const getModeAtPosition = (cm, pos) => {
+  if (typeof cm.getModeAt === 'function') {
+    return cm.getModeAt(pos)
+  }
+  return cm.getMode()
+}
+
+const isBlockCommentOnlyMode = (mode) => {
+  return !!(mode?.blockCommentStart && mode?.blockCommentEnd && !mode?.lineComment)
+}
+
+const getBlockCommentEndLine = (cm, from, to) => {
+  let endLine = Math.min(to.line, cm.lastLine())
+  const isSingleSelection = from.line === to.line && from.ch === to.ch
+  if (!isSingleSelection && to.ch === 0 && NON_WS_RE.test(cm.getLine(endLine))) {
+    endLine -= 1
+  }
+  return endLine
+}
+
+const getCommonIndentForRange = (cm, fromLine, endLine) => {
+  let commonIndent = null
+  for (let lineNumber = fromLine; lineNumber <= endLine; lineNumber++) {
+    const line = cm.getLine(lineNumber)
+    if (!NON_WS_RE.test(line)) continue
+    const indent = line.match(/^\s*/)?.[0] ?? ''
+    if (commonIndent === null || indent.length < commonIndent.length) {
+      commonIndent = indent
+    }
+  }
+  return commonIndent ?? ''
+}
+
+const insertIndentAwareBlockComment = (cm, from, to, mode) => {
+  const endLine = getBlockCommentEndLine(cm, from, to)
+  if (from.line > endLine) return
+
+  const commonIndent = getCommonIndentForRange(cm, from.line, endLine)
+  const pad = ' '
+  const endLineText = cm.getLine(endLine)
+
+  // Inserire prima la chiusura per evitare di spostare la posizione target su selezione singola.
+  cm.replaceRange(`${pad}${mode.blockCommentEnd}`, { line: endLine, ch: endLineText.length })
+  cm.replaceRange(`${mode.blockCommentStart}${pad}`, { line: from.line, ch: commonIndent.length })
+}
+
+const toggleIndentAwareBlockComment = (cm, from, to, mode) => {
+  const didUncomment = cm.uncomment(from, to, { indent: true })
+  if (!didUncomment) {
+    insertIndentAwareBlockComment(cm, from, to, mode)
+  }
+}
+
+const applyLineCommentToggleForRange = (cm, from, to) => {
+  const didUncomment = cm.uncomment(from, to, { indent: true })
+  if (!didUncomment) {
+    cm.lineComment(from, to, { indent: true })
+  }
+}
+
+// Applicare commento source a tutte le selezioni attive, da fondo a cima, per evitare
 // spostamenti di indice sui range successivi.
-const applyLineCommentAction = (cm, action) => {
-  const method = action === 'comment' ? 'lineComment' : 'uncomment'
+const applySourceCommentAction = (cm, action) => {
   const ranges = cm.listSelections()
+
+  if (action === 'toggle') {
+    const hasBlockCommentOnlySelection = ranges.some((range) => {
+      const mode = getModeAtPosition(cm, range.from())
+      return isBlockCommentOnlyMode(mode)
+    })
+    if (!hasBlockCommentOnlySelection) {
+      cm.toggleComment({ indent: true })
+      cm.focus()
+      return
+    }
+  }
 
   cm.operation(() => {
     for (let i = ranges.length - 1; i >= 0; i--) {
       const range = ranges[i]
-      cm[method](range.from(), range.to(), { indent: true })
+      const from = range.from()
+      const to = range.to()
+      const mode = getModeAtPosition(cm, from)
+      const blockCommentOnly = isBlockCommentOnlyMode(mode)
+
+      if (!blockCommentOnly) {
+        if (action === 'comment') {
+          cm.lineComment(from, to, { indent: true })
+        } else if (action === 'uncomment') {
+          cm.uncomment(from, to, { indent: true })
+        } else if (action === 'toggle') {
+          applyLineCommentToggleForRange(cm, from, to)
+        }
+        continue
+      }
+
+      if (action === 'comment') {
+        insertIndentAwareBlockComment(cm, from, to, mode)
+      } else if (action === 'uncomment') {
+        cm.uncomment(from, to, { indent: true })
+      } else if (action === 'toggle') {
+        toggleIndentAwareBlockComment(cm, from, to, mode)
+      }
     }
   })
 
@@ -939,25 +1034,25 @@ onMounted(() => {
     // Ctrl+Shift+↑/↓ torna al default CM (estensione selezione).
     extraKeys: codeMirror.normalizeKeyMap({
       'Ctrl-/': (cm) => {
-        cm.toggleComment({ indent: true })
+        applySourceCommentAction(cm, 'toggle')
       },
       'Ctrl-K C': (cm) => {
-        applyLineCommentAction(cm, 'comment')
+        applySourceCommentAction(cm, 'comment')
       },
       'Ctrl-K Ctrl-C': (cm) => {
-        applyLineCommentAction(cm, 'comment')
+        applySourceCommentAction(cm, 'comment')
       },
       'Cmd-K Cmd-C': (cm) => {
-        applyLineCommentAction(cm, 'comment')
+        applySourceCommentAction(cm, 'comment')
       },
       'Ctrl-K U': (cm) => {
-        applyLineCommentAction(cm, 'uncomment')
+        applySourceCommentAction(cm, 'uncomment')
       },
       'Ctrl-K Ctrl-U': (cm) => {
-        applyLineCommentAction(cm, 'uncomment')
+        applySourceCommentAction(cm, 'uncomment')
       },
       'Cmd-K Cmd-U': (cm) => {
-        applyLineCommentAction(cm, 'uncomment')
+        applySourceCommentAction(cm, 'uncomment')
       },
       'Alt-Up': 'swapLineUp',
       'Alt-Down': 'swapLineDown',

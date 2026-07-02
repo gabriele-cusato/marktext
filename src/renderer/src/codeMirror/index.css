@@ -77,6 +77,22 @@
   color: #ff9e64;
 }
 
+/* HTML/XML: CodeMirror può emettere `tag error` su markup malformato.
+   Nel tema railscasts `.cm-error` ha sfondo rosso e `.cm-tag` testo rosso:
+   separare il colore del testo per mantenere leggibile il token errore. */
+.source-code .CodeMirror.cm-s-railscasts span.cm-tag.cm-error {
+  color: #f8f8f2;
+}
+
+/* Estendere l'evidenza di errore ai bracket HTML/XML adiacenti al token tag errato.
+   Coprire il caso comune CodeMirror: `<`/`</` e `>` sono token `tag bracket`,
+   mentre il nome tag può essere il token `tag error`. */
+.source-code .CodeMirror.cm-s-railscasts span.cm-tag.cm-bracket:has(+ span.cm-tag.cm-error),
+.source-code .CodeMirror.cm-s-railscasts span.cm-tag.cm-error + span.cm-tag.cm-bracket {
+  background: #da4939;
+  color: #f8f8f2;
+}
+
 /* Source mode: tema default/light.
    CodeMirror default lascia neutri variable/property/operator: aggiungere distinzione minima. */
 .source-code .CodeMirror.cm-s-default .cm-variable {

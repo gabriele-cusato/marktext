@@ -46,6 +46,7 @@ Non toccare `src/renderer/src/codeMirror/index.js`, `src/renderer/src/codeMirror
 - `node_modules/codemirror/lib/codemirror.css` lascia alcune classi default poco differenziate, inclusi `cm-variable`, `cm-property`, `cm-operator`.
 - `node_modules/codemirror/theme/railscasts.css` tende a rendere variabili/proprietà verdi, compatibile con osservazione “JS quasi tutto verde”.
 - `src/renderer/src/assets/themes/codemirror/one-dark.css` è più ricco ma può non coprire tutte le classi (`cm-variable-2`, `cm-variable-3`, `cm-type` ecc.).
+- Bug utente 2026-07-02 su HTML/source mode: con tema `railscasts` (usato da `dark/material-dark`), tag HTML validi sono rossi e, se il tokenizer XML emette errore su sintassi malformata (es. `<` non chiuso), il token può avere classi combinate `cm-tag cm-error`. Fonte locale: `node_modules/codemirror/mode/xml/xml.js:126-131` restituisce `"tag error"`; `node_modules/codemirror/theme/railscasts.css:28-30` imposta `.cm-error { background: #da4939; color: #d4cfc9; }` e subito dopo `.cm-tag { color: #da4939; }`. A pari specificità, la regola `.cm-tag` successiva sovrascrive il colore testo dell'errore con lo stesso rosso dello sfondo: testo illeggibile rosso su rosso.
 
 ## Sottoproblemi in ordine
 
@@ -55,6 +56,7 @@ Non toccare `src/renderer/src/codeMirror/index.js`, `src/renderer/src/codeMirror
 4. Valutare se `src/renderer/src/assets/themes/codemirror/one-dark.css` necessita solo di classi mancanti; se sì, aggiungere classi mancanti lì o in override scoped, senza duplicare inutilmente regole già presenti.
 5. Non modificare `setModeForFile` salvo evidenza nuova contraria durante verifica.
 6. Aggiornare worklog task5 con `[x]`, verifiche eseguite e note `DA TESTARE` runtime.
+7. Fix piccolo post-test HTML: in `src/renderer/src/codeMirror/index.css`, aggiungere override scoped per contrasto errore HTML/XML nei temi source, almeno per `.source-code .CodeMirror.cm-s-railscasts .cm-tag.cm-error` (o selettore equivalente su `span.cm-tag.cm-error`) così il testo errore non eredita il rosso di `.cm-tag` sopra lo sfondo rosso di `.cm-error`. Preferire una soluzione localizzata: mantenere i tag validi rossi se voluto, ma per token `tag error` usare testo chiaro ad alto contrasto (`#f8f8f2` / `#fff`) e/o sostituire il background pieno con underline/border meno invasivo. Valutare stesso controllo per `.cm-s-one-dark .cm-tag.cm-error` e `.cm-s-default .cm-tag.cm-error`, anche se la causa rosso-su-rosso confermata è `railscasts`.
 
 ## Verifica richiesta
 
@@ -63,5 +65,6 @@ Non toccare `src/renderer/src/codeMirror/index.js`, `src/renderer/src/codeMirror
   - Aprire `.js` in source mode con tema usato dall'utente: keyword, stringhe, commenti, numeri, proprietà/operatori devono avere colori più distinguibili.
   - Ripetere su `.py`, `.html`, `.css`.
   - Cambiare tra temi `light`, `dark`, `material-dark`, `one-dark` e verificare contrasto leggibile.
+  - Su `.html`, scrivere `<body>` valido e poi un errore tipo `<` isolato / tag non chiuso: il token errore deve restare leggibile in `dark/material-dark` (`railscasts`) e non diventare rosso su rosso.
   - Confermare che `cm.getOption('mode')` resta `text/javascript` su `.js`.
   - Confermare nessun ritorno errore F12 `504 (Outdated Optimize Dep)` dopo cache già pulita.
