@@ -3,6 +3,15 @@
     :class="['v2-tabbar', { 'has-multirow': hasMultiRow, 'tabs-hovered': tabsAreaHovered, 'is-osx': isOsx }]"
     @mouseleave="onTabbarLeave"
   >
+    <!-- Overlay drag "alla VS Code" (struttura DEFINITIVA dal GATE task1b, 2026-07-02) —
+         pattern verificato nel sorgente VS Code (titlebarPart.ts): la zona app-region:drag
+         vive in un elemento FRATELLO, mai antenato delle tab, così le .v2-tab non sono MAI
+         discendenti di un contenitore drag (causa n.1 del FAIL task1, vedi DRAG-TASK.md
+         §3/"Stato decisioni"). PRIMO figlio → dipinto per primo; i fratelli successivi
+         (scroll-area, topright) vengono dopo nell'ordine sorgente e ricevono gli hit DOM
+         sopra l'overlay, senza bisogno di z-index. Invariante 5 (drag-html5-dnd-task2): non
+         rimuovere né spostare, il drag HTML5 nativo sulle tab dipende da questa struttura. -->
+    <div class="v2-tabbar-drag-region" />
     <!-- B1: Tabs pill multi-row con hover-expand. Hover SOLO su quest'area:
          passare il mouse su .v2-topright NON espande la tab bar.
          B3: @mouseleave montato sul wrapper esterno .v2-tabbar — uscire dalle
@@ -16,6 +25,10 @@
       <ul
         ref="tabDropContainer"
         class="v2-tabs"
+        @dragenter.prevent
+        @dragover.prevent="onTabsDragOver"
+        @dragleave="onTabsDragLeave"
+        @drop.prevent="onTabsDrop"
       >
         <li
           v-for="file of tabs"
@@ -31,7 +44,8 @@
           @click.stop="selectFile(file)"
           @click.middle="closeTab(file.id)"
           @contextmenu.prevent="handleContextMenu($event, file)"
-          @dragstart="onTabDragStartSpike(file)"
+          @dragstart="onTabDragStart($event, file)"
+          @dragend="onTabDragEnd($event)"
         >
           <!-- H4: indicatore pin (puntina da disegno) — solo tab pinnate -->
           <span
@@ -54,6 +68,21 @@
             @click.stop="removeFileInTab(file)"
           >×</button>
         </li>
+        <!-- drag-html5-dnd-task2: indicatore d'inserimento del drag HTML5 nativo (sostituisce
+             il mirror DOM di dragula, rimosso). position:absolute (come il "+" sotto) → fuori
+             dal flex flow, non altera offsetWidth/offsetTop delle tab (nessun impatto sulla
+             detection multi-row, Inv. MEDIUM-TASK.md). Posizione/altezza calcolate in
+             onTabsDragOver dalla riga della tab target (fix round 1, BUG-INDICATORE-ALTEZZA):
+             confinata alla riga della tab target, non più alta quanto l'intera ul. Visibilità
+             legata a `dragIndicatorVisible` (non a `draggedTabId`, che resta true per tutta la
+             durata del drag anche fuori dalla ul) → sparisce davvero quando il cursore lascia
+             la tab bar (fix round 1, BUG-INDICATORE-STILE: sparizione onTabsDragLeave). -->
+        <li
+          v-if="dragIndicatorVisible"
+          class="v2-tab-drop-indicator"
+          :style="{ left: `${dragIndicatorLeft}px`, top: `${dragIndicatorTop}px`, height: `${dragIndicatorHeight}px` }"
+          aria-hidden="true"
+        />
         <!-- B1: "+" inline solo in single-row. In multi-row si sposta nel topright. -->
         <li
           v-if="!hasMultiRow"
@@ -197,8 +226,6 @@ import { useEditorStore } from '@/store/editor'
 import { useLayoutStore } from '@/store/layout'
 import { usePreferencesStore } from '@/store/preferences'
 import { storeToRefs } from 'pinia'
-import autoScroll from 'dom-autoscroller'
-import dragula from 'dragula'
 import bus from '../../bus'
 import TabContextMenu from '../contextMenu/TabContextMenu.vue'
 // T-ME: flag macOS. Su mac i controlli finestra custom (−/□/×) spariscono
@@ -215,12 +242,6 @@ const { theme } = storeToRefs(preferencesStore)
 const tabContainer = ref(null)
 const tabDropContainer = ref(null)
 const topRightEl = ref(null) // B14: zona topright (.v2-topright) — misurata runtime per padding tabbar
-let autoScroller = null
-let drake = null
-// H5-2: drag-out → detach. Traccia l'ultima posizione SCHERMO del mouse durante il drag;
-// su dragend, se è fuori dalla finestra, la tab trascinata va in una nuova finestra.
-let lastDragScreen = { x: 0, y: 0 }
-const onDragMove = (e) => { lastDragScreen = { x: e.screenX, y: e.screenY } }
 let tabResizeObs = null
 let topRightResizeObs = null // B14: ResizeObserver su topright — clone width cambia con file/filename
 let tabbarResizeObs = null // ResizeObserver su tabbar root → trigger recalc su resize finestra
@@ -248,6 +269,32 @@ const tabsAreaHovered = ref(false)
 // si clicca una tab di riga 1 o si apre nuova tab.
 const pinnedTab = ref(null)
 
+// drag-html5-dnd-task2: stato locale del drag HTML5 nativo (reorder stessa finestra).
+// draggedTabId: id della tab sorgente, tracciato via ref perché durante `dragover` il
+// `dataTransfer` non è leggibile (solo in `drop`, restrizione HTML5 DnD) — letto anche
+// dal template per mostrare l'indicatore d'inserimento.
+const draggedTabId = ref(null)
+// dragTargetId: id della tab prima della quale verrebbe inserita la tab trascinata
+// (null = in fondo alla zona pinnata/non-pinnata di appartenenza). Calcolato in
+// onTabsDragOver, passato as-is a EXCHANGE_TABS_BY_ID (che già clampa la zona H4).
+const dragTargetId = ref(null)
+// Posizione (px, relativa alla ul) dell'indicatore d'inserimento — vedi onTabsDragOver.
+const dragIndicatorLeft = ref(0)
+// Fix round 1 (BUG-INDICATORE-ALTEZZA): top/height dell'indicatore, presi dalla riga della
+// tab target (non più l'intera altezza della ul) — evita che l'indicatore attraversi le
+// righe successive in multi-row.
+const dragIndicatorTop = ref(0)
+const dragIndicatorHeight = ref(0)
+// Fix round 1 (BUG-INDICATORE-STILE): visibilità dell'indicatore scollegata da
+// `draggedTabId` (che resta valorizzato per tutta la durata del drag anche fuori dalla
+// tab bar) — così l'indicatore sparisce davvero quando il cursore lascia la ul
+// (onTabsDragLeave) invece di restare fermo nell'ultima posizione calcolata.
+const dragIndicatorVisible = ref(false)
+// Fix round 2 (BUG-GHOST): nodo DOM del drag image "a pillola" creato in onTabDragStart e
+// rimosso in onTabDragEnd/onBeforeUnmount. Non un ref: non serve reattività, è solo un
+// riferimento al nodo appeso temporaneamente a document.body per setDragImage.
+let dragGhostEl = null
+
 // Context menu state (custom Vue, sostituisce Electron nativo)
 const ctxOpen = ref(false)
 const ctxPos = ref({ x: 0, y: 0 })
@@ -261,11 +308,164 @@ const selectFile = (file) => {
   }
 }
 
-// SPIKE (drag-html5-dnd-task1, temporaneo/reversibile): verifica se dragstart HTML5
-// nativo scatta su .v2-tab nonostante -webkit-app-region:drag sul contenitore .v2-tabbar.
-// Nessuna logica di drag reale: solo log per il test manuale runtime. Non sostituisce dragula.
-const onTabDragStartSpike = (file) => {
-  console.log('[SPIKE drag-html5-dnd] dragstart fired', file.id)
+// drag-html5-dnd-task2: dragstart reale (sostituisce lo spike task1/task1b). Il
+// dataTransfer porta SOLO l'id della tab (mai oggetti ricchi, DRAG-TASK.md §2.1) —
+// coerente col detach cross-finestra che task3/4 costruiranno sullo stesso canale.
+const onTabDragStart = (event, file) => {
+  // [DEBUG drag-html5-dnd-task2] BUG-DROP: strumentazione temporanea per il retest, vedi
+  // worklog task2 "Fix round 1" — rimuovere a bug confermato risolto.
+  console.log('[DEBUG drag-html5-dnd-task2] onTabDragStart, id sorgente:', file.id)
+  draggedTabId.value = file.id
+  dragTargetId.value = null
+  event.dataTransfer.effectAllowed = 'move'
+  event.dataTransfer.setData('text/mt-tab-id', String(file.id))
+  // [DEBUG drag-html5-dnd-task2] round 3: aggiungere anche un formato standard accanto al
+  // MIME custom — sospetto che su Windows/OLE il data object con SOLO un tipo custom
+  // faccia rifiutare il drop (dropEffect 'none', drop mai consegnato). Se il retest
+  // conferma il fix, valutare se tenerlo (con guardia nel drop della zona testo) o meno.
+  event.dataTransfer.setData('text/plain', String(file.id))
+
+  // Fix round 2 (BUG-GHOST): il drag image di default è lo screenshot rettangolare del
+  // `li` (sfondo opaco su Windows), incoerente con le tab a pillola. Si clona il `li`
+  // sorgente (mantiene l'attributo scoped di Vue, quindi lo stile scoped si applica anche
+  // alla classe aggiunta a mano) e lo si posiziona fuori viewport prima di passarlo a
+  // setDragImage: il browser lo usa come snapshot per il drag image, il nodo reale in
+  // pagina non viene mai mostrato.
+  const sourceEl = event.currentTarget
+  const ghost = sourceEl.cloneNode(true)
+  ghost.classList.add('v2-tab-drag-ghost')
+  document.body.appendChild(ghost)
+  dragGhostEl = ghost
+  const rect = sourceEl.getBoundingClientRect()
+  event.dataTransfer.setDragImage(ghost, event.clientX - rect.left, event.clientY - rect.top)
+}
+
+// Calcola, dalla coordinata clientX del cursore, davanti a quale tab andrebbe inserita
+// la tab trascinata (null = in fondo alla propria zona). Esclude esplicitamente la tab
+// sorgente dal calcolo (invariante 4: niente equivalente di gu-mirror con HTML5 DnD) e
+// clampa i candidati alla zona pinnata/non-pinnata della tab trascinata (invariante 7,
+// H4): una pinnata non può calcolare un indice oltre l'ultima pinnata e viceversa. Se la
+// zona di appartenenza è vuota (es. unica pinnata) ricade sull'intera lista, coerente col
+// clamp che EXCHANGE_TABS_BY_ID applica comunque sul toIndex risultante.
+const computeDragTarget = (clientX) => {
+  const ul = tabDropContainer.value
+  if (!ul || !draggedTabId.value) return { targetId: null, targetEl: null, candidates: [] }
+  const draggedTab = tabs.value.find((t) => t.id === draggedTabId.value)
+  if (!draggedTab) return { targetId: null, targetEl: null, candidates: [] }
+
+  const items = Array.from(ul.querySelectorAll('li.v2-tab'))
+    .filter((el) => el.getAttribute('data-id') !== String(draggedTabId.value))
+  const zoneItems = items.filter((el) => {
+    const t = tabs.value.find((tt) => tt.id === el.getAttribute('data-id'))
+    return t && !!t.pinned === !!draggedTab.pinned
+  })
+  const candidates = zoneItems.length ? zoneItems : items
+
+  let targetEl = null
+  for (const el of candidates) {
+    const rect = el.getBoundingClientRect()
+    if (clientX < rect.left + rect.width / 2) {
+      targetEl = el
+      break
+    }
+  }
+  return { targetId: targetEl ? targetEl.getAttribute('data-id') : null, targetEl, candidates }
+}
+
+// Handler dragover sul contenitore (ul.v2-tabs): preventDefault (via .prevent nel
+// template, abilita il drop) + ricalcolo indicatore d'inserimento + autoscroll manuale
+// vicino ai bordi della tab bar (decisione autoscroll, vedi worklog task2: HTML5 DnD non
+// offre un autoscroll nativo affidabile su contenitori custom).
+const AUTOSCROLL_EDGE_PX = 40
+const AUTOSCROLL_STEP_PX = 12
+const onTabsDragOver = (event) => {
+  if (!draggedTabId.value) return
+  // Fix round 2 (BUG-DROP): senza dichiarazione esplicita del dropEffect nel dragover del
+  // target, con effectAllowed='move' Chromium risolve l'operazione a 'none' → il drop non
+  // viene mai generato (quirk noto HTML5 DnD, causa confermata dal retest 2026-07-03).
+  event.dataTransfer.dropEffect = 'move'
+  dragIndicatorVisible.value = true
+
+  const { targetId, targetEl, candidates } = computeDragTarget(event.clientX)
+  dragTargetId.value = targetId
+
+  const ul = tabDropContainer.value
+  // Fix round 1 (BUG-INDICATORE-ALTEZZA): l'elemento di riferimento per top/height è
+  // il target stesso, o l'ultimo candidato nel caso "in fondo alla zona" — mai l'intera
+  // ul (che in multi-row è alta quanto tutte le righe insieme).
+  const refEl = targetEl || (candidates.length ? candidates[candidates.length - 1] : null)
+  if (targetEl) {
+    dragIndicatorLeft.value = targetEl.offsetLeft - 2 // 2px ≈ metà del GAP=3 tra le tab
+  } else if (candidates.length) {
+    const lastEl = candidates[candidates.length - 1]
+    dragIndicatorLeft.value = lastEl.offsetLeft + lastEl.offsetWidth + 1
+  } else if (ul) {
+    dragIndicatorLeft.value = 6 // ulPadding, ul vuota (solo la tab trascinata esiste)
+  }
+  if (refEl) {
+    dragIndicatorTop.value = refEl.offsetTop
+    dragIndicatorHeight.value = refEl.offsetHeight
+  }
+
+  const scrollEl = tabContainer.value
+  if (scrollEl) {
+    const rect = scrollEl.getBoundingClientRect()
+    if (event.clientX - rect.left < AUTOSCROLL_EDGE_PX) {
+      scrollEl.scrollLeft = Math.max(0, scrollEl.scrollLeft - AUTOSCROLL_STEP_PX)
+    } else if (rect.right - event.clientX < AUTOSCROLL_EDGE_PX) {
+      scrollEl.scrollLeft = Math.min(scrollEl.scrollLeft + AUTOSCROLL_STEP_PX, scrollEl.scrollWidth)
+    }
+  }
+}
+
+// Nasconde l'indicatore solo quando il cursore lascia DAVVERO la ul (non un suo figlio):
+// dragleave fa bubbling ad ogni passaggio tra tab, relatedTarget distingue i due casi.
+const onTabsDragLeave = (event) => {
+  const ul = tabDropContainer.value
+  if (ul && !ul.contains(event.relatedTarget)) {
+    dragTargetId.value = null
+    dragIndicatorVisible.value = false
+  }
+}
+
+// Handler drop: SOLO mutazione store (invariante 1, mai removeChild/insertBefore a mano
+// — Vue v-for + :key riconcilia il DOM da solo). EXCHANGE_TABS_BY_ID applica già il clamp
+// di zona pinnata/non-pinnata (store/editor.js) sul toIndex risultante da toId.
+const onTabsDrop = (event) => {
+  const droppedId = event.dataTransfer.getData('text/mt-tab-id') || draggedTabId.value
+  // [DEBUG drag-html5-dnd-task2] BUG-DROP: strumentazione temporanea per il retest, vedi
+  // worklog task2 "Fix round 1" — rimuovere a bug confermato risolto. Non si può loggare
+  // dentro EXCHANGE_TABS_BY_ID (store/editor.js, vietato toccarlo in questo task): si logga
+  // l'esito leggendo tabs.value subito dopo la chiamata.
+  console.log('[DEBUG drag-html5-dnd-task2] onTabsDrop fired, event:', event, 'droppedId:', droppedId, 'dragTargetId:', dragTargetId.value)
+  if (!droppedId) return
+  editorStore.EXCHANGE_TABS_BY_ID({ fromId: droppedId, toId: dragTargetId.value })
+  console.log('[DEBUG drag-html5-dnd-task2] dopo EXCHANGE_TABS_BY_ID, tabs.value ids:', tabs.value.map((t) => t.id))
+}
+
+// Handler dragend (fine gesto, sia su drop riuscito sia su drop annullato): reset dello
+// stato locale, incremento di tabsRenderKey (invariante 2, evita .el stale nel vdom) e
+// ricalcolo pinnedTab/layout fuori dal lock (invariante 3/6).
+const onTabDragEnd = (event) => {
+  // [DEBUG drag-html5-dnd-task2] BUG-DROP: strumentazione temporanea per il retest, vedi
+  // worklog task2 "Fix round 1" — rimuovere a bug confermato risolto. dropEffect === 'none'
+  // indica che il browser NON ha registrato un drop valido (utile anche per distinguere il
+  // caso "rilasciata fuori da ogni target" in vista del detach task3/4).
+  console.log('[DEBUG drag-html5-dnd-task2] onTabDragEnd, dropEffect:', event && event.dataTransfer && event.dataTransfer.dropEffect)
+  // Fix round 2 (BUG-GHOST): rimuove dal DOM il nodo ghost creato in onTabDragStart, ora
+  // che il drag è terminato (successo o annullato) e non serve più al browser.
+  if (dragGhostEl) {
+    dragGhostEl.remove()
+    dragGhostEl = null
+  }
+  draggedTabId.value = null
+  dragTargetId.value = null
+  dragIndicatorVisible.value = false
+  nextTick(() => {
+    tabsRenderKey.value++
+    recomputePinnedTab()
+    requestAnimationFrame(() => updateTabRowsLayout())
+  })
 }
 
 const removeFileInTab = (file) => {
@@ -387,31 +587,6 @@ const scheduleUpdate = (src = '?') => {
 // eliminando i riferimenti .el stale nel vdom che causano inserimento nella posizione sbagliata.
 const tabsRenderKey = ref(0)
 
-const resyncDomToStore = () => {
-  const ul = tabDropContainer.value
-  if (!ul) return
-  const storeOrder = tabs.value.map(t => String(t.id))
-  const domOrder = Array.from(ul.querySelectorAll('li.v2-tab')).map(e => e.getAttribute('data-id'))
-  if (JSON.stringify(domOrder) === JSON.stringify(storeOrder)) return
-
-  // Rimuovi duplicati prima di riordinare
-  const seen = new Set()
-  Array.from(ul.querySelectorAll('li.v2-tab')).forEach(el => {
-    const id = el.getAttribute('data-id')
-    if (seen.has(id)) ul.removeChild(el)
-    else seen.add(id)
-  })
-
-  // Inserisce ogni tab nell'ordine corretto prima del "+" inline
-  const anchor = ul.querySelector('.v2-tab-new-li') || null
-  storeOrder.forEach(id => {
-    const el = ul.querySelector(`li.v2-tab[data-id="${id}"]`)
-    if (el) ul.insertBefore(el, anchor)
-  })
-}
-
-let currentDragDropHandled = false
-
 // P-DF8-4: rilevazione multi-row state-aware con larghezza tabbar STABILE.
 // Causa flicker precedente: ul.clientWidth varia durante transition padding-right
 // (160→320 in 0.3s). Soluzione: usare .v2-tabbar.clientWidth (NON cambia con padding
@@ -523,7 +698,7 @@ const updateTabRowsLayout = () => {
 
   // Restringe ul a width REALE di row 1. Spazio liberato dentro scroll-area
   // (flex:1 = full width) diventa drag region → drag finestra subito dopo last tab.
-  // Ul resta no-drag per eventi mouse / dragula.
+  // Ul resta no-drag per eventi mouse / drag HTML5 nativo.
   const row1Width = ulPadding + row1ContentWidth
   const newUlWidth = `${row1Width}px`
   if (ul.style.width !== newUlWidth) {
@@ -541,8 +716,8 @@ const updateTabRowsLayout = () => {
   }
 
   // Pinned recalc via helper (chiamabile anche fuori updateTabRowsLayout per
-  // bypassare layoutLock — necessario post-drag dragula dove lock può essere
-  // attivo da ResizeObserver burst durante drag).
+  // bypassare layoutLock — necessario post-drag HTML5 dove lock può essere
+  // attivo da ResizeObserver burst durante drag, Inv. 3/6 drag-html5-dnd-task2).
   recomputePinnedTab(items, multiRow)
 }
 
@@ -552,7 +727,10 @@ const updateTabRowsLayout = () => {
 const recomputePinnedTab = (items = null, multiRow = null) => {
   const ul = tabDropContainer.value
   if (!ul) return
-  if (!items) items = Array.from(ul.querySelectorAll('li.v2-tab:not(.v2-tab-pinned)'))
+  // Bug pre-esistente (drag-html5-dnd-task2, plan punto 8): il selettore filtrava
+  // `.v2-tab-pinned`, classe MAI applicata nel template (la classe reale per H4-pinned
+  // è `is-pinned`) → il `:not()` non escludeva mai nulla. Corretto in `is-pinned`.
+  if (!items) items = Array.from(ul.querySelectorAll('li.v2-tab:not(.is-pinned)'))
   if (multiRow === null) multiRow = hasMultiRow.value
 
   if (!multiRow || !items.length) {
@@ -576,6 +754,52 @@ const recomputePinnedTab = (items = null, multiRow = null) => {
     pinnedTab.value = tab
   }
 }
+
+// Fix round 1 (BUG-DRAG-ZONA-TESTO): il drag di una tab veniva accettato anche sopra la
+// zona testo (editor Muya, contenteditable = drop target di default per drag generici).
+// Ascoltatore PERMANENTE in fase capture su window: intercetta l'evento PRIMA che
+// raggiunga il dragover handler di Muya sul container editor, e blocca il drop SOLO se
+// il dataTransfer porta il MIME type dedicato delle tab. Basato sui `types` (sempre
+// leggibili in dragover, a differenza dei dati) e non su `draggedTabId` locale: vale
+// anche per un drag di tab in arrivo da un'ALTRA finestra (serve a task3/4, che userà
+// `dropEffect === 'none'` come segnale affidabile per il detach). `event.target` può
+// essere un nodo di testo (niente `.closest`) → normalizzato sul parentElement in quel caso.
+const blockForeignTabDropOutsideTabbar = (event) => {
+  if (!event.dataTransfer || !event.dataTransfer.types.includes('text/mt-tab-id')) return
+  const targetEl = event.target.closest ? event.target : event.target.parentElement
+  if (targetEl && targetEl.closest('.v2-tabbar')) return
+  event.preventDefault()
+  event.dataTransfer.dropEffect = 'none'
+  event.stopPropagation()
+}
+
+// [DEBUG drag-html5-dnd-task2] round 3: tracer temporaneo degli eventi DnD a livello
+// window (entrambe le fasi), per individuare dove muore la consegna del drop.
+// Deduplica i dragover ripetuti sullo stesso target/fase per non inondare la console.
+// Rimuovere a bug risolto.
+let dbgLastOverKey = null
+const dbgDescribe = (el) => {
+  if (!el) return 'null'
+  if (!el.tagName) return el.nodeName
+  const cls = typeof el.className === 'string' ? el.className : ''
+  return `${el.tagName.toLowerCase()}${cls ? '.' + cls.split(' ').slice(0, 2).join('.') : ''}`
+}
+const dbgDndTracer = (event) => {
+  const phase = event.eventPhase === 1 ? 'capture' : 'bubble'
+  if (event.type === 'dragover') {
+    const key = `${phase}|${dbgDescribe(event.target)}|${event.defaultPrevented}`
+    if (key === dbgLastOverKey) return
+    dbgLastOverKey = key
+  }
+  console.log(
+    '[DEBUG dnd-tracer]', event.type, phase,
+    'target:', dbgDescribe(event.target),
+    'defaultPrevented:', event.defaultPrevented,
+    'dropEffect:', event.dataTransfer && event.dataTransfer.dropEffect,
+    'effectAllowed:', event.dataTransfer && event.dataTransfer.effectAllowed
+  )
+}
+const DBG_DND_EVENTS = ['dragenter', 'dragleave', 'dragover', 'drop', 'dragend']
 
 onMounted(() => {
   // Bus listener per context menu legacy (mantenuti per compatibilità)
@@ -616,102 +840,42 @@ onMounted(() => {
   }
   scheduleUpdate('onMounted')
 
-  // Drag and drop ordering
+  // drag-html5-dnd-task2 (invariante 5bis): il cablaggio dragula (init, accepts H4,
+  // handler drag/dragend/drop, detach H5-2 su dragend, dom-autoscroller) è stato
+  // rimosso PER INTERO — dragula NON può coesistere con l'HTML5 DnD nativo sulle
+  // stesse tab (grab() fa preventDefault() sul mousedown, sopprime dragstart in
+  // Chromium, GATE task1b). Il reorder è ora gestito dai listener draggable/dragstart/
+  // dragover/drop/dragend sul template. Il detach via drag-out resta TEMPORANEAMENTE
+  // non funzionante: task3/4 lo re-implementeranno sopra l'HTML5 DnD (vedi worklog).
 
-  drake = dragula([tabDropContainer.value], {
-    direction: 'horizontal',
-    revertOnSpill: true,
-    mirrorContainer: tabDropContainer.value,
-    ignoreInputTextSelection: false,
-    moves: (el) => el.classList.contains('v2-tab'),
-    // H4: impedisce drag cross-zona: pinnate restano nella zona pinnata, non-pinnate in quella non-pinnata.
-    accepts: (el, _target, _source, sibling) => {
-      const draggedId = el.getAttribute('data-id')
-      const draggedTab = tabs.value.find(t => t.id === draggedId)
-      if (!draggedTab) return true
+  // [DEBUG drag-html5-dnd-task2] round 3: tracer PRIMA del blocker così vede gli eventi
+  // anche dove il blocker fa stopPropagation. Rimuovere a bug risolto.
+  for (const evName of DBG_DND_EVENTS) {
+    window.addEventListener(evName, dbgDndTracer, true)
+    window.addEventListener(evName, dbgDndTracer, false)
+  }
 
-      // Ricava il tab a cui appartiene il sibling (elemento dopo il punto di drop)
-      const isValidSibling = (s) => s && !s.classList.contains('v2-tab-new-li') && !s.classList.contains('gu-mirror')
-      const siblingId = isValidSibling(sibling) ? sibling.getAttribute('data-id') : null
-      const siblingTab = siblingId ? tabs.value.find(t => t.id === siblingId) : null
-
-      if (draggedTab.pinned) {
-        // Pinnata → il sibling deve essere pinnato; se null (fine lista) accetta solo se non ci sono non-pinnate
-        if (!siblingTab) return !tabs.value.some(t => !t.pinned && t.id !== draggedId)
-        return siblingTab.pinned
-      } else {
-        // Non-pinnata → il sibling non deve essere pinnato
-        if (!siblingTab) return true
-        return !siblingTab.pinned
-      }
-    }
-  })
-  .on('drag', () => {
-    currentDragDropHandled = false
-    // H5-2: init al CENTRO finestra → se il mouse non si muove, "outside" resta falso (niente detach spurio).
-    lastDragScreen = {
-      x: window.screenX + window.outerWidth / 2,
-      y: window.screenY + window.outerHeight / 2
-    }
-    window.addEventListener('mousemove', onDragMove)
-  })
-  .on('dragend', (el) => {
-    window.removeEventListener('mousemove', onDragMove)
-    // H5-2: drop FUORI dalla finestra (revertOnSpill ha già rimesso la tab a posto) → detach in una nuova
-    // finestra. Eseguito DOPO dragula (setTimeout 0) per non toccare lo stato tab dentro il suo ciclo di drop.
-    const m = lastDragScreen
-    const outside =
-      m.x < window.screenX ||
-      m.x > window.screenX + window.outerWidth ||
-      m.y < window.screenY ||
-      m.y > window.screenY + window.outerHeight
-    if (outside && el) {
-      const id = el.getAttribute('data-id')
-      const tab = tabs.value.find((t) => t.id === id)
-      if (tab && tabs.value.length > 1) {
-        // H5-RE: passa le coord schermo del drop → il main decide se droppare in una finestra esistente
-        // (sotto il puntatore, alla posizione) o creare una nuova finestra.
-        const drop = { x: lastDragScreen.x, y: lastDragScreen.y }
-        setTimeout(() => editorStore.DETACH_TAB(tab, drop), 0)
-      }
-    }
-    nextTick(() => {
-      resyncDomToStore()
-      // Forza Vue a ricreare tutti i li.v2-tab con key fresca → azzera .el stale nel vdom
-      tabsRenderKey.value++
-    })
-  })
-  .on('drop', (el, target, source, sibling) => {
-    const droppedId = el.getAttribute('data-id')
-    const isMirror = sibling && sibling.classList.contains('gu-mirror')
-    if (isMirror && currentDragDropHandled) return
-    currentDragDropHandled = true
-
-    const realSibling = sibling
-      && !sibling.classList.contains('v2-tab-new-li')
-      && !sibling.classList.contains('gu-mirror')
-      ? sibling : null
-    const nextTabId = realSibling && realSibling.getAttribute('data-id')
-    if (!droppedId || (realSibling && !nextTabId)) return
-    editorStore.EXCHANGE_TABS_BY_ID({ fromId: droppedId, toId: nextTabId || null })
-    nextTick(() => requestAnimationFrame(() => recomputePinnedTab()))
-  })
-
-  autoScroller = autoScroll([el], {
-    margin: 20,
-    maxSpeed: 6,
-    scrollWhenOutside: false,
-    autoScroll: () => autoScroller.down && drake.dragging
-  })
+  // Fix round 1 (BUG-DRAG-ZONA-TESTO): listener permanente, fase capture (terzo arg
+  // `true`), rimosso simmetricamente in onBeforeUnmount.
+  window.addEventListener('dragover', blockForeignTabDropOutsideTabbar, true)
 })
 
 onBeforeUnmount(() => {
   const el = tabContainer.value
   if (el) el.removeEventListener('wheel', handleTabScroll)
-  if (autoScroller) autoScroller.destroy(true)
-  if (drake) drake.destroy()
-  // H5-2: rimuovi il listener mousemove se lo smontaggio avviene durante un drag
-  window.removeEventListener('mousemove', onDragMove)
+  window.removeEventListener('dragover', blockForeignTabDropOutsideTabbar, true)
+  // [DEBUG drag-html5-dnd-task2] round 3: rimozione tracer temporaneo.
+  for (const evName of DBG_DND_EVENTS) {
+    window.removeEventListener(evName, dbgDndTracer, true)
+    window.removeEventListener(evName, dbgDndTracer, false)
+  }
+
+  // Fix round 2 (BUG-GHOST): rimozione di sicurezza del ghost se il componente viene
+  // smontato a metà di un drag (caso limite, es. chiusura finestra durante il gesto).
+  if (dragGhostEl) {
+    dragGhostEl.remove()
+    dragGhostEl = null
+  }
 
   bus.off('TABS::close-this', closeTab)
   bus.off('TABS::close-others', closeOthers)
@@ -799,10 +963,12 @@ watch(hasMultiRow, (newVal) => {
   border-bottom: 1px solid var(--v2-border);
   overflow: hidden;
   max-height: var(--v2-tab-h);
-  /* Drag finestra OS-native: tabbar = zona titolo. Doppio-click toggle maximize.
-     Figli interattivi (tab, +, bottoni topright) hanno no-drag → click liberi. */
-  -webkit-app-region: drag;
-  app-region: drag;
+  /* Drag OS-native NON sta su .v2-tabbar stesso (struttura DEFINITIVA dal GATE
+     task1b): le .v2-tab non devono MAI essere discendenti di un contenitore drag,
+     altrimenti Chromium sopprime il dragstart HTML5 nativo (causa n.1 del FAIL
+     task1, DRAG-TASK.md §3). La zona titolo/doppio-click-maximize la fornisce
+     l'overlay fratello .v2-tabbar-drag-region (vedi sotto), che copre l'intera bar
+     via inset:0 e segue l'espansione max-height senza bisogno di height esplicite. */
   /* B11: animazione espansione più lenta (0.5s)
      B1: padding-right animato al passaggio multi-row (clone+ entrano nel topright).
      B14: padding-right ora settato inline via JS in updateTabRowsLayout (= offsetWidth
@@ -947,8 +1113,29 @@ watch(hasMultiRow, (newVal) => {
      Clipping verticale row 2+ resta gestito da .v2-tabbar (max-height + overflow:hidden). */
   overflow: visible;
   min-height: var(--v2-tab-h);
-  /* Scroll-area resta DRAG (eredita da .v2-tabbar): spazio dopo ul ristretta =
-     zona draggable finestra. Hover events fire su drag region in Chromium. */
+  /* La zona drag NON la eredita da .v2-tabbar — la fornisce l'overlay
+     .v2-tabbar-drag-region sottostante (fratello, primo figlio di .v2-tabbar,
+     struttura DEFINITIVA dal GATE task1b). Questo elemento resta implicitamente
+     no-drag (nessuna regola app-region propria): riceve gli hit DOM sopra l'overlay
+     perché viene dopo nell'ordine sorgente. */
+}
+
+/* Overlay drag "alla VS Code" (struttura DEFINITIVA, Inv. 5 drag-html5-dnd-task2) —
+   position:absolute + inset:0 → fuori dal flow, non altera offsetWidth/offsetTop di
+   ul/tab (nessun impatto sulla detection multi-row). Nessun z-index: i fratelli
+   successivi (.v2-tabbar-scroll relative, .v2-topright absolute) vengono dopo
+   nell'ordine sorgente → dipingono e ricevono hit DOM sopra l'overlay. Segue
+   automaticamente l'animazione max-height di .v2-tabbar (40px ↔ 260px multi-row)
+   perché inset:0 non fissa un'altezza esplicita. Le .v2-tab NON devono mai tornare
+   discendenti di un elemento app-region:drag (vedi commento su .v2-tabbar sopra). */
+.v2-tabbar-drag-region {
+  position: absolute;
+  inset: 0;
+  /* Spike round 3 (2026-07-03) CHIUSO: app-region disattivata temporaneamente per
+     verificare se la regione drag OS bloccasse la consegna OLE del drop → il drop NON
+     arrivava comunque, overlay scagionato e ripristinato. */
+  -webkit-app-region: drag;
+  app-region: drag;
 }
 
 /* NB5: rimossa regola .v2-tabbar.has-multirow:not(:hover) .v2-tabs
@@ -987,7 +1174,7 @@ watch(hasMultiRow, (newVal) => {
   font-size: 12.5px;
   color: var(--v2-text3);
   cursor: default;
-  /* no-drag: click select, contextmenu, dragula reorder funzionano */
+  /* no-drag: click select, contextmenu, drag HTML5 nativo (dragstart) funzionano */
   -webkit-app-region: no-drag;
   app-region: no-drag;
   flex-shrink: 0;
@@ -1136,6 +1323,49 @@ watch(hasMultiRow, (newVal) => {
   color: var(--v2-accent);
   /* S7-fix: combinare translateY(-50%) base + scale hover */
   transform: translateY(-50%) scale(1.05);
+}
+
+/* drag-html5-dnd-task2 (fix round 1, BUG-INDICATORE-STILE/ALTEZZA): indicatore
+   d'inserimento del drag HTML5 nativo, sostituisce il mirror DOM di dragula (rimosso).
+   position:absolute come .v2-tab-new-li → fuori dal flex flow, non altera
+   offsetWidth/offsetTop delle tab (Inv. MEDIUM-TASK.md). `left`/`top`/`height`
+   calcolati in onTabsDragOver dalla riga della tab target (non dall'intera ul, che in
+   multi-row sarebbe più alta della singola riga). "Barretta arrotondata" (decisione
+   utente) coerente con le pill arrotondate delle tab, con leggero glow per distinguerla
+   dal bordo/accento statico delle tab pinnate. pointer-events:none → non interferisce
+   con dragover/drop (che restano sulla ul/tab, mai su questo elemento). */
+.v2-tab-drop-indicator {
+  position: absolute;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--v2-accent);
+  box-shadow: 0 0 4px var(--v2-accent);
+  pointer-events: none;
+  list-style: none;
+  z-index: 5;
+}
+
+/* Fix round 2 (BUG-GHOST): drag image "a pillola" per il drag HTML5 nativo (sostituisce lo
+   screenshot rettangolare di default, con angoli quadrati/sfondo opaco su Windows). Il
+   nodo è un cloneNode(true) del `li.v2-tab` sorgente (onTabDragStart) — mantiene quindi
+   l'attributo scoped di Vue e riceve regolarmente anche questa regola, pur essendo
+   appeso a document.body via JS. position:fixed fuori viewport: renderizzato (necessario
+   perché setDragImage possa fare lo snapshot) ma mai visibile e senza impatto sul layout
+   della tab bar reale. */
+.v2-tab-drag-ghost {
+  position: fixed;
+  top: -1000px;
+  left: -1000px;
+  pointer-events: none;
+  /* Aspetto pillola esplicito (fix round 3): il clone eredita da .v2-tab background
+     transparent (solo active/hover hanno sfondo) → il drag image mostrava solo il testo
+     senza forma. Sfondo, bordo e radius dichiarati qui rendono la pillola visibile nello
+     snapshot di setDragImage. */
+  background: var(--v2-surface2);
+  color: var(--v2-text2);
+  border: 1px solid var(--v2-border);
+  border-radius: 100px;
+  padding: 0 12px;
 }
 
 /* B1: "+" inline single-row resta tondo. In multi-row si usa .v2-tr-plus dentro topright. */
@@ -1352,24 +1582,4 @@ watch(hasMultiRow, (newVal) => {
   display: block;
 }
 
-</style>
-
-<!-- Stili dragula globali (non scoped) per drag-and-drop tab -->
-<style>
-.gu-mirror {
-  position: fixed !important;
-  margin: 0 !important;
-  z-index: 9999 !important;
-  opacity: 0.8;
-  cursor: grabbing;
-}
-.gu-hide {
-  display: none !important;
-}
-.gu-unselectable {
-  user-select: none !important;
-}
-.gu-transit {
-  opacity: 0.2;
-}
 </style>

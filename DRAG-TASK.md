@@ -175,7 +175,16 @@ Consolidate dai doc storici. La migrazione DEVE preservarle.
   Non un bug di configurazione (verificato: nessun hook `WM_NCHITTEST` custom, CSS `no-drag` corretto).
 - ❌ **Strada B (dragula + koffi raise-finestre) scartata esplicitamente dall'utente** (2026-07-02): non riproporla
   senza nuova richiesta esplicita.
-- 🟡 **Da valutare in sessione futura (non iniziato)**: mitigazione — sostituire `-webkit-app-region: drag` sulla
-  tabbar con drag finestra via JS (mousedown+move → IPC → `win.setPosition` main-side), per eliminare l'ancestor
-  `app-region:drag` e liberare `draggable` sui tab. Richiede ricerca online (pattern non verificato su Electron
-  39/Windows) + nuovo spike dedicato prima di riprendere task2-5.
+- ❌ **Mitigazione "JS window drag" (mousedown+move → IPC → `win.setPosition`) scartata come prima scelta**
+  (ricerca 2026-07-02): perde il tracking del mouse a velocità normale e fa perdere Snap Layouts Win11,
+  doppio-click-massimizza e Aero Snap (nativi dell'hit-test HTCAPTION). Solo fallback estremo. Scartato anche
+  il toggle dinamico drag/no-drag (Chromium non ricalcola le regioni in modo affidabile, issue Electron #6970).
+- ✅ **Mitigazione risolutiva (2026-07-02): drag region overlay "alla VS Code" — GATE task1b PASS.**
+  Overlay `.v2-tabbar-drag-region` (`absolute; inset:0; app-region:drag`) primo figlio di `.v2-tabbar`
+  (che perde `drag`): `dragstart` HTML5 scatta sulle tab; drag finestra da zona vuota, doppio-click-maximize,
+  click e multi-row conservati. Il FAIL del task1 aveva DUE cause: l'ancestor `app-region:drag` E il
+  `preventDefault()` di dragula sul `mousedown` (`dragula.js` ~113) che sopprime il dragstart nativo.
+  **Vincoli permanenti per task2-5**: overlay = struttura definitiva (tab mai discendenti di un elemento
+  `drag`); dragula NON può coesistere con HTML5 DnD sulle stesse tab → rimozione completa fin dal primo
+  task che introduce il DnD nativo. Dettagli: `Docs/Ai/DECISIONS.md` 2026-07-02, worklog task1b.
+  **Task2-5 SBLOCCATI.**
