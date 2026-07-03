@@ -45,6 +45,25 @@ Obiettivo: drag di una tab sopra un'icona della taskbar Win11 deve rivelare la f
 - Indiziato principale per la prossima sessione: handler `dragover` con `preventDefault` che coprono la pagina (Muya `dragDropCtrl.js` sull'editor, `.prevent` sulla `ul.v2-tabs`, eventuali handler globali) — famiglia electron#42252. Piano di bisezione dettagliato (harness con preventDefault globale → varianti → bisezione in MarkText) nel worklog task3, sezione "Harness Electron 39 minimale — ESITO E STRADA DA PERCORRERE".
 - Dettagli completi: worklog task3 (`drag-html5-dnd-task3-worklog.md`, sezioni spike 7/7b/7c, ricerche Agent-Search e harness).
 
+## 2026-07-03 — drag-html5-dnd: taskbar spring-loading RISOLTO — causa e regola permanente
+
+- **Causa trovata e confermata a runtime (round 8)**: due handler `dragover` globali che marcavano
+  `dropEffect='none'` (+`stopPropagation`) su OGNI drag non gestito — ramo else di
+  `setupDragDropHandler` in `app.vue` (window-level, permanente) e ramo else del
+  `dragoverHandler` di Muya (`contentState/dragDropCtrl.js`). Disattivati entrambi →
+  spring-loading taskbar FUNZIONA sia per drag di testo sia per drag di tab (test utente
+  2026-07-03). Coerente con l'esito harness (qualunque payload va bene: il problema non erano i formati).
+- **REGOLA permanente (famiglia electron#42252)**: mai `preventDefault`, mai assegnare
+  `dropEffect`, mai `stopPropagation` in un handler `dragover` per gesti che NON si intende
+  accettare. Il rifiuto corretto è PASSIVO (dragover non cancellato = target non-accettante).
+  Vale per qualunque nuovo drop-target futuro (editor, dialog, sidebar).
+- I rami sono stati resi definitivi (commenti esplicativi al posto del codice rimosso).
+  La voce precedente "indagine taskbar" resta come storico dei tentativi falsificati.
+- Payload drag tab (fix round 9a): MIME custom `text/mt-tab-id` + `DownloadURL`
+  (saved → `file:///`, untitled → blob URL). NIENTE `text/uri-list` (incollava l'URI come
+  testo in qualunque target testuale, es. Chrome/Notepad). Drop esterni: gate su
+  `dropEffect==='copy'` al dragend (copia consumata → niente detach/nuova finestra).
+
 ## 2026-07-03 — drag-html5-dnd: bug piattaforma electron#42252, evento `drop` stessa finestra INAFFIDABILE su Windows
 
 - Diagnosi task2 (tracer DnD completo + ricerca online): il mancato reorder NON era un nostro bug. È **electron/electron#42252** ("Custom Drag and Drop broken on Electron 28 and later", Windows, chiuso "not planned", mai fixato): un refactor Chromium in `WebContentsViewAura` (`CompleteDragExit` azzera `current_drag_data_`, `UpdateDragOperation` non registra più l'operazione) rompe la consegna del `drop` per i drag HTML5 **interni alla stessa finestra**. Sintomi verificati da noi: `dragstart` ok, `dragover` consegnato e cancellato con `dropEffect='move'`, ma il valore non round-trippa (i log lo rivedono `none`), al rilascio arriva `dragleave`+`dragend` con `dropEffect:'none'` e il `drop` non viene MAI consegnato. Escluse cause nostre: overlay app-region (testato disattivato: identico), MIME solo-custom (aggiunto `text/plain`: identico), mancanza `dropEffect`/`dragenter.prevent` (aggiunti: identico).

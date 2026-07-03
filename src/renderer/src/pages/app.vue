@@ -200,8 +200,13 @@ const setupDragDropHandler = () => {
         }
         e.dataTransfer.dropEffect = 'copy'
       } else {
-        e.stopPropagation()
-        e.dataTransfer.dropEffect = 'none'
+        // Drag non-Files (testo, tab, sconosciuti): nessuna azione — DEFINITIVO
+        // (drag-html5-dnd-task3 round 8, 2026-07-03). Questo listener gira su OGNI
+        // dragover della finestra: marcare qui l'operazione (`dropEffect='none'` +
+        // stopPropagation) su gesti non gestiti corrompe lo stato del drag OLE per
+        // l'intero gesto su Windows (famiglia electron#42252) — era la causa dello
+        // spring-loading taskbar morto per tutti i drag originati da MarkText.
+        // Il rifiuto corretto è passivo: dragover non cancellato = target non-accettante.
       }
     },
     false

@@ -64,8 +64,9 @@ const dragDropCtrl = (ContentState) => {
 
   ContentState.prototype.dragoverHandler = function (event) {
     // Cancel to allow tab drag&drop.
+    // Qui NON si tocca dropEffect: rifiuto passivo (dragover non cancellato), vedi
+    // il commento nel ramo else in fondo (drag-html5-dnd-task3 round 8, 2026-07-03).
     if (!event.dataTransfer.types.length) {
-      event.dataTransfer.dropEffect = 'none'
       return
     }
 
@@ -90,8 +91,13 @@ const dragDropCtrl = (ContentState) => {
         event.dataTransfer.dropEffect = 'copy'
       }
     } else {
-      event.stopPropagation()
-      event.dataTransfer.dropEffect = 'none'
+      // Drag sconosciuti (non-Files, non-immagine): nessuna azione — DEFINITIVO
+      // (drag-html5-dnd-task3 round 8, 2026-07-03). Marcare `dropEffect='none'` (+
+      // stopPropagation) su ogni dragover sopra l'editor corrompe lo stato del drag
+      // OLE per l'intero gesto su Windows (famiglia electron#42252): era una delle due
+      // cause dello spring-loading taskbar morto (l'altra: handler window-level in
+      // app.vue). Il rifiuto corretto è passivo: dragover non cancellato = target
+      // non-accettante di default.
     }
   }
 

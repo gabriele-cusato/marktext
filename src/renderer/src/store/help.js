@@ -81,14 +81,10 @@ export const getFileStateFromData = (data) => {
   })
 }
 
-export const getBlankFileState = (
-  tabs,
-  defaultEncoding = 'utf8',
-  lineEnding = 'lf',
-  markdown = ''
-) => {
-  const fileState = deepClone(defaultFileState)
-  let untitleId = Math.max(
+// Calcola il numero N massimo tra le tab Untitled-N locali (fallback quando il main
+// non è raggiungibile, e come `localMax` da inviare al main per il bump del counter globale).
+export const getLocalUntitledMax = (tabs) =>
+  Math.max(
     ...tabs.map((f) => {
       if (f.pathname === '') {
         // Number(...) || 0 evita NaN se filename non ha il suffisso "-N" (es. "Untitled").
@@ -99,6 +95,21 @@ export const getBlankFileState = (
     }),
     0
   )
+
+export const getBlankFileState = (
+  tabs,
+  defaultEncoding = 'utf8',
+  lineEnding = 'lf',
+  markdown = '',
+  forcedNumber = null
+) => {
+  const fileState = deepClone(defaultFileState)
+  // Se il main ha fornito un N valido (counter globale) lo si usa così com'è;
+  // altrimenti si ricade sul calcolo locale (max delle tab Untitled correnti + 1).
+  const untitleId =
+    typeof forcedNumber === 'number' && !isNaN(forcedNumber)
+      ? forcedNumber
+      : getLocalUntitledMax(tabs) + 1
 
   const id = getUniqueId()
 
@@ -112,7 +123,7 @@ export const getBlankFileState = (
     lineEnding,
     adjustLineEndingOnSave: lineEnding.toLowerCase() === 'crlf',
     id,
-    filename: `Untitled-${++untitleId}`,
+    filename: `Untitled-${untitleId}`,
     markdown,
     originalMarkdown: markdown  // N1: Untitled parte da '' → Ctrl+Z a vuoto rimuove bollino
   })

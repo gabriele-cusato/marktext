@@ -338,29 +338,36 @@ const onTabDragStart = (event, file) => {
   // electron#42252, il drop non arrivava comunque) e avrebbe incollato l'id nelle app esterne.
   event.dataTransfer.setData('text/mt-tab-id', String(file.id))
 
-  // Spike round 7 (taskbar spring-loading "alla VS Code", ricerca 2026-07-03): la taskbar
-  // di Windows reagisce all'hover solo se l'IDataObject OLE contiene l'"etichetta file"
-  // (CF_HDROP). Chromium la genera (in modalità differita) quando il dataTransfer porta il
-  // formato speciale `DownloadURL` ("mime:nomefile:url") — è esattamente ciò che fa VS Code
-  // al dragstart delle tab (sorgente: dnd.ts, fillEditorsDragData, "enables support to
-  // drag a tab as file to desktop"). Tab salvata → URI file:// del documento reale;
-  // tab untitled → blob URL con il contenuto corrente (file virtuale). Effetto collaterale
-  // VOLUTO (parità VS Code): il drop su Explorer/desktop COPIA il file lì.
-  // Spike round 7c: SOLO `text/uri-list`, NIENTE `DownloadURL`. Verificato nel sorgente
-  // Chromium (data_transfer_util.cc → url_infos → SetURLs): un uri-list singolo impostato
-  // da JS produce nell'IDataObject OLE gli stessi formati del drag di un LINK da Chrome
-  // (shortcut .url virtuale FILEDESCRIPTOR+FILECONTENTS sincrono, CFSTR_INETURL, testo) —
-  // e il drag-link di Chrome ATTIVA lo spring-loading della taskbar (test 2026-07-03).
-  // `DownloadURL` invece chiama SetDownloadFileInfo → SetAsyncMode(TRUE) sull'INTERO
-  // IDataObject (verificato in os_exchange_data_provider_win.cc): indiziato principale
-  // dello spring-loading spento nei retest 7/7b. VS Code untitled fa esattamente così
-  // (solo uri-list con schema `untitled:`, mai DownloadURL — verificato in dnd.ts).
-  // Effetto collaterale transitorio dello spike: drop su desktop/Explorer = shortcut .url,
-  // NON più copia del file (trade-off da decidere a valle del test).
-  const uriListHref = file.pathname
-    ? 'file:///' + encodeURI(String(file.pathname).replace(/\\/g, '/'))
-    : 'marktext-untitled:' + encodeURIComponent(file.filename || 'Untitled')
-  event.dataTransfer.setData('text/uri-list', uriListHref)
+  // Fix round 9a (drop esterni, 2026-07-03): formato `DownloadURL` al posto del
+  // `text/uri-list` dello spike 7c. Motivi: (1) l'harness round 8 ha dimostrato che
+  // NESSUN formato è necessario per lo spring-loading taskbar (il blocco era nei nostri
+  // handler dragover globali, non nel payload); (2) `text/uri-list` produceva
+  // nell'IDataObject OLE anche testo semplice (CF_UNICODETEXT) e uno shortcut `.url`
+  // virtuale → qualunque target testuale (Chrome, Notepad, ...) incollava l'URI al drop;
+  // (3) `DownloadURL` ("mime:nomefile:url", lo stesso formato usato da VS Code in dnd.ts
+  // per le tab salvate) genera SOLO il CF_HDROP differito: drop su desktop/Explorer =
+  // COPIA del file (requisito utente), nessun testo esposto ai target testuali.
+  // Tab salvata → URI file:// del documento reale; untitled → blob URL con il contenuto
+  // corrente (file virtuale, verificato funzionante nel retest spike 7).
+  if (dragBlobUrl) {
+    // Revoca del blob del drag PRECEDENTE (mai al dragend: col CF_HDROP differito il
+    // target può materializzare il file anche dopo la fine del gesto).
+    URL.revokeObjectURL(dragBlobUrl)
+    dragBlobUrl = null
+  }
+  let downloadHref
+  if (file.pathname) {
+    downloadHref = 'file:///' + encodeURI(String(file.pathname).replace(/\\/g, '/'))
+  } else {
+    dragBlobUrl = URL.createObjectURL(
+      new Blob([file.markdown || ''], { type: 'text/markdown' })
+    )
+    downloadHref = dragBlobUrl
+  }
+  const downloadName = /\.[^.\\/:]+$/.test(file.filename || '')
+    ? file.filename
+    : `${file.filename || 'Untitled'}.md`
+  event.dataTransfer.setData('DownloadURL', `text/markdown:${downloadName}:${downloadHref}`)
 
   // Fix round 2 (BUG-GHOST): il drag image di default è lo screenshot rettangolare del
   // `li` (sfondo opaco su Windows), incoerente con le tab a pillola. Si clona il `li`
@@ -506,10 +513,6 @@ const onTabsDragLeave = (event) => {
 // un futuro Electron fixato, il reorder effettivo lo fa il fallback in onTabDragEnd.
 const onTabsDrop = (event) => {
   const droppedId = event.dataTransfer.getData('text/mt-tab-id') || draggedTabId.value
-  // [DEBUG drag-html5-dnd-task3] log temporaneo (diagnosi round 5): se compare in una
-  // finestra DIVERSA dalla sorgente, il drop cross-finestra viene consegnato. Rimuovere
-  // a diagnosi chiusa.
-  console.log('[DEBUG drag-html5-dnd-task3] onTabsDrop fired, droppedId:', droppedId, 'dragTargetId:', dragTargetId.value, 'localDrag:', !!draggedTabId.value)
   if (!droppedId) return
   editorStore.EXCHANGE_TABS_BY_ID({ fromId: droppedId, toId: dragTargetId.value })
   dropHandledThisDrag = true
@@ -519,10 +522,6 @@ const onTabsDrop = (event) => {
 // stato locale, incremento di tabsRenderKey (invariante 2, evita .el stale nel vdom) e
 // ricalcolo pinnedTab/layout fuori dal lock (invariante 3/6).
 const onTabDragEnd = (event) => {
-  // [DEBUG drag-html5-dnd-task3] log INCONDIZIONATO d'ingresso (diagnosi round 5): serve a
-  // distinguere "dragend mai consegnato" da "ramo silenzioso" quando si rilascia su
-  // un'altra finestra MarkText. Rimuovere a diagnosi chiusa.
-  console.log('[DEBUG drag-html5-dnd-task3] onTabDragEnd ENTER, clientX/Y:', event && event.clientX, event && event.clientY, 'screenX/Y:', event && event.screenX, event && event.screenY, 'dropHandled:', dropHandledThisDrag, 'draggedTabId:', draggedTabId.value, 'dropEffect:', event && event.dataTransfer && event.dataTransfer.dropEffect)
   // Fix round 2 (BUG-GHOST): rimuove dal DOM il nodo ghost creato in onTabDragStart, ora
   // che il drag è terminato (successo o annullato) e non serve più al browser.
   if (dragGhostEl) {
@@ -563,10 +562,16 @@ const onTabDragEnd = (event) => {
         event.screenX > window.screenX + window.outerWidth ||
         event.screenY < window.screenY ||
         event.screenY > window.screenY + window.outerHeight
-      // [DEBUG drag-html5-dnd-task3] log temporaneo per il test manuale del detach —
-      // rimuovere a detach confermato funzionante.
-      console.log('[DEBUG drag-html5-dnd-task3] onTabDragEnd, screenX/Y:', event.screenX, event.screenY, 'window bounds:', window.screenX, window.screenY, window.outerWidth, window.outerHeight, 'outsideWindow:', outsideWindow)
-      if (outsideWindow) {
+      // Fix round 9d (2026-07-03): se un target ESTERNO ha consumato il drop come copia
+      // (desktop/Explorer col DownloadURL → dropEffect 'copy', round-trip verificato nei
+      // retest spike 7/7b) NON va aperta anche la nuova finestra: la copia è l'esito del
+      // gesto. Il gate non blocca mai il detach normale: per i drag rifiutati o interni
+      // dropEffect è sempre 'none' su questa piattaforma (electron#42252), e la
+      // migrazione verso altra finestra MarkText passa comunque da DETACH_TAB ('move'
+      // o 'none', mai 'copy').
+      const consumedExternally =
+        event.dataTransfer && event.dataTransfer.dropEffect === 'copy'
+      if (outsideWindow && !consumedExternally) {
         const tab = tabs.value.find((t) => t.id === draggedTabId.value)
         if (tab) {
           editorStore.DETACH_TAB(tab, { x: event.screenX, y: event.screenY })
@@ -1030,7 +1035,31 @@ watch(() => currentFile.value && currentFile.value.id, () => {
 // B2: clone non scompare quando si compatta a riga singola.
 // Se hasMultiRow passa a false (resize finestra/chiusura tab), pinnedTab va azzerato.
 // Se torna a true, ricalcola pinnedTab.
+// Trappola anti-loop (BUG-FLICKER, 2026-07-03, non ancora riprodotto): se hasMultiRow
+// flippa troppe volte in poco tempo siamo nel loop di layout segnalato dall'utente (visto
+// una volta dopo snap a metà schermo) — console.error con dump dello stato, così
+// un'eventuale occorrenza futura lascia una traccia diagnostica certa. Costo nullo a
+// regime; rimuovere solo a causa trovata e fixata.
+let flickerFlipTimes = []
 watch(hasMultiRow, (newVal) => {
+  const now = Date.now()
+  flickerFlipTimes.push(now)
+  flickerFlipTimes = flickerFlipTimes.filter((t) => now - t < 3000)
+  if (flickerFlipTimes.length >= 6) {
+    const tabbarEl = tabDropContainer.value ? tabDropContainer.value.closest('.v2-tabbar') : null
+    console.error('[DEBUG flicker] LOOP RILEVATO: ' + flickerFlipTimes.length +
+      ' flip di hasMultiRow in <3s. Stato: ' + JSON.stringify({
+        newVal,
+        tabbarClientW: tabbarEl ? tabbarEl.clientWidth : null,
+        innerWidth: window.innerWidth,
+        paddingRight: tabbarEl ? tabbarEl.style.paddingRight : null,
+        ulWidth: tabDropContainer.value ? tabDropContainer.value.style.width : null,
+        hovered: tabsAreaHovered.value,
+        pinnedTab: pinnedTab.value ? pinnedTab.value.id : null,
+        tabsCount: tabs.value.length,
+        dragging: draggedTabId.value
+      }))
+  }
   // P-DF8-3 (rev S7-fix): lock ridotto da 500ms → 150ms.
   layoutLockUntil = Date.now() + 150
   setTimeout(() => {

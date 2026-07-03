@@ -36,6 +36,9 @@ class App {
     this._sessionRegistry = new Map() // win.id → { winId, order, tabs }
     this._sessionWriteQueue = Promise.resolve()
     this._sessionOrderSeq = 0
+    // BUG-H5-UNTITLED: counter globale (monotono per sessione-app) per il numero N delle tab
+    // "Untitled-N", condiviso tra tutte le finestre. Non riusa mai i numeri liberati.
+    this._untitledIdSeq = 0
     // this.launchScreenshotWin = null // The window which call the screenshot.
     // this.shortcutCapture = null
 
@@ -473,6 +476,22 @@ class App {
   }
 
   /**
+   * BUG-H5-UNTITLED: bump passivo del counter globale "Untitled-N" dal max osservato in un
+   * elenco di tab (slice di sessione salvata o sessione ristorata dal disco). Copre detach,
+   * restore e drift senza logica dedicata per ognuno: il counter non torna mai indietro.
+   * @param {Array<{pathname?: string, filename?: string}>} tabs
+   */
+  _bumpUntitledSeqFromTabs(tabs) {
+    if (!Array.isArray(tabs)) return
+    for (const t of tabs) {
+      if (t && t.pathname === '' && t.filename) {
+        const n = Number(t.filename.split('-')[1]) || 0
+        if (n > this._untitledIdSeq) this._untitledIdSeq = n
+      }
+    }
+  }
+
+  /**
    * B: scrittura sessione SERIALIZZATA (FIX 4 — niente race tra finestre, niente collisione su
    * session.json.tmp). Ritorna la promise dell'ultima scrittura (la chiusura silenziosa la attende).
    * @param {Preference} preferences
@@ -878,11 +897,13 @@ class App {
       const win = BrowserWindow.fromWebContents(e.sender)
       const editorWin = win && this._windowManager.get(win.id)
       if (!preferences.getItem('sessionSnapshotEnabled') || !editorWin) return
+      const tabs = (payload && payload.tabs) || []
       this._sessionRegistry.set(win.id, {
         winId: win.id,
         order: editorWin._sessionOrder ?? 0,
-        tabs: (payload && payload.tabs) || []
+        tabs
       })
+      this._bumpUntitledSeqFromTabs(tabs)
       this._enqueueSessionWrite(preferences) // fire-and-forget: la queue serializza
     })
 
@@ -894,11 +915,13 @@ class App {
       try {
         if (win && preferences.getItem('sessionSnapshotEnabled')) {
           const editorWin = this._windowManager.get(win.id)
+          const tabs = (payload && payload.tabs) || []
           this._sessionRegistry.set(win.id, {
             winId: win.id,
             order: (editorWin && editorWin._sessionOrder) ?? 0,
-            tabs: (payload && payload.tabs) || []
+            tabs
           })
+          this._bumpUntitledSeqFromTabs(tabs)
           await this._enqueueSessionWrite(preferences)
         }
       } catch (err) {
@@ -927,6 +950,7 @@ class App {
           editorWin.addToOpenedFiles(tab.pathname)
           appMenu.addRecentlyUsedDocument(tab.pathname)
         }
+        this._bumpUntitledSeqFromTabs([tab])
         win.webContents.send('mt::restore-session', { tabs: [tab] })
         // Ack alla sorgente DOPO il restore → la tab vecchia si chiude solo a contenuto migrato.
         if (src) {
@@ -948,6 +972,9 @@ class App {
               appMenu.addRecentlyUsedDocument(t.pathname)
             }
           }
+          // Seed del counter globale al boot: la sessione ristorata può contenere Untitled-N
+          // creati nella sessione precedente (evita di riassegnare numeri già usati).
+          this._bumpUntitledSeqFromTabs(result.tabs)
           win.webContents.send('mt::restore-session', result)
           if (result.missing && result.missing.length) {
             win.webContents.send('mt::show-notification', {
@@ -1015,6 +1042,19 @@ class App {
       }
     })
 
+    // Fix round 9b: la finestra è rimasta senza tab dopo una chiusura manuale (X, chiudi-tutte,
+    // chiudi-salvate, ecc.) o dopo la migrazione dell'ultima tab (percorso detach-ack, round 6).
+    // Chiudi la finestra graceful (stessa azione di mt::cmd-close-window) SOLO se non è la owner:
+    // la sessione principale deve sempre restare aperta anche a 0 tab (comportamento invariato).
+    ipcMain.on('mt::window-emptied', (e) => {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      if (!win) return
+      const editor = this._windowManager.get(win.id)
+      if (editor && !editor._isSessionOwner) {
+        win.close()
+      }
+    })
+
     // Folder-picker per la cartella di backup (mirror di select-default-directory-to-open).
     ipcMain.on('mt::select-session-backup-path', async (e) => {
       const { preferences } = this._accessor
@@ -1065,6 +1105,15 @@ class App {
 
     ipcMain.handle('mt::fs-trash-item', async (event, fullPath) => {
       return shell.trashItem(fullPath)
+    })
+
+    // BUG-H5-UNTITLED: assegna N per "Untitled-N" dal counter globale (unico main process visto
+    // da tutte le finestre). `localMax` bump-a il counter col max locale del renderer chiamante,
+    // per coprire il caso in cui il main non abbia ancora visto tab Untitled esistenti. Node è
+    // single-thread: nessun `await` tra lettura e incremento → atomico.
+    ipcMain.handle('mt::next-untitled-index', (event, localMax) => {
+      this._untitledIdSeq = Math.max(this._untitledIdSeq, Number(localMax) || 0)
+      return ++this._untitledIdSeq
     })
   }
 }

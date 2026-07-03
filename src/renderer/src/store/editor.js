@@ -7,7 +7,8 @@ import {
   createDocumentState,
   getOptionsFromState,
   getSingleFileState,
-  getBlankFileState
+  getBlankFileState,
+  getLocalUntitledMax
 } from './help'
 import notice from '../services/notification'
 import {
@@ -941,15 +942,13 @@ export const useEditorStore = defineStore('editor', {
       // Ordine garantito (ack DOPO il restore della nuova finestra) → niente perdita di contenuto.
       window.electron.ipcRenderer.on('mt::detach-tab-ack', (_, { tabId }) => {
         const t = this.tabs.find((x) => x.id === tabId)
+        // Fix round 9b: migrazione dell'ultima tab di una finestra SECONDARIA verso un'altra finestra
+        // esistente → la secondaria resta senza tab. FORCE_CLOSE_TAB emette già 'mt::window-emptied'
+        // quando tabs.length arriva a 0 (round 9b), che il main gestisce chiudendo la finestra SOLO
+        // se non è la owner — niente send diretto qui (evita la doppia esecuzione del round 6). Il
+        // caso owner non arriva mai a questo ack per l'ultima tab: il main nega il detach a monte
+        // quando la finestra sorgente è owner (vedi handler mt::detach-tab).
         if (t) this.FORCE_CLOSE_TAB(t)
-        // Fix round 6: migrazione dell'ultima tab di una finestra SECONDARIA verso un'altra finestra
-        // esistente → la secondaria resta senza tab, chiudila (graceful). FORCE_CLOSE_TAB non riapre
-        // una tab vuota (verificato: nessuna auto-blank-tab), quindi il controllo post-chiusura è
-        // sufficiente. Il caso owner non arriva mai a questo ack per l'ultima tab: il main nega il
-        // detach a monte quando la finestra sorgente è owner (vedi handler mt::detach-tab).
-        if (this.tabs.length === 0) {
-          window.electron.ipcRenderer.send('mt::cmd-close-window')
-        }
       })
 
       // H5-RE: questa finestra riceve una tab trascinata da un'altra finestra → inseriscila alla posizione del drop.
@@ -1041,7 +1040,10 @@ export const useEditorStore = defineStore('editor', {
       try {
         const clientX = screenX - window.screenX
         const clientY = screenY - window.screenY
-        const els = [...document.querySelectorAll('li.v2-tab:not(.v2-tab-pinned):not(.gu-mirror)')]
+        // Fix task4 (2026-07-03): la classe corretta per le pinnate è `is-pinned`
+        // (`v2-tab-pinned` non è mai applicata nel template → il :not() era un no-op);
+        // rimosso `.gu-mirror`, residuo dragula senza più corrispondenza nel DOM.
+        const els = [...document.querySelectorAll('li.v2-tab:not(.is-pinned)')]
         for (let i = 0; i < els.length; i++) {
           const r = els[i].getBoundingClientRect()
           // sulla riga del puntatore + prima della metà della tab → inserisci qui
@@ -1149,6 +1151,10 @@ export const useEditorStore = defineStore('editor', {
       if (this.tabs.length === 0) {
         this.listToc = []
         this.toc = []
+        // Fix round 9b: finestra svuotata da una chiusura manuale (X, chiudi-tutte, ecc.) o dal
+        // percorso detach-ack (round 6) → informa il main, che chiude la finestra SOLO se non è
+        // la owner (guardia lato main, vedi handler mt::window-emptied in src/main/app/index.js).
+        window.electron.ipcRenderer.send('mt::window-emptied')
       }
 
       const { pathname } = file
@@ -1251,6 +1257,8 @@ export const useEditorStore = defineStore('editor', {
       if (this.tabs.length === 0) {
         this.listToc = []
         this.toc = []
+        // Fix round 9b: vedi commento analogo in FORCE_CLOSE_TAB.
+        window.electron.ipcRenderer.send('mt::window-emptied')
       }
     },
 
@@ -1363,7 +1371,7 @@ export const useEditorStore = defineStore('editor', {
      * @param {{markdown?: string, selected?: boolean}} obj Optional markdown string
      * and whether the tab should become the selected tab (true if not set).
      */
-    NEW_UNTITLED_TAB({ markdown: markdownString, selected }) {
+    async NEW_UNTITLED_TAB({ markdown: markdownString, selected }) {
       this.contentVersion++ // FIX 5 (B): nuova tab → arma il backup periodico sessione
       if (selected == null) {
         selected = true
@@ -1373,7 +1381,27 @@ export const useEditorStore = defineStore('editor', {
 
       const preferencesStore = usePreferencesStore()
       const { defaultEncoding, endOfLine } = preferencesStore
-      const fileState = getBlankFileState(this.tabs, defaultEncoding, endOfLine, markdownString)
+
+      // Il numero N di "Untitled-N" è assegnato dal main (counter globale condiviso tra le
+      // finestre) per evitare collisioni; se l'invoke fallisce si ricade sul calcolo locale
+      // (comportamento precedente, `forcedNumber = null` in getBlankFileState).
+      let forcedNumber = null
+      try {
+        forcedNumber = await window.electron.ipcRenderer.invoke(
+          'mt::next-untitled-index',
+          getLocalUntitledMax(this.tabs)
+        )
+      } catch (err) {
+        console.error('Cannot reach main process for the next untitled index, using local fallback:', err)
+      }
+
+      const fileState = getBlankFileState(
+        this.tabs,
+        defaultEncoding,
+        endOfLine,
+        markdownString,
+        forcedNumber
+      )
 
       if (selected) {
         const { id, markdown } = fileState

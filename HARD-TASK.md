@@ -51,11 +51,11 @@ BUILD-1 (patch-package, serve npm). Vari ✅ 🧪 da spot-check runtime (vedi co
 > **Test H5 runtime (utente, 2026-06-28): tutti POSITIVI** — B1–B7, H5-1, H5-2, H5-RE funzionano.
 > → H5-B / H5-1 / H5-2 passano a ✅ ✔️ una volta chiusi i 2 bug sotto. Restano da fare:
 
-**BUG-H5-EMPTYWIN** ⬜ — una finestra (detached / non-owner) con **tutte le tab chiuse resta aperta e vuota** (solo il bottone "+" per creare una tab), non si chiude e non è più chiudibile. **Deve auto-chiudersi** quando si chiude l'ultima tab di una finestra non-owner. Investigare il flusso di chiusura tab nelle finestre detached + interazione col gate single-window (la owner NON deve chiudersi quando resta vuota — lì la blank tab è attesa; il fix vale solo per le finestre nate dal detach).
+**BUG-H5-EMPTYWIN** ✅ ✔️ (risolto, confermato utente 2026-07-04) — una finestra (detached / non-owner) con **tutte le tab chiuse resta aperta e vuota** (solo il bottone "+" per creare una tab), non si chiude e non è più chiudibile. **Deve auto-chiudersi** quando si chiude l'ultima tab di una finestra non-owner. Investigare il flusso di chiusura tab nelle finestre detached + interazione col gate single-window (la owner NON deve chiudersi quando resta vuota — lì la blank tab è attesa; il fix vale solo per le finestre nate dal detach).
 
-**BUG-H5-UNTITLED** ⬜ — il **counter Untitled non è lineare tra finestre**: una nuova finestra riparte da `Untitled-1`, invece deve continuare dal massimo globale (prima finestra fino a `Untitled-5` → nuova tab in altra finestra = `Untitled-6`). Oggi il numero è calcolato per-renderer dalle sole tab locali (B-REV8, `store/editor.js`). Serve coordinare il prossimo indice Untitled a livello di sessione/main tra tutte le finestre.
+**BUG-H5-UNTITLED** ✅ ✔️ RISOLTO (2026-07-04, feature `untitled-counter-globale`, verificato utente) — il **counter Untitled non è globale tra finestre**. Comportamento osservato: la nuova finestra riparte dal counter della tab trascinata — (a) detach di un file **salvato su disco** → nuova tab nella finestra 2 = `Untitled-1` (sbagliato); (b) detach di `Untitled-6` → nuova tab nella finestra 2 = `Untitled-7` (giusto per caso: eredita solo il counter locale della tab migrata). Requisito: **counter unico condiviso tra TUTTE le finestre, bidirezionale** — nuova tab in qualunque finestra = max globale + 1, e la finestra originale deve tenere conto degli Untitled creati nelle altre. Oggi il numero è calcolato per-renderer dalle sole tab locali (B-REV8, `store/editor.js`). Serve coordinare il prossimo indice Untitled a livello di sessione/main tra tutte le finestre (contatore nel main, non per-renderer).
 
-**H5-RE-BUG1** ⬜ (già noto) — ri-drag di **tab omonime** non funziona. Sospetto: match per `filename`/`pathname` invece che per `id` univoco in qualche punto del flusso detach/insert/close. Investigazione **statica** (Agent-Explorer): grep i confronti `filename`/`pathname` nel percorso re-attach e nel drag-back.
+**H5-RE-BUG1** ✅ ✔️ (risolto, confermato utente 2026-07-04) — ri-drag di **tab omonime** non funziona. Sospetto: match per `filename`/`pathname` invece che per `id` univoco in qualche punto del flusso detach/insert/close. Investigazione **statica** (Agent-Explorer): grep i confronti `filename`/`pathname` nel percorso re-attach e nel drag-back.
 
 > ⚠️ **SUPERATO 2026-06-28 → piano spostato in `DRAG-TASK.md`:** il polish H5-RE + il raise-finestre confluiscono nella **migrazione del drag tab a HTML5 native DnD** (parità VS Code: anteprima d'inserimento + hover-taskbar che rivela le finestre + drop-fuori = nuova finestra). **koffi/raise-Win32 SCARTATO** (reso inutile dal drag OLE nativo). I 3 bug sotto (EMPTYWIN, UNTITLED, RE-BUG1) restano validi. Il blocco "Path A" e "RAISE/RESTORE" qui sotto è storico.
 
@@ -66,7 +66,7 @@ BUILD-1 (patch-package, serve npm). Vari ✅ 🧪 da spot-check runtime (vedi co
 
 **RAISE/RESTORE finestre come target di drop (richiesta utente) — fattibile, ⏸️ DECISIONE APERTA.** Ricerca 2026-06-28: de-iconizzare + alzare le altre finestre **senza rompere il drag dragula** è possibile SOLO con `ShowWindow(hWnd, SW_SHOWNOACTIVATE)` + `SetWindowPos(SWP_NOACTIVATE|SWP_NOMOVE|SWP_NOSIZE)` su `win.getNativeWindowHandle()`, via **FFI nativa (`koffi`, no rebuild)**, innescato al **cursor-exit** (NON al drag-start: troppo intrusivo, il drag è quasi sempre riordino). Perché funziona: dragula usa listener mouse sul `document` + Chromium tiene `SetCapture` sull'HWND sorgente → la finestra A continua a ricevere `mousemove` (coord fuori bounds = segnale d'uscita) e con NOACTIVATE non perde focus/capture. `win.restore()` NO (attiva → rischio rilascio capture → drag rotto). **Limiti:** finestre su altro desktop virtuale Windows non alzabili (escluderle dai target); multi-monitor ok. **Costo:** dipendenza nativa `koffi`. **Alternativa senza dipendenza:** pattern Chrome/VS Code (minimizzate non sono target; drop fuori = nuova finestra). → **DA DECIDERE: aggiungere `koffi` per il raise robusto, oppure restare sul pattern Chrome/VS Code.**
 
-**H3 (commenti per linguaggio) — piano (corretto 2026-06-28):**
+**H3 (commenti per linguaggio) — ✅ ✔️ FATTO (confermato utente 2026-07-04). Piano storico (corretto 2026-06-28):**
 - Mappare **SOLO** `Ctrl+K C` (commenta) e `Ctrl+K U` (decommenta). **NIENTE** `Ctrl+K Ctrl+C`/`Ctrl+K Ctrl+U` (l'utente ha corretto la richiesta iniziale).
 - **`Ctrl+K` è libero da liberare:** `view.toggle-toc` è **di fatto morto** — la sidebar v2 (`sideBar/index.vue:33`) renderizza solo `<side-bar-search/>`, `sideBar/toc.vue` NON è montato da nessuna parte (orfano post-T4A); l'action `showTableOfContents` (`menu/actions/view.js:63`) imposta `rightColumn='toc'` che nessuno disegna → no-op. Azzerare l'accelerator `'view.toggle-toc' → ''` nelle 3 mappe (`keybindingsWindows.js:101`, `Linux:102`, `Darwin:98`), **lasciando** la voce comando/menu (mai rimuovere l'oggetto).
 - **Prerequisito duro: T-M1** (`MEDIUM-TASK.md` §T-M1, "mode CM per estensione", foundational). Senza, `sourceCode.vue:718` forza `mode='markdown'` per tutti → commento sempre `<!-- -->`. T-M1 = helper `setModeForFile(cm, filename)` in `codeMirror/index.js` (riusa `mode/meta`+`loadmode` già presenti) al posto della riga 718 + in `handleFileChange`. Decisione T-M1 già LOCKED ("sì, riusando l'infrastruttura CM").
@@ -74,11 +74,21 @@ BUILD-1 (patch-package, serve npm). Vari ✅ 🧪 da spot-check runtime (vedi co
 
 ---
 
+### 🔖 STATO (2026-07-04) — esiti test utente
+
+- ✅ ✔️ **BUG-H5-EMPTYWIN** e **H5-RE-BUG1** (ri-drag omonime) risolti e confermati. **H5-RE** chiuso.
+- ✅ ✔️ **H3** (Ctrl+K C/U commenti per linguaggio) fatto e confermato.
+- ✔️ **BUG-CP2** chiuso: ramo A, duplicato di BUG-MUYA-HEADING-DNA (cursore prima del simbolo di blocco, qualunque riga; no fix per decisione A).
+- ✅ ✔️ **B-REV5** testato: hard-break ok sui file source, sui `.md` no → accettato come limite.
+- ✅ ✔️ **BUG-H5-UNTITLED — RISOLTO e verificato runtime dall'utente (2026-07-04: "funziona ottimo").** Fix: counter globale monotono nel main (`_untitledIdSeq` in `app/index.js` + handler invoke `mt::next-untitled-index` + bump passivo da session-save/restore/detach); renderer `NEW_UNTITLED_TAB` async chiede N al main con fallback locale (`getLocalUntitledMax` estratto in `help.js`, `getBlankFileState` con param `forcedNumber`). Decisione utente: comportamento MONOTONO (numeri liberati non riusati finché l'app è aperta). Plan+worklog: `docs/Ai/InProgress/untitled-counter-globale/`. ⚠️ MAIN toccato → riavviare `npm run dev`. Test: scenari 1-4 nel plan (detach file salvato → Untitled continua dal max; bidirezionale tra finestre; restore da sessione; monotono).
+
+---
+
 ## STATO TASK (aggiornato ad ogni task completato)
 
 Legenda stato: ⬜ da fare · 🔧 in corso · ✅ fatto (codice) · 🧪 da testare a runtime · ⏸️ bloccato (serve decisione/verifica runtime) · ❌ scartato · ✔️ già ok (nessun lavoro)
 
-**Completamento PESATO: 101 / 135 pt (≈75%)** — peso per sforzo (1 pt ≈ 0,8% del totale; colonna *Peso* in tabella, somma attiva = 135 pt). Conteggio semplice task: 39/54 (72%). Aggiornato 2026-06-26 (H5-B + H5-1 + H5-2 + H5-RE codice fatto, 18 pt). Prima 2026-06-25 (+H5-B aggiunto), 2026-06-20 (sessione 2). Escludono dal peso H6 (scartato), H7/R6/R8/R9/R10/S-REV1/M-REV14 (note o già ok), R3 (= P-REV3) e DESIGN-HISTORY-SPLIT (= H8) per non doppiare. H8 (undo unificato) ✅ verificato runtime 2026-06-15. **Legenda pesi + validazione decisioni sul codice: blocco sotto la tabella (2026-06-20).**
+**Completamento PESATO: 104 / 132 pt (≈79%)** — aggiornato 2026-07-04: +H3 fatto (3 pt); CP2 chiuso come duplicato HEADING-DNA → escluso dal peso (totale 135→132). Restano solo minori ⏸️ (BUILD-1, B-REV11, M-REV10) + spot-check 🧪. Dato precedente: 101/135 pt (≈75%). — peso per sforzo (1 pt ≈ 0,8% del totale; colonna *Peso* in tabella, somma attiva = 135 pt). Conteggio semplice task: 39/54 (72%). Aggiornato 2026-06-26 (H5-B + H5-1 + H5-2 + H5-RE codice fatto, 18 pt). Prima 2026-06-25 (+H5-B aggiunto), 2026-06-20 (sessione 2). Escludono dal peso H6 (scartato), H7/R6/R8/R9/R10/S-REV1/M-REV14 (note o già ok), R3 (= P-REV3) e DESIGN-HISTORY-SPLIT (= H8) per non doppiare. H8 (undo unificato) ✅ verificato runtime 2026-06-15. **Legenda pesi + validazione decisioni sul codice: blocco sotto la tabella (2026-06-20).**
 
 > Stato `✅ ✔️` = codice fatto **e verificato runtime OK** · `✅ 🧪` = codice fatto, verifica runtime puntuale non ancora fatta (vedi sezione TESTING).
 
@@ -89,12 +99,12 @@ Legenda stato: ⬜ da fare · 🔧 in corso · ✅ fatto (codice) · 🧪 da tes
 | H2-a | Snapshot storage userData | ✅ ✔️ (2026-06-21, verificato utente, OPUS — NPP-style: `<userData>/backup/` + `session.json` indice + `<id>.snapshot` per-tab; scrittura atomica; backup periodico ogni N**secondi** gated su `contentVersion`; path+intervallo configurabili) | 8 · 6,4% |
 | H2-b | Session restore | ✅ ✔️ (2026-06-21, verificato utente — restore al boot di TUTTE le tab: untitled vuote/con contenuto, file esterni dirty, file salvati ri-letti da disco; file sparito → Untitled+notifica) | 8 · 6,4% |
 | H2-c | Chiusura silenziosa finestra | ✅ ✔️ (2026-06-21, verificato utente — **REVISIONE decisione utente: default ON** stile Notepad++, niente popup; solo finestra owner; crash-safe via backup periodico) | 3 · 2,4% |
-| H3 | Ctrl+K C/U commenta (source) | ⏸️ (serve T-M1 → LEGGERE `MEDIUM-TASK.md`, permesso esplicito) | 3 · 2,4% |
+| H3 | Ctrl+K C/U commenta (source) | ✅ ✔️ (confermato utente 2026-07-04) | 3 · 2,4% |
 | H4 | Pin tab | ✅ 🧪 (pinned in help.js + TOGGLE_PIN_TAB + close protection + zone clamp + dragula accepts + CSS + i18n) — **revisione cosmetica 2026-06-20**: icona ⊞ → puntina SVG; sfondo "in rilievo" + accento verticale SULLA tab pinnata; rimosso il bordo-sliver sulla vicina (era fuorviante, sembrava un indicatore pin). Logica ordine/drag/menu Pin↔Unpin già corrette (confermato leggendo il codice). | 5 · 4,0% |
 | H5-B | Sessione multi-finestra-aware (PREREQ detach; piano completo §H5 "🅱️ PIANO IMPLEMENTATIVO B") | ✅ 🧪 (2026-06-26, OPUS — 3 file; registro per-finestra + merge serializzato + snapshot namespacato; da testare B1-B7) | 5 · 4,0% |
 | H5-1 | Detach via context menu | ✅ 🧪 (2026-06-26, OPUS — voce "Move to New Window" + `mt::detach-tab` → `_createDetachWindow` riusa il flusso restore (saved/untitled/dirty uniforme) → ack `mt::detach-tab-ack` chiude la tab sorgente) | 5 · 4,0% |
 | H5-2 | Detach via drag-out | ✅ 🧪 (2026-06-26, OPUS — dragula `drag`/`dragend` + `mousemove` screen-pos; `revertOnSpill` → drop fuori finestra → `DETACH_TAB` in setTimeout(0)) | 5 · 4,0% |
-| H5-RE | Re-attach: drag tab in finestra esistente alla posizione del drop | ✅ 🧪 funziona, ⚠️ **3 problemi noti da fixare** (2026-06-26, OPUS; hit-test `getBounds` + `INSERT_DETACHED_TAB`. Da fixare: ri-drag con tab omonime, no bring-to-front live, no anteprima "miraggio" — vedi §H5 Fase 2b "🔧 DA FIXARE") | 3 · 2,4% |
+| H5-RE | Re-attach: drag tab in finestra esistente alla posizione del drop | ✅ ✔️ (confermato utente 2026-07-04; ri-drag omonime risolto; bring-to-front + anteprima migrati in `DRAG-TASK.md`) | 3 · 2,4% |
 | H5-3 | Ghost window | ❌ rimandato | — |
 | H8 | Undo/redo unificato Muya↔source (opzione B) | ✅ ✔️ (verificato runtime 2026-06-15; 6 file. Iterazione bug runtime → sezione TESTING Batch H8) | 8 · 6,4% |
 | H6 | Undo persistente | ❌ scartato | — |
@@ -114,7 +124,7 @@ Legenda stato: ⬜ da fare · 🔧 in corso · ✅ fatto (codice) · 🧪 da tes
 | B-REV2 | final-newline isSaved=false | ✅ ✔️ | 1 · 0,8% |
 | B-REV3 | pre-save nei 3 path chiusura | ✅ 🧪 | 2 · 1,6% |
 | B-REV4 | guard-order editor.vue | ✅ 🧪 | 1 · 0,8% |
-| B-REV5 | hard-break vs lightTouch | ✅ 🧪 (sentinella \x02 in normalizeBlock, store/editor.js) | 2 · 1,6% |
+| B-REV5 | hard-break vs lightTouch | ✅ ✔️ (testato utente 2026-07-04: hard-break 2 spazi preservato sui file source; sui file .md no — **accettato come limite**, nessun altro fix) | 2 · 1,6% |
 | B-REV6 | baseline Save As | ✅ ✔️ | 2 · 1,6% |
 | B-REV7 | filtro Save All | ✅ 🧪 (allineato a `!file.isSaved` in store/editor.js) | 1 · 0,8% |
 | B-REV8 | Untitled-NaN guard | ✅ 🧪 | 1 · 0,8% |
@@ -128,7 +138,7 @@ Legenda stato: ⬜ da fare · 🔧 in corso · ✅ fatto (codice) · 🧪 da tes
 | BUG-MUYA-UNDO-SWITCH | Ctrl+Z post-switch: stati history fantasma (key nuove) | ✅ 🧪 (fix core noHistory) | 2 · 1,6% |
 | BUG-MUYA-HEADING-DNA | 1ª riga heading come testo dopo switch (cursor-DNA `ch=0`) | ✔️ (opzione A: cosmetico, documentato, no fix) | — |
 | BUG-CP1 | Inserimento markdown reale in source da palette/menu (§7.14) | ✅ 🧪 (handleParagraphInSource + handleFormatInSource espanso — heading/list/blockquote/block + strong/em/u/mark/etc. Selection-aware per del/link: selezione→formato, cursore→line-op legacy) | 5 · 4,0% |
-| BUG-CP2 | Switch source↔Muya non ri-renderizza md inserito via palette (§7.15) | ⬜ (serve REPRO runtime §7.15 → ramo A=duplicato HEADING-DNA / B=fix switch) | 3 · 2,4% |
+| BUG-CP2 | Switch source↔Muya non ri-renderizza md inserito via palette (§7.15) | ✔️ chiuso 2026-07-04 — repro utente = **ramo A**: duplicato di BUG-MUYA-HEADING-DNA (decisione A, no fix). Dettaglio repro: accade solo se il cursore è subito PRIMA del simbolo di blocco (es. prima di `#`), su **qualunque riga** (non solo la prima); tornando in source, spostando il cursore altrove e rifacendo lo switch, la riga torna renderizzata | — (duplicato HEADING-DNA) |
 | BUG-CP1b | Comando "Table" in source apriva ANCHE il dialog Muya (handleEditParagraph senza guard source) | ✅ ✔️ (guard `if (sourceCode.value) return` in editor.vue:902) | 1 · 0,8% |
 | BUG-SAVE-UNLINK | Salvataggio → barra arancio "removed from disk" + bollino dirty (effetto collaterale R7: rename atomico → chokidar 'unlink') | ✅ 🧪 (watcher.js: handler 'unlink' ora fa peek `_isPendingIgnore` e sopprime il falso unlink durante la finestra di ignore del save) | 2 · 1,6% |
 | ITEM-PERF-WARN | Avviso "troppe tab → possibile lag, chiudine alcune" (sostituisce il cap LRU rimosso in R2) | ✅ 🧪 (nuovo `perfWarningDialog.vue`, stile = `fileChangedDialog.vue`; soglia 15 poi +10; watch su `tabs.length`; testi con default inline anti-chiave-grezza) | 2 · 1,6% |
@@ -278,6 +288,7 @@ H4 → `MEDIUM-TASK.md` (§7 + T-M6); BUG-CP1 fix B si appoggia all'infrastruttu
   - (C) In `addCursorToMarkdown`, gestire `ch=0` su riga con sintassi di blocco inserendo il DNA dopo il marker e correggendo l'offset recuperato → più complesso/fragile. Sconsigliato.
   - Raccomandazione: (A) salvo che l'effetto dia fastidio nell'uso reale → allora (B).
 - **DECISIONE utente (2026-06-14): opzione (A)** — documentato come minore, nessun fix applicato (cosmetico, self-healing, contenuto salvato corretto). Se in futuro l'effetto darà fastidio → riconsiderare (B).
+- **Osservazione utente 2026-07-04 (da repro CP2):** il bug scatta quando il cursore è posizionato **subito prima del simbolo di blocco** (es. prima di `#`), su qualunque riga, non solo la prima. Workaround: in source spostare il cursore fuori dal simbolo → allo switch la riga torna renderizzata. Conferma la root cause cursor-DNA a `ch=0`. BUG-CP2 chiuso come duplicato di questo bug.
 
 **DESIGN-HISTORY-SPLIT — la history undo NON è condivisa tra Muya e source (architetturale, scoperto in test):**
 - Sintomo (utente): scrivi "riga a" in Muya, "riga b" in source → `Ctrl+Z` in source annulla solo "riga b" (non risale agli edit Muya); tornato in Muya, "riga b" non è nella history Muya.
@@ -2294,6 +2305,10 @@ incompleto verso il source editor**:
   eventi line-op source, es. `del`→`src-dup`, `link`→`src-delline`, aggiornando palette/menu/keybinding).
 
 ### 7.15 BUG-CP2 — Switch source↔Muya non ri-renderizza markdown inserito via palette
+
+> ✔️ **CHIUSO 2026-07-04 — ramo A confermato dalla repro utente**: duplicato di BUG-MUYA-HEADING-DNA.
+> Scatta solo con il cursore subito prima del simbolo di blocco (qualunque riga); spostando il cursore
+> e rifacendo lo switch la riga torna renderizzata. Nessun fix (decisione A). Sezione lasciata come storico.
 
 Se si inserisce testo markdown via command palette in Muya (es. `# ciao`), si passa in source mode
 e si torna in Muya, il testo rimane come stringa letterale invece di essere interpretato. Aggiungere

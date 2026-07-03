@@ -383,6 +383,215 @@ questo worklog: 2 BrowserWindow ±frame, pagina con link/testo/div uri-list/div 
 MarkText, bisezione pianificata (punti 1-4 sopra); spike 7c ancora nel codice
 (uri-list senza DownloadURL) in attesa della decisione finale.**
 
+## Bisezione round 8 — handler globali dragover (orchestratore, 2026-07-03)
+
+Nuovo fatto: trovato l'handler globale ipotizzato al punto 3 del piano ("da cercare"):
+`app.vue:179-209` `setupDragDropHandler` — listener `dragover` window-level PERMANENTE che
+per ogni drag non-Files fa `stopPropagation()` + `dropEffect = 'none'`. Stesso pattern nel
+ramo else di Muya `contentState/dragDropCtrl.js` (`dragoverHandler`). Sono gli unici due
+handler che girano anche sul drag di TESTO (il blocker di tabs.vue filtra sul MIME tab),
+coerenti col sintomo "anche il testo non attiva la taskbar". Decisione col-utente: saltare
+il passo 1 (harness) e bisezionare direttamente in MarkText; harness di riserva.
+
+Spike applicati direttamente (modifiche minime, commenti `SPIKE bisezione taskbar`):
+- `app.vue`: ramo else (non-Files) disattivato — niente `stopPropagation`/`dropEffect='none'`.
+- `muya/lib/contentState/dragDropCtrl.js`: idem ramo else del `dragoverHandler`; disattivata
+  anche l'assegnazione `dropEffect='none'` nel ramo types-vuoti (return conservato).
+- NON toccati: `@dragover.prevent` su `ul.v2-tabs`, `blockForeignTabDropOutsideTabbar`,
+  ramo Files/import di `app.vue` (dialog import invariato).
+Verifica statica: `node --check` dragDropCtrl.js OK, parse SFC app.vue OK.
+
+Logica del test discriminante: se il drag di TESTO ora attiva la taskbar → colpevole tra i
+due handler (poi riattivazione uno-alla-volta per isolare). Se il drag di TAB resta inerte
+mentre il testo funziona → conta anche l'accettazione iniziale (`@dragover.prevent` della ul
+al dragstart) → prossimo candidato. Se nemmeno il testo funziona → ipotesi handler falsificata
+→ tornare al passo 1 (harness con varianti).
+
+**Stato: DA TESTARE (round 8).**
+
+**Retest round 8 (utente, 2026-07-03): TASKBAR FUNZIONA — sia drag di TESTO sia drag di
+TAB attivano lo spring-loading.** Colpevoli confermati nell'insieme {ramo else app.vue,
+ramo else Muya dragoverHandler}; isolamento uno-alla-volta rimandato a dopo il bug sotto.
+
+**NUOVO BUG-FLICKER (utente, 2026-07-03):** dopo doppio-click su punto vuoto della
+titlebar (maximize/restore), a volte le tab sfarfallano in continuazione e non si riesce
+più a trascinare né la finestra né le tab. Mai visto prima del round 8 (riferito utente).
+Nota orchestratore: gli handler dragover disattivati girano SOLO durante un drag → un
+doppio-click non li esegue; nesso meccanico con lo spike non ovvio. Ipotesi di lavoro:
+loop latente di layout multi-row (hasMultiRow/pinnedTab-clone/hover-expand +
+ResizeObserver) innescato dal resize del maximize, emerso ora per coincidenza di
+condizioni (molte tab aperte per i test). Da verificare coi dati, non per supposizione.
+
+Strumentazione temporanea aggiunta (`[DEBUG flicker]`, solo `tabs.vue`, rimuovere a
+diagnosi chiusa): log su `scheduleUpdate` (sorgente trigger), decisione di
+`updateTabRowsLayout` (multiRow, misure), flip di `hasMultiRow`, transizioni di
+`pinnedTab` e `tabsAreaHovered`. Parse SFC: ALL OK.
+
+**Stato: DA TESTARE (riprodurre BUG-FLICKER con DevTools aperto e riportare i log).**
+
+**Esito round 8 (utente, 2026-07-03): baseline log sana, BUG-FLICKER non riprodotto**
+(nemmeno con tentativi mirati). Dato nuovo dall'utente: il flicker era avvenuto quando,
+trascinando, Windows ha snappato la finestra a metà schermo → sospetta transizione
+single↔multi-row. Verifica CSS orchestratore: le regole gated `has-multirow`/`is-osx`
+cambiano solo ALTEZZE (25/28px, padding-block), mai larghezze → nessuna isteresi di width
+dalle regole di stato. Causa non identificabile senza riproduzione → trappola 9c (sotto).
+
+## Fix round 9 (orchestratore, 2026-07-03) — esiti test round 8 + richieste utente
+
+Richieste/esiti utente: (1) drop tab su Chrome/Notepad incollava il path/URI (non deve);
+(2) chiudere l'ultima tab con la X in una finestra secondaria NON chiude la finestra
+(deve chiuderla; owner invariato); (3) BUG-FLICKER non riproducibile; (4) drop consumato
+da desktop/Explorer NON deve aprire anche la nuova finestra.
+
+Applicato direttamente dall'orchestratore (OK utente sul riepilogo):
+- **9a** (`tabs.vue`, `onTabDragStart`): rimosso `text/uri-list` (spike 7c — esponeva
+  CF_UNICODETEXT + shortcut .url → paste su target testuali), ripristinato `DownloadURL`
+  (saved → `file:///`; untitled → blob URL, revoca al dragstart successivo/unmount).
+  L'harness round 8 ha dimostrato che il payload è irrilevante per la taskbar → si sceglie
+  il formato in base al comportamento sui drop esterni (copia file, niente testo).
+- **9d** (`tabs.vue`, `onTabDragEnd`, ramo detach): gate `dropEffect === 'copy'` → drop
+  consumato da target esterno (copia su desktop/Explorer) NON apre la nuova finestra.
+  Sicuro: drag interni/rifiutati → 'none' (electron#42252), migrazione cross-finestra
+  MarkText → mai 'copy'.
+- **9c** (`tabs.vue`, watch `hasMultiRow`): trappola anti-loop — ≥6 flip in <3s →
+  `console.error` con dump stato (misure, hovered, pinnedTab, dragging). Il flicker
+  lascerà traccia certa alla prossima occorrenza. Log `[DEBUG flicker]` esistenti mantenuti.
+- **Round 8 definitivo** (`app.vue` + Muya `dragDropCtrl.js`): rami else resi definitivi
+  (commento esplicativo, codice rimosso). Isolamento singolo colpevole non più necessario:
+  il fix corretto è comunque il rifiuto passivo per entrambi. Regola registrata in
+  `DECISIONS.md` (2026-07-03, "taskbar RISOLTO — regola permanente").
+- Verifica statica: `node --check` dragDropCtrl.js OK; parse SFC tabs.vue + app.vue OK.
+
+## Istruzioni Fix round 9b — auto-chiusura finestra secondaria all'ultima tab chiusa manualmente (per Agent-Code, OK utente ricevuto)
+
+Comportamento richiesto: chiudere l'ultima tab (X, chiudi-tutte, chiudi-salvate, ecc.) in
+una finestra SECONDARIA → la finestra si chiude. Finestra ORIGINALE (owner): resta aperta
+(comportamento attuale invariato). Oggi l'auto-chiusura esiste SOLO nel percorso
+detach-ack (round 6, `store/editor.js` ~950).
+
+File toccabili: `src/renderer/src/store/editor.js`, `src/main/app/index.js`, questo
+worklog. Nessun altro file. Skill di codice: `coding-standard`.
+
+Prerequisiti bloccanti: leggere prima questo worklog (sezioni round 6 e 9), la sezione
+"Regole di verifica obbligatoria" di `CLAUDE.md` (pattern IPC), e i punti citati sotto nei
+due file. Version control: consentito solo `git status`/`diff` (DECISIONS 2026-07-01).
+
+1. **Nuovo canale `mt::window-emptied`** (renderer→main). In `store/editor.js`:
+   - `FORCE_CLOSE_TAB`: nel blocco esistente `if (this.tabs.length === 0)` (~riga 1149,
+     quello che azzera `listToc`/`toc`), aggiungere
+     `window.electron.ipcRenderer.send('mt::window-emptied')`.
+   - `CLOSE_TABS`: idem nel blocco `if (this.tabs.length === 0)` finale (~riga 1251).
+   - Handler `mt::detach-tab-ack` (~righe 948-952): SOSTITUIRE il send diretto
+     `mt::cmd-close-window` (round 6) con NULLA — la chiamata a `FORCE_CLOSE_TAB` che lo
+     precede ora emette già `mt::window-emptied` a 0 tab (verificare che sia davvero così
+     nel codice: se il percorso detach-ack non passa da `FORCE_CLOSE_TAB`, adattare e
+     documentare). Il caso owner resta impossibile lì (bloccato a monte dal main, round 6).
+2. **Handler main** in `src/main/app/index.js` (accanto a `mt::detach-tab`, ~986):
+   `ipcMain.on('mt::window-emptied', (e) => {...})`: ricavare la finestra con
+   `BrowserWindow.fromWebContents(e.sender)`; `const editor = this._windowManager.get(win.id)`;
+   se `editor && !editor._isSessionOwner` → chiusura graceful con la STESSA logica
+   dell'handler `mt::cmd-close-window` (`menu/actions/file.js:570` — leggerlo e riusare
+   il meccanismo: se fa solo `win.close()`, fare `win.close()`). Owner → return (no-op).
+3. **Verifiche obbligatorie** (regola CLAUDE.md): grep `ipcMain.emit('mt::window-emptied'`
+   e `ipcRenderer.send('mt::window-emptied'` (canale nuovo: deve esistere solo il send
+   renderer). Verificare che non esista già un canale equivalente con altro nome prima di
+   crearlo. `node --check` sui due .js toccati.
+4. **Attenzione doppia esecuzione**: dopo la modifica, a 0 tab NON devono partire sia
+   `mt::window-emptied` sia il vecchio `mt::cmd-close-window` dal percorso detach-ack.
+5. Aggiornare questo worklog con sezione "Fix round 9b — esecuzione" (cosa fatto, esiti
+   verifiche, deviazioni).
+6. Test manuale atteso (li esegue l'utente): X su ultima tab salvata in secondaria →
+   finestra si chiude; ultima tab NON salvata in secondaria → dialog salvataggio poi
+   chiusura; owner con ultima tab chiusa → resta aperto vuoto; migrazione ultima-tab
+   round 6 → secondaria si chiude ancora (nessuna regressione); chiudi-tutte in
+   secondaria → chiusura.
+
+**Stato: 9a/9c/9d applicati (DA TESTARE); 9b delegato ad Agent-Code.**
+
+## Retest round 9 (utente, 2026-07-03): PASS COMPLETO — FEATURE CHIUSA
+
+- Taskbar spring-loading: OK (con DownloadURL attivo — la convivenza temuta dallo spike 7
+  non si è ripresentata coi colpevoli round 8 spenti).
+- Chiusura finestra secondaria all'ultima tab (9b): OK.
+- Spostamento tab (reorder + migrazione cross-finestra): OK.
+- Salvataggio/copia su drop esterno: OK.
+- Drag di testo nell'editor: OK.
+- Nessuna regressione segnalata.
+
+## Chiusura feature (orchestratore, 2026-07-03)
+
+- Rimossi tutti i log temporanei `[DEBUG drag-html5-dnd-task3]` (onTabsDrop, ENTER
+  dragend, ramo detach) e i log verbosi `[DEBUG flicker]` (scheduleUpdate, layout, flip,
+  pinnedTab, hovered). MANTENUTA (voluta) la sola trappola anti-loop BUG-FLICKER nel
+  watch di `hasMultiRow` (console.error con dump se ≥6 flip in <3s): il bug non è mai
+  stato riprodotto, la trappola resta finché non si ripresenta o si esclude.
+- Task4 chiuso come ASSORBITO da task3 (vedi worklog task4: migrazione già coperta e
+  testata; fix selettore `INSERT_DETACHED_TAB` applicato; indicatore cross-finestra NON
+  implementato, rimandato su richiesta).
+- Task5 eseguito (vedi worklog task5: dipendenze dragula/dom-autoscroller rimosse da
+  package.json; serve `npm install` al prossimo giro).
+- Verifica statica finale: parse SFC tabs.vue OK, node --check editor.js OK, JSON
+  package.json OK.
+
+**Stato task3: COMPLETO E TESTATO. Feature drag-html5-dnd CONCLUSA.**
+
+## Fix round 9b — esecuzione (Agent-Code, 2026-07-03)
+
+- [x] Letti prerequisiti: worklog sezioni round 6 e round 9, "Regole di verifica
+      obbligatoria" di `CLAUDE.md` (pattern IPC), punti citati in `store/editor.js` e
+      `src/main/app/index.js`. Verificato preventivamente (come richiesto al punto 1) che il
+      percorso `mt::detach-tab-ack` passa DAVVERO da `FORCE_CLOSE_TAB(t)` (riga 944, invariata)
+      → nessun adattamento necessario, si procede come da istruzioni senza deviazioni.
+- [x] Punto 1 — nuovo canale `mt::window-emptied` (renderer→main), `store/editor.js`:
+      - `FORCE_CLOSE_TAB`: aggiunto `window.electron.ipcRenderer.send('mt::window-emptied')`
+        dentro il blocco esistente `if (this.tabs.length === 0) { this.listToc = []; this.toc
+        = [] }` (~riga 1149-1153).
+      - `CLOSE_TABS`: idem nel blocco finale `if (this.tabs.length === 0) {...}` (~riga
+        1251-1257).
+      - Handler `mt::detach-tab-ack`: rimosso il send diretto `mt::cmd-close-window` (round 6)
+        e il relativo blocco `if (this.tabs.length === 0) {...}` — sostituito con NULLA, come
+        da istruzione: `FORCE_CLOSE_TAB(t)` (chiamata immediatamente prima, invariata) ora
+        emette già `mt::window-emptied` quando arriva a 0 tab. Commento aggiornato per
+        spiegare la delega.
+- [x] Punto 2 — handler main `src/main/app/index.js`, aggiunto subito dopo l'handler
+      `mt::detach-tab` (prima di `mt::select-session-backup-path`): `ipcMain.on('mt::window-
+      emptied', (e) => {...})` — ricava `win = BrowserWindow.fromWebContents(e.sender)`,
+      `editor = this._windowManager.get(win.id)`, se `editor && !editor._isSessionOwner` →
+      `win.close()` (stessa identica azione dell'handler `mt::cmd-close-window` in
+      `menu/actions/file.js:570`, letto prima di scrivere: fa solo `win.close()`, nessuna
+      logica aggiuntiva da riusare). Owner → nessuna azione (no-op, return implicito).
+- [x] Punto 3 — Verifiche obbligatorie:
+      - Grep `ipcMain\.emit\('mt::window-emptied'|ipcRenderer\.send\('mt::window-emptied'` su
+        `src/` PRIMA di scrivere: nessun risultato → canale non esisteva, nessuna collisione
+        di nome. Verificato anche che non esistesse già un canale equivalente con altro nome
+        per lo stesso scopo (unico precedente era il send diretto `mt::cmd-close-window` nel
+        percorso detach-ack, round 6, ora rimosso — nessun altro percorso duplicato trovato).
+      - Grep ripetuto DOPO la modifica: solo 2 occorrenze `ipcRenderer.send('mt::window-
+        emptied'` in `store/editor.js` (righe 1153 e 1257, FORCE_CLOSE_TAB e CLOSE_TABS),
+        nessun `ipcMain.emit('mt::window-emptied'` → il canale è chiamato ESCLUSIVAMENTE dal
+        renderer via `ipcRenderer.send`, gestito da `ipcMain.on` con firma `(e) =>`
+        (`BrowserWindow.fromWebContents(e.sender)`), coerente con la regola CLAUDE.md (nessuna
+        chiamata da `ipcMain.emit` → non serve un branch per doppia firma).
+      - Grep `ipcMain\.emit\('mt::cmd-close-window'|ipcRenderer\.send\('mt::cmd-close-window'`:
+        3 risultati, tutti `ipcRenderer.send` (`tabs.vue:701`, `commands/index.js:93`, e più
+        NESSUN risultato in `store/editor.js` — confermato che il send rimosso al punto 1 è
+        sparito e non resta un secondo punto di invio duplicato per lo stesso scopo).
+      - `node --check src/main/app/index.js` → OK (nessun output).
+      - `node --check src/renderer/src/store/editor.js` → OK (nessun output, Node rileva la
+        sintassi ESM automaticamente come già verificato nel round 6).
+- [x] Punto 4 — Attenzione doppia esecuzione: verificato che a 0 tab nel percorso detach-ack
+      parte SOLO `mt::window-emptied` (via `FORCE_CLOSE_TAB`), non più anche il vecchio send
+      diretto `mt::cmd-close-window` — il blocco che lo emetteva è stato rimosso interamente
+      al punto 1, non semplicemente reso ridondante. Nessuna doppia esecuzione possibile.
+- [x] Punto 5 — Worklog aggiornato (questa sezione).
+- [x] Nessun file toccato oltre ai due .js e questo worklog (nessun nuovo file, nessun altro
+      canale IPC introdotto o modificato).
+
+**Deviazioni dal piano**: nessuna. Il percorso detach-ack passava già da `FORCE_CLOSE_TAB`
+come atteso al punto 1 delle istruzioni, quindi non è stato necessario alcun adattamento.
+
+**Stato: 9b FATTO — DA TESTARE** (riavvio completo `npm run dev`: modifiche al main).
+
 ## Stato task: detach/migrazione funzionanti (salvo caso ultima-tab, fix round 6 pianificato); indagine taskbar in corso
 
 ## Test
