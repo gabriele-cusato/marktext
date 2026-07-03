@@ -294,6 +294,20 @@ const dragIndicatorVisible = ref(false)
 // rimosso in onTabDragEnd/onBeforeUnmount. Non un ref: non serve reattività, è solo un
 // riferimento al nodo appeso temporaneamente a document.body per setDragImage.
 let dragGhostEl = null
+// Fix round 3 (BUG-DROP, bug piattaforma electron#42252 — DECISIONS.md 2026-07-03): su
+// Windows/Electron 28+ il `drop` per i drag HTML5 interni alla stessa finestra non viene
+// MAI consegnato (refactor Chromium in WebContentsViewAura, mai fixato upstream). Il
+// reorder si decide quindi in onTabDragEnd (punto di rilascio dentro i bounds della tab
+// bar propria → computeDragTarget + EXCHANGE_TABS_BY_ID); onTabsDrop resta il percorso
+// preferenziale e questo flag evita la doppia esecuzione se un futuro Electron fixa il
+// bug (drop consegnato → il dragend non ripete l'EXCHANGE).
+let dropHandledThisDrag = false
+// Spike round 7 (taskbar spring-loading "alla VS Code"): blob URL del contenuto della tab
+// untitled, offerto come "file virtuale" via DownloadURL (vedi onTabDragStart). NON viene
+// revocato al dragend: con il CF_HDROP differito il target esterno (es. Explorer) può
+// materializzare il file ANCHE DOPO la fine del gesto (async data extraction OLE) — la
+// revoca avviene al dragstart successivo (sostituzione) e allo smontaggio.
+let dragBlobUrl = null
 
 // Context menu state (custom Vue, sostituisce Electron nativo)
 const ctxOpen = ref(false)
@@ -312,18 +326,41 @@ const selectFile = (file) => {
 // dataTransfer porta SOLO l'id della tab (mai oggetti ricchi, DRAG-TASK.md §2.1) —
 // coerente col detach cross-finestra che task3/4 costruiranno sullo stesso canale.
 const onTabDragStart = (event, file) => {
-  // [DEBUG drag-html5-dnd-task2] BUG-DROP: strumentazione temporanea per il retest, vedi
-  // worklog task2 "Fix round 1" — rimuovere a bug confermato risolto.
-  console.log('[DEBUG drag-html5-dnd-task2] onTabDragStart, id sorgente:', file.id)
   draggedTabId.value = file.id
   dragTargetId.value = null
-  event.dataTransfer.effectAllowed = 'move'
+  dropHandledThisDrag = false
+  // Spike round 7: 'copyMove' (non più solo 'move') — il DownloadURL sotto richiede che
+  // l'effetto 'copy' sia consentito, altrimenti Explorer/desktop non possono accettare
+  // la copia del file e la taskbar non vede un drag "da file".
+  event.dataTransfer.effectAllowed = 'copyMove'
+  // Solo il MIME custom con l'id (DRAG-TASK.md §2.1): il `text/plain` aggiunto durante la
+  // diagnosi del BUG-DROP è stato rimosso — escluso come causa (bug piattaforma
+  // electron#42252, il drop non arrivava comunque) e avrebbe incollato l'id nelle app esterne.
   event.dataTransfer.setData('text/mt-tab-id', String(file.id))
-  // [DEBUG drag-html5-dnd-task2] round 3: aggiungere anche un formato standard accanto al
-  // MIME custom — sospetto che su Windows/OLE il data object con SOLO un tipo custom
-  // faccia rifiutare il drop (dropEffect 'none', drop mai consegnato). Se il retest
-  // conferma il fix, valutare se tenerlo (con guardia nel drop della zona testo) o meno.
-  event.dataTransfer.setData('text/plain', String(file.id))
+
+  // Spike round 7 (taskbar spring-loading "alla VS Code", ricerca 2026-07-03): la taskbar
+  // di Windows reagisce all'hover solo se l'IDataObject OLE contiene l'"etichetta file"
+  // (CF_HDROP). Chromium la genera (in modalità differita) quando il dataTransfer porta il
+  // formato speciale `DownloadURL` ("mime:nomefile:url") — è esattamente ciò che fa VS Code
+  // al dragstart delle tab (sorgente: dnd.ts, fillEditorsDragData, "enables support to
+  // drag a tab as file to desktop"). Tab salvata → URI file:// del documento reale;
+  // tab untitled → blob URL con il contenuto corrente (file virtuale). Effetto collaterale
+  // VOLUTO (parità VS Code): il drop su Explorer/desktop COPIA il file lì.
+  // Spike round 7c: SOLO `text/uri-list`, NIENTE `DownloadURL`. Verificato nel sorgente
+  // Chromium (data_transfer_util.cc → url_infos → SetURLs): un uri-list singolo impostato
+  // da JS produce nell'IDataObject OLE gli stessi formati del drag di un LINK da Chrome
+  // (shortcut .url virtuale FILEDESCRIPTOR+FILECONTENTS sincrono, CFSTR_INETURL, testo) —
+  // e il drag-link di Chrome ATTIVA lo spring-loading della taskbar (test 2026-07-03).
+  // `DownloadURL` invece chiama SetDownloadFileInfo → SetAsyncMode(TRUE) sull'INTERO
+  // IDataObject (verificato in os_exchange_data_provider_win.cc): indiziato principale
+  // dello spring-loading spento nei retest 7/7b. VS Code untitled fa esattamente così
+  // (solo uri-list con schema `untitled:`, mai DownloadURL — verificato in dnd.ts).
+  // Effetto collaterale transitorio dello spike: drop su desktop/Explorer = shortcut .url,
+  // NON più copia del file (trade-off da decidere a valle del test).
+  const uriListHref = file.pathname
+    ? 'file:///' + encodeURI(String(file.pathname).replace(/\\/g, '/'))
+    : 'marktext-untitled:' + encodeURIComponent(file.filename || 'Untitled')
+  event.dataTransfer.setData('text/uri-list', uriListHref)
 
   // Fix round 2 (BUG-GHOST): il drag image di default è lo screenshot rettangolare del
   // `li` (sfondo opaco su Windows), incoerente con le tab a pillola. Si clona il `li`
@@ -340,18 +377,26 @@ const onTabDragStart = (event, file) => {
   event.dataTransfer.setDragImage(ghost, event.clientX - rect.left, event.clientY - rect.top)
 }
 
-// Calcola, dalla coordinata clientX del cursore, davanti a quale tab andrebbe inserita
-// la tab trascinata (null = in fondo alla propria zona). Esclude esplicitamente la tab
+// Calcola, dalle coordinate del cursore, davanti a quale tab andrebbe inserita la tab
+// trascinata (null = in fondo alla propria zona). Esclude esplicitamente la tab
 // sorgente dal calcolo (invariante 4: niente equivalente di gu-mirror con HTML5 DnD) e
 // clampa i candidati alla zona pinnata/non-pinnata della tab trascinata (invariante 7,
 // H4): una pinnata non può calcolare un indice oltre l'ultima pinnata e viceversa. Se la
 // zona di appartenenza è vuota (es. unica pinnata) ricade sull'intera lista, coerente col
 // clamp che EXCHANGE_TABS_BY_ID applica comunque sul toIndex risultante.
-const computeDragTarget = (clientX) => {
+// Fix round 4 (BUG-MULTIROW): il calcolo era X-only (ignorava clientY) e scandiva i
+// candidati in ordine DOM (riga 1 → riga 2 → ...), prendendo la prima tab con centro-x
+// oltre il cursore — quasi sempre una tab di riga 1, qualunque fosse la riga sotto il
+// cursore reale. Ora i candidati vengono raggruppati per riga visiva
+// (getBoundingClientRect, coordinate viewport coerenti con clientX/clientY) e il match X
+// avviene SOLO dentro la riga individuata da clientY.
+const computeDragTarget = (clientX, clientY) => {
   const ul = tabDropContainer.value
-  if (!ul || !draggedTabId.value) return { targetId: null, targetEl: null, candidates: [] }
+  if (!ul || !draggedTabId.value) {
+    return { targetId: null, indicatorEl: null, indicatorAfter: false }
+  }
   const draggedTab = tabs.value.find((t) => t.id === draggedTabId.value)
-  if (!draggedTab) return { targetId: null, targetEl: null, candidates: [] }
+  if (!draggedTab) return { targetId: null, indicatorEl: null, indicatorAfter: false }
 
   const items = Array.from(ul.querySelectorAll('li.v2-tab'))
     .filter((el) => el.getAttribute('data-id') !== String(draggedTabId.value))
@@ -360,16 +405,43 @@ const computeDragTarget = (clientX) => {
     return t && !!t.pinned === !!draggedTab.pinned
   })
   const candidates = zoneItems.length ? zoneItems : items
+  if (!candidates.length) return { targetId: null, indicatorEl: null, indicatorAfter: false }
 
-  let targetEl = null
+  // Raggruppa i candidati per riga visiva. I candidati sono già in ordine DOM (= ordine
+  // di lettura riga per riga), quindi una nuova riga inizia quando il `top` del rect si
+  // discosta dal `top` della riga corrente di più di metà della sua altezza.
+  const rows = []
+  let currentRow = null
   for (const el of candidates) {
     const rect = el.getBoundingClientRect()
+    if (!currentRow || Math.abs(rect.top - currentRow.top) > rect.height / 2) {
+      currentRow = { top: rect.top, bottom: rect.bottom, cells: [] }
+      rows.push(currentRow)
+    }
+    currentRow.bottom = Math.max(currentRow.bottom, rect.bottom)
+    currentRow.cells.push({ el, rect })
+  }
+
+  // Sceglie la riga sotto il cursore: prima riga il cui bottom è ≥ clientY (aggancia
+  // anche il cursore sopra la prima riga o nei gap tra righe). Se il cursore è sotto
+  // tutte le righe usa l'ultima riga.
+  let rowIdx = rows.findIndex((r) => clientY <= r.bottom)
+  if (rowIdx === -1) rowIdx = rows.length - 1
+  const row = rows[rowIdx]
+
+  for (const { el, rect } of row.cells) {
     if (clientX < rect.left + rect.width / 2) {
-      targetEl = el
-      break
+      return { targetId: el.getAttribute('data-id'), indicatorEl: el, indicatorAfter: false }
     }
   }
-  return { targetId: targetEl ? targetEl.getAttribute('data-id') : null, targetEl, candidates }
+
+  // Cursore oltre l'ultima tab della riga: l'inserimento è a fine riga, cioè prima
+  // della prima tab della riga successiva (la lista è lineare) — ma l'indicatore va
+  // disegnato dove punta il mouse, cioè dopo l'ultima tab della riga corrente.
+  const lastCell = row.cells[row.cells.length - 1]
+  const nextRow = rows[rowIdx + 1]
+  const targetId = nextRow ? nextRow.cells[0].el.getAttribute('data-id') : null
+  return { targetId, indicatorEl: lastCell.el, indicatorAfter: true }
 }
 
 // Handler dragover sul contenitore (ul.v2-tabs): preventDefault (via .prevent nel
@@ -386,25 +458,23 @@ const onTabsDragOver = (event) => {
   event.dataTransfer.dropEffect = 'move'
   dragIndicatorVisible.value = true
 
-  const { targetId, targetEl, candidates } = computeDragTarget(event.clientX)
+  const { targetId, indicatorEl, indicatorAfter } = computeDragTarget(event.clientX, event.clientY)
   dragTargetId.value = targetId
 
   const ul = tabDropContainer.value
-  // Fix round 1 (BUG-INDICATORE-ALTEZZA): l'elemento di riferimento per top/height è
-  // il target stesso, o l'ultimo candidato nel caso "in fondo alla zona" — mai l'intera
-  // ul (che in multi-row è alta quanto tutte le righe insieme).
-  const refEl = targetEl || (candidates.length ? candidates[candidates.length - 1] : null)
-  if (targetEl) {
-    dragIndicatorLeft.value = targetEl.offsetLeft - 2 // 2px ≈ metà del GAP=3 tra le tab
-  } else if (candidates.length) {
-    const lastEl = candidates[candidates.length - 1]
-    dragIndicatorLeft.value = lastEl.offsetLeft + lastEl.offsetWidth + 1
+  // Fix round 4: `indicatorEl`/`indicatorAfter` arrivano già risolti da
+  // computeDragTarget (raggruppamento per riga, vedi sopra). `offsetLeft/offsetTop`
+  // sono relativi alla ul (sistema di coordinate dell'indicatore, diverso da
+  // getBoundingClientRect usato SOLO dentro computeDragTarget per il confronto col
+  // cursore) — non vanno mischiati i due sistemi.
+  if (indicatorEl) {
+    dragIndicatorLeft.value = indicatorAfter
+      ? indicatorEl.offsetLeft + indicatorEl.offsetWidth + 1
+      : indicatorEl.offsetLeft - 2 // 2px ≈ metà del GAP=3 tra le tab
+    dragIndicatorTop.value = indicatorEl.offsetTop
+    dragIndicatorHeight.value = indicatorEl.offsetHeight
   } else if (ul) {
     dragIndicatorLeft.value = 6 // ulPadding, ul vuota (solo la tab trascinata esiste)
-  }
-  if (refEl) {
-    dragIndicatorTop.value = refEl.offsetTop
-    dragIndicatorHeight.value = refEl.offsetHeight
   }
 
   const scrollEl = tabContainer.value
@@ -431,33 +501,80 @@ const onTabsDragLeave = (event) => {
 // Handler drop: SOLO mutazione store (invariante 1, mai removeChild/insertBefore a mano
 // — Vue v-for + :key riconcilia il DOM da solo). EXCHANGE_TABS_BY_ID applica già il clamp
 // di zona pinnata/non-pinnata (store/editor.js) sul toIndex risultante da toId.
+// Su questa piattaforma l'evento NON viene mai consegnato per i drag stessa-finestra
+// (bug electron#42252, vedi dropHandledThisDrag): resta come percorso preferenziale per
+// un futuro Electron fixato, il reorder effettivo lo fa il fallback in onTabDragEnd.
 const onTabsDrop = (event) => {
   const droppedId = event.dataTransfer.getData('text/mt-tab-id') || draggedTabId.value
-  // [DEBUG drag-html5-dnd-task2] BUG-DROP: strumentazione temporanea per il retest, vedi
-  // worklog task2 "Fix round 1" — rimuovere a bug confermato risolto. Non si può loggare
-  // dentro EXCHANGE_TABS_BY_ID (store/editor.js, vietato toccarlo in questo task): si logga
-  // l'esito leggendo tabs.value subito dopo la chiamata.
-  console.log('[DEBUG drag-html5-dnd-task2] onTabsDrop fired, event:', event, 'droppedId:', droppedId, 'dragTargetId:', dragTargetId.value)
+  // [DEBUG drag-html5-dnd-task3] log temporaneo (diagnosi round 5): se compare in una
+  // finestra DIVERSA dalla sorgente, il drop cross-finestra viene consegnato. Rimuovere
+  // a diagnosi chiusa.
+  console.log('[DEBUG drag-html5-dnd-task3] onTabsDrop fired, droppedId:', droppedId, 'dragTargetId:', dragTargetId.value, 'localDrag:', !!draggedTabId.value)
   if (!droppedId) return
   editorStore.EXCHANGE_TABS_BY_ID({ fromId: droppedId, toId: dragTargetId.value })
-  console.log('[DEBUG drag-html5-dnd-task2] dopo EXCHANGE_TABS_BY_ID, tabs.value ids:', tabs.value.map((t) => t.id))
+  dropHandledThisDrag = true
 }
 
 // Handler dragend (fine gesto, sia su drop riuscito sia su drop annullato): reset dello
 // stato locale, incremento di tabsRenderKey (invariante 2, evita .el stale nel vdom) e
 // ricalcolo pinnedTab/layout fuori dal lock (invariante 3/6).
 const onTabDragEnd = (event) => {
-  // [DEBUG drag-html5-dnd-task2] BUG-DROP: strumentazione temporanea per il retest, vedi
-  // worklog task2 "Fix round 1" — rimuovere a bug confermato risolto. dropEffect === 'none'
-  // indica che il browser NON ha registrato un drop valido (utile anche per distinguere il
-  // caso "rilasciata fuori da ogni target" in vista del detach task3/4).
-  console.log('[DEBUG drag-html5-dnd-task2] onTabDragEnd, dropEffect:', event && event.dataTransfer && event.dataTransfer.dropEffect)
+  // [DEBUG drag-html5-dnd-task3] log INCONDIZIONATO d'ingresso (diagnosi round 5): serve a
+  // distinguere "dragend mai consegnato" da "ramo silenzioso" quando si rilascia su
+  // un'altra finestra MarkText. Rimuovere a diagnosi chiusa.
+  console.log('[DEBUG drag-html5-dnd-task3] onTabDragEnd ENTER, clientX/Y:', event && event.clientX, event && event.clientY, 'screenX/Y:', event && event.screenX, event && event.screenY, 'dropHandled:', dropHandledThisDrag, 'draggedTabId:', draggedTabId.value, 'dropEffect:', event && event.dataTransfer && event.dataTransfer.dropEffect)
   // Fix round 2 (BUG-GHOST): rimuove dal DOM il nodo ghost creato in onTabDragStart, ora
   // che il drag è terminato (successo o annullato) e non serve più al browser.
   if (dragGhostEl) {
     dragGhostEl.remove()
     dragGhostEl = null
   }
+  // Fix round 3 (BUG-DROP, electron#42252): il reorder stessa-finestra si decide QUI.
+  // Su questa piattaforma il `drop` non viene mai consegnato e `dropEffect` è sempre
+  // 'none' per i drag interni → non usarli come segnale (regola DECISIONS.md 2026-07-03).
+  // Il dragend arriva sempre e porta le coordinate del punto di rilascio: se cade dentro
+  // i bounds della tab bar propria si ricalcola il target con lo stesso computeDragTarget
+  // del dragover (coerenza con l'indicatore mostrato) e si muta SOLO lo store (invariante 1).
+  // drag-html5-dnd-task3: se il rilascio cade FUORI dai bounds della finestra propria
+  // (non solo fuori dalla tab bar) si tratta di un detach in nuova finestra (o su
+  // un'altra finestra MarkText: quella decisione resta al main via `_findEditorWindowAt`,
+  // non toccata qui — vedi DETACH_TAB/mt::detach-tab). Le due condizioni sono mutuamente
+  // esclusive: dentro la tabbar → reorder; fuori dalla finestra → detach; dentro la
+  // finestra ma fuori dalla tabbar → nessuna azione (drag annullato, invariato).
+  if (!dropHandledThisDrag && draggedTabId.value && event) {
+    const tabbarEl = tabDropContainer.value ? tabDropContainer.value.closest('.v2-tabbar') : null
+    const insideTabbar = tabbarEl
+      ? (() => {
+          const rect = tabbarEl.getBoundingClientRect()
+          return event.clientX >= rect.left && event.clientX <= rect.right &&
+            event.clientY >= rect.top && event.clientY <= rect.bottom
+        })()
+      : false
+    if (insideTabbar) {
+      const { targetId } = computeDragTarget(event.clientX, event.clientY)
+      editorStore.EXCHANGE_TABS_BY_ID({ fromId: draggedTabId.value, toId: targetId })
+    } else {
+      // Bounds della finestra propria in coordinate schermo (non client): `screenX/Y` del
+      // `dragend` sono nativamente in coordinate schermo, quindi il confronto va fatto con
+      // `window.screenX/screenY/outerWidth/outerHeight` (bounds della finestra corrente),
+      // MAI con `dropEffect` (sempre 'none' su questa piattaforma, electron#42252).
+      const outsideWindow =
+        event.screenX < window.screenX ||
+        event.screenX > window.screenX + window.outerWidth ||
+        event.screenY < window.screenY ||
+        event.screenY > window.screenY + window.outerHeight
+      // [DEBUG drag-html5-dnd-task3] log temporaneo per il test manuale del detach —
+      // rimuovere a detach confermato funzionante.
+      console.log('[DEBUG drag-html5-dnd-task3] onTabDragEnd, screenX/Y:', event.screenX, event.screenY, 'window bounds:', window.screenX, window.screenY, window.outerWidth, window.outerHeight, 'outsideWindow:', outsideWindow)
+      if (outsideWindow) {
+        const tab = tabs.value.find((t) => t.id === draggedTabId.value)
+        if (tab) {
+          editorStore.DETACH_TAB(tab, { x: event.screenX, y: event.screenY })
+        }
+      }
+    }
+  }
+  dropHandledThisDrag = false
   draggedTabId.value = null
   dragTargetId.value = null
   dragIndicatorVisible.value = false
@@ -761,45 +878,26 @@ const recomputePinnedTab = (items = null, multiRow = null) => {
 // raggiunga il dragover handler di Muya sul container editor, e blocca il drop SOLO se
 // il dataTransfer porta il MIME type dedicato delle tab. Basato sui `types` (sempre
 // leggibili in dragover, a differenza dei dati) e non su `draggedTabId` locale: vale
-// anche per un drag di tab in arrivo da un'ALTRA finestra (serve a task3/4, che userà
-// `dropEffect === 'none'` come segnale affidabile per il detach). `event.target` può
+// anche per un drag di tab in arrivo da un'ALTRA finestra (serve a task3/4; nota: il
+// detach NON userà `dropEffect === 'none'` come segnale — inaffidabile per bug
+// electron#42252, si useranno le coordinate schermo del dragend). `event.target` può
 // essere un nodo di testo (niente `.closest`) → normalizzato sul parentElement in quel caso.
+// Fix round 5 (regressione taskbar/cross-finestra, 2026-07-03): SOLO stopPropagation, MAI
+// preventDefault. preventDefault su dragover significa "ACCETTO il drop" (poi negato con
+// dropEffect 'none'): quel accetta-poi-nega generalizzato a livello window innesca il
+// meccanismo di electron#42252 (CompleteDragExit azzera current_drag_data_ → stato del
+// drag OLE corrotto per tutto il resto del gesto: niente spring-loading taskbar, drop
+// cross-finestra mai consegnato). Il rifiuto corretto nel modello HTML5 DnD è NON
+// cancellare il dragover: senza preventDefault il target resta non-accettante di default
+// (il dataTransfer porta solo il MIME custom, il contenteditable non ha flavor testuali
+// da incollare), e lo stopPropagation impedisce comunque all'handler di Muya di
+// accettarlo per conto suo.
 const blockForeignTabDropOutsideTabbar = (event) => {
   if (!event.dataTransfer || !event.dataTransfer.types.includes('text/mt-tab-id')) return
   const targetEl = event.target.closest ? event.target : event.target.parentElement
   if (targetEl && targetEl.closest('.v2-tabbar')) return
-  event.preventDefault()
-  event.dataTransfer.dropEffect = 'none'
   event.stopPropagation()
 }
-
-// [DEBUG drag-html5-dnd-task2] round 3: tracer temporaneo degli eventi DnD a livello
-// window (entrambe le fasi), per individuare dove muore la consegna del drop.
-// Deduplica i dragover ripetuti sullo stesso target/fase per non inondare la console.
-// Rimuovere a bug risolto.
-let dbgLastOverKey = null
-const dbgDescribe = (el) => {
-  if (!el) return 'null'
-  if (!el.tagName) return el.nodeName
-  const cls = typeof el.className === 'string' ? el.className : ''
-  return `${el.tagName.toLowerCase()}${cls ? '.' + cls.split(' ').slice(0, 2).join('.') : ''}`
-}
-const dbgDndTracer = (event) => {
-  const phase = event.eventPhase === 1 ? 'capture' : 'bubble'
-  if (event.type === 'dragover') {
-    const key = `${phase}|${dbgDescribe(event.target)}|${event.defaultPrevented}`
-    if (key === dbgLastOverKey) return
-    dbgLastOverKey = key
-  }
-  console.log(
-    '[DEBUG dnd-tracer]', event.type, phase,
-    'target:', dbgDescribe(event.target),
-    'defaultPrevented:', event.defaultPrevented,
-    'dropEffect:', event.dataTransfer && event.dataTransfer.dropEffect,
-    'effectAllowed:', event.dataTransfer && event.dataTransfer.effectAllowed
-  )
-}
-const DBG_DND_EVENTS = ['dragenter', 'dragleave', 'dragover', 'drop', 'dragend']
 
 onMounted(() => {
   // Bus listener per context menu legacy (mantenuti per compatibilità)
@@ -848,13 +946,6 @@ onMounted(() => {
   // dragover/drop/dragend sul template. Il detach via drag-out resta TEMPORANEAMENTE
   // non funzionante: task3/4 lo re-implementeranno sopra l'HTML5 DnD (vedi worklog).
 
-  // [DEBUG drag-html5-dnd-task2] round 3: tracer PRIMA del blocker così vede gli eventi
-  // anche dove il blocker fa stopPropagation. Rimuovere a bug risolto.
-  for (const evName of DBG_DND_EVENTS) {
-    window.addEventListener(evName, dbgDndTracer, true)
-    window.addEventListener(evName, dbgDndTracer, false)
-  }
-
   // Fix round 1 (BUG-DRAG-ZONA-TESTO): listener permanente, fase capture (terzo arg
   // `true`), rimosso simmetricamente in onBeforeUnmount.
   window.addEventListener('dragover', blockForeignTabDropOutsideTabbar, true)
@@ -864,17 +955,17 @@ onBeforeUnmount(() => {
   const el = tabContainer.value
   if (el) el.removeEventListener('wheel', handleTabScroll)
   window.removeEventListener('dragover', blockForeignTabDropOutsideTabbar, true)
-  // [DEBUG drag-html5-dnd-task2] round 3: rimozione tracer temporaneo.
-  for (const evName of DBG_DND_EVENTS) {
-    window.removeEventListener(evName, dbgDndTracer, true)
-    window.removeEventListener(evName, dbgDndTracer, false)
-  }
 
   // Fix round 2 (BUG-GHOST): rimozione di sicurezza del ghost se il componente viene
   // smontato a metà di un drag (caso limite, es. chiusura finestra durante il gesto).
   if (dragGhostEl) {
     dragGhostEl.remove()
     dragGhostEl = null
+  }
+  // Spike round 7: revoca del blob URL del file virtuale (untitled) allo smontaggio.
+  if (dragBlobUrl) {
+    URL.revokeObjectURL(dragBlobUrl)
+    dragBlobUrl = null
   }
 
   bus.off('TABS::close-this', closeTab)

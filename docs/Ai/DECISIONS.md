@@ -25,6 +25,26 @@
 - Il FAIL del task1 aveva DUE cause sovrapposte: (1) ancestor `app-region: drag` (risolta dall'overlay fratello) e (2) `e.preventDefault()` di dragula sul `mousedown` (`dragula.js` ~riga 113), che in Chromium sopprime il dragstart nativo — confermata disattivando dragula (`drake.destroy()`) e ritestando.
 - Vincoli permanenti per la migrazione (task2-5): l'overlay `.v2-tabbar-drag-region` è struttura definitiva (le tab non devono mai tornare discendenti di un elemento `app-region: drag`); dragula NON può coesistere con l'HTML5 DnD sulle stesse tab → rimozione completa fin dal primo task che introduce il DnD nativo; gli spike temporanei in `tabs.vue` (log mousedown/dragstart, `drake.destroy()`) vanno rimossi/sostituiti dall'implementazione reale.
 
+## 2026-07-03 — Workflow: gate obbligatorio prima di ogni Agent-Code (richiesta utente)
+
+- Prima di OGNI avvio di Agent-Code (anche per fix round piccoli): pubblicare il riepilogo di cosa farà l'agente, dichiarare chi esegue e perché, e ATTENDERE l'OK esplicito dell'utente nel turno successivo. Una richiesta generica ("puoi correggere?") NON vale come OK: l'OK va dato dopo aver visto il riepilogo.
+- Le istruzioni operative per l'agente vanno scritte in un file leggibile dall'utente PRIMA del lancio (plan del task per i task nuovi; per i fix round, sezione dedicata nel worklog del task), non solo inline nel prompt dell'agente.
+- Regola nata il 2026-07-03 dopo un lancio di Agent-Code (fix round 4 task2 drag-html5-dnd) senza attesa dell'OK e senza istruzioni su file.
+
+## 2026-07-03 — drag-html5-dnd: indagine taskbar spring-loading — strade GIÀ provate e NON risolutive (non ritentarle)
+
+Obiettivo: drag di una tab sopra un'icona della taskbar Win11 deve rivelare la finestra (parità VS Code, che ci riesce con tab salvate E untitled sulla stessa macchina). Stato: NON ancora risolto. Registro di ciò che è già stato falsificato empiricamente (retest utente) per non riprovarlo:
+
+- **NON è l'OS**: Win11 26200, feature attiva (drag file da Explorer → spring OK; drag LINK da Chrome stock → spring OK). Nessun aggiornamento/modifica Windows intercorso.
+- **NON è il blocker accetta-poi-nega** (fix round 5, `stopPropagation`-only): corretto, ha risolto il drop cross-finestra ma NON la taskbar.
+- **NON è il solo CF_HDROP**: spike 7 con `DownloadURL` (`SetDownloadFileInfo` → CF_HDROP differito + `SetAsyncMode(TRUE)` globale, verificato in os_exchange_data_provider_win.cc) → copia su desktop FUNZIONA (anche untitled via blob URL) ma taskbar NO.
+- **NON sono i formati URL**: spike 7c con SOLO `text/uri-list` (verificato in data_transfer_util.cc: da JS finisce in `DropData.url_infos`, IDENTICO percorso del drag di un link → SetURLs → shortcut .url virtuale sincrono + CFSTR_INETURL) → taskbar NO, pur essendo il drag-link di Chrome funzionante sulla stessa macchina.
+- **NON è il payload in generale**: anche il drag di TESTO semplice da MarkText non attiva la taskbar (nessun nostro handler coinvolto).
+- Fatti utili acquisiti: `dropEffect` al `dragend` round-trippa per i drop ESTERNI (`'copy'` = consumato es. copia Explorer, `'none'` = rifiutato) → base valida per il gate "copia esterna vs nuova finestra". VS Code (dnd.ts): `DownloadURL` solo per schema `file:`, untitled = solo uri-list.
+- **ESITO HARNESS (2026-07-03, chiude l'isolamento)**: Electron 39 minimale (framed E frameless) fa spring con QUALSIASI payload (link, testo, uri-list, perfino solo MIME custom). Quindi: Electron 39 scagionato, frameless scagionato, **formati/payload scagionati** (i tentativi 7/7b/7c sui formati erano fuori strada — NON ritentarli). **La causa è DENTRO MarkText**, globale alla pagina (rompe anche il drag di testo).
+- Indiziato principale per la prossima sessione: handler `dragover` con `preventDefault` che coprono la pagina (Muya `dragDropCtrl.js` sull'editor, `.prevent` sulla `ul.v2-tabs`, eventuali handler globali) — famiglia electron#42252. Piano di bisezione dettagliato (harness con preventDefault globale → varianti → bisezione in MarkText) nel worklog task3, sezione "Harness Electron 39 minimale — ESITO E STRADA DA PERCORRERE".
+- Dettagli completi: worklog task3 (`drag-html5-dnd-task3-worklog.md`, sezioni spike 7/7b/7c, ricerche Agent-Search e harness).
+
 ## 2026-07-03 — drag-html5-dnd: bug piattaforma electron#42252, evento `drop` stessa finestra INAFFIDABILE su Windows
 
 - Diagnosi task2 (tracer DnD completo + ricerca online): il mancato reorder NON era un nostro bug. È **electron/electron#42252** ("Custom Drag and Drop broken on Electron 28 and later", Windows, chiuso "not planned", mai fixato): un refactor Chromium in `WebContentsViewAura` (`CompleteDragExit` azzera `current_drag_data_`, `UpdateDragOperation` non registra più l'operazione) rompe la consegna del `drop` per i drag HTML5 **interni alla stessa finestra**. Sintomi verificati da noi: `dragstart` ok, `dragover` consegnato e cancellato con `dropEffect='move'`, ma il valore non round-trippa (i log lo rivedono `none`), al rilascio arriva `dragleave`+`dragend` con `dropEffect:'none'` e il `drop` non viene MAI consegnato. Escluse cause nostre: overlay app-region (testato disattivato: identico), MIME solo-custom (aggiunto `text/plain`: identico), mancanza `dropEffect`/`dragenter.prevent` (aggiunti: identico).

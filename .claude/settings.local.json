@@ -11,7 +11,8 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:opencode.ai)",
       "Read(//c/Users/cusato.gabriele/.config/opencode/skills/**)",
-      "WebFetch(domain:developers.openai.com)"
+      "WebFetch(domain:developers.openai.com)",
+      "Bash(node *)"
     ]
   }
 }

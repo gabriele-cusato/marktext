@@ -942,6 +942,14 @@ export const useEditorStore = defineStore('editor', {
       window.electron.ipcRenderer.on('mt::detach-tab-ack', (_, { tabId }) => {
         const t = this.tabs.find((x) => x.id === tabId)
         if (t) this.FORCE_CLOSE_TAB(t)
+        // Fix round 6: migrazione dell'ultima tab di una finestra SECONDARIA verso un'altra finestra
+        // esistente → la secondaria resta senza tab, chiudila (graceful). FORCE_CLOSE_TAB non riapre
+        // una tab vuota (verificato: nessuna auto-blank-tab), quindi il controllo post-chiusura è
+        // sufficiente. Il caso owner non arriva mai a questo ack per l'ultima tab: il main nega il
+        // detach a monte quando la finestra sorgente è owner (vedi handler mt::detach-tab).
+        if (this.tabs.length === 0) {
+          window.electron.ipcRenderer.send('mt::cmd-close-window')
+        }
       })
 
       // H5-RE: questa finestra riceve una tab trascinata da un'altra finestra → inseriscila alla posizione del drop.
@@ -973,7 +981,11 @@ export const useEditorStore = defineStore('editor', {
     // Riusa il flusso restore: il main crea una finestra "di restore" con questa SINGOLA tab già risolta
     // (gestisce uniforme saved/untitled/dirty). Alla conferma (mt::detach-tab-ack) la tab sorgente si chiude.
     DETACH_TAB(tab, screen = null) {
-      if (this.tabs.length <= 1) return // ultima tab → niente da separare
+      // Fix round 6: la guardia sull'ultima tab resta per il context-menu (screen assente, sempre
+      // detach in NUOVA finestra → no-op sensato). Con coordinate (drag verso altra finestra) la
+      // migrazione dell'ultima tab è legittima: la finestra secondaria svuotata si auto-chiude
+      // (vedi handler mt::detach-tab-ack).
+      if (this.tabs.length <= 1 && !screen) return // ultima tab, context-menu → niente da separare
       bus.emit('pre-save') // flush sincrono del source debounced prima di leggere il markdown
       const t = this.tabs.find((x) => x.id === tab.id)
       if (!t) return
@@ -998,7 +1010,10 @@ export const useEditorStore = defineStore('editor', {
         // H5-RE: coord schermo del drop (solo dal drag-out) → il main prova a droppare in una FINESTRA ESISTENTE
         // sotto il puntatore; se non ce n'è, crea una nuova finestra (context menu = sempre null → nuova finestra).
         screenX: screen ? screen.x : null,
-        screenY: screen ? screen.y : null
+        screenY: screen ? screen.y : null,
+        // Fix round 6: informa il main se questa era l'ultima tab della finestra sorgente, per decidere
+        // se migrare/chiudere (secondaria) o negare (owner) — vedi handler mt::detach-tab.
+        isLastTab: this.tabs.length === 1
       }))
     },
 

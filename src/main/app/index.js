@@ -986,7 +986,7 @@ class App {
     ipcMain.on('mt::detach-tab', (e, payload) => {
       const sourceWin = BrowserWindow.fromWebContents(e.sender)
       if (!sourceWin || !payload || !payload.tab) return
-      const { tab, sourceTabId, screenX, screenY } = payload
+      const { tab, sourceTabId, screenX, screenY, isLastTab } = payload
       const { menu: appMenu } = this._accessor
       // H5-RE: drag-out CON coordinate → se il puntatore è su una finestra editor esistente, droppa la tab LÌ
       // (alla posizione del drop). Altrimenti (o context menu = coord null) → nuova finestra (detach classico).
@@ -994,6 +994,14 @@ class App {
         typeof screenX === 'number'
           ? this._findEditorWindowAt(screenX, screenY, sourceWin.id)
           : null
+      // Fix round 6: l'ultima tab di una finestra NON migra/detach in due casi — (a) verso NESSUNA
+      // finestra (creerebbe una finestra fotocopia dell'attuale, inutile), (b) se la sorgente è la
+      // finestra OWNER (la sessione principale non deve mai restare senza tab). Le finestre secondarie
+      // con 1 tab possono invece migrare verso una finestra esistente e sparire (richiesta utente).
+      const srcEditor = this._windowManager.get(sourceWin.id)
+      if (isLastTab && (!targetWin || (srcEditor && srcEditor._isSessionOwner))) {
+        return
+      }
       if (targetWin) {
         if (tab.pathname) {
           targetWin.addToOpenedFiles(tab.pathname) // watcher sulla finestra di destinazione PRIMA di chiudere la sorgente

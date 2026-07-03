@@ -79,3 +79,19 @@ Nota: i numeri di riga indicati sotto sono quelli rilevati dall'esplorazione al 
   - Dopo il drop: nessun `.el` stale (le tab restano cliccabili/renderizzate correttamente), `recomputePinnedTab` aggiornato, nessun layout rotto (multi-riga, wrap, "+" inline).
   - Nessuna regressione su resize finestra durante/dopo un drag (lock ResizeObserver).
   - Autoscroll (se implementato in questo task): trascinare una tab vicino al bordo della tab bar con molte tab aperte, verificare scroll automatico.
+
+## AGGIORNAMENTO 2026-07-03 — bug piattaforma electron#42252: evento `drop` stessa finestra INAFFIDABILE (da `docs/Ai/DECISIONS.md` 2026-07-03)
+
+Diagnosi del BUG-DROP residuo dopo il fix round 2 (tracer DnD completo + ricerca online): il mancato reorder NON è un bug nostro. È **electron/electron#42252** ("Custom Drag and Drop broken on Electron 28 and later", Windows, chiuso "not planned", mai fixato): un refactor Chromium in `WebContentsViewAura` (`CompleteDragExit` azzera `current_drag_data_`, `UpdateDragOperation` non registra più l'operazione) rompe la consegna del `drop` per i drag HTML5 **interni alla stessa finestra**.
+
+Sintomi verificati nei log runtime: `dragstart` ok; `dragover` consegnato e cancellato con `dropEffect='move'`, ma il valore non round-trippa (i log lo rivedono `'none'`); al rilascio arrivano `dragleave`+`dragend` con `dropEffect:'none'` e il `drop` non viene MAI consegnato. Escluse cause nostre: overlay app-region (testato disattivato: identico), MIME solo-custom (aggiunto `text/plain`: identico), mancanza `dropEffect`/`dragenter.prevent` (aggiunti nel fix round 2: identico).
+
+**REGOLA vincolante (per questo task e per tutta la feature, finché #42252 non è fixato upstream): mai affidare la logica stessa-finestra all'evento `drop` o a `dropEffect`.** Le decisioni si prendono su `dragend`, che arriva sempre e porta `clientX/clientY` del punto di rilascio:
+
+- rilascio dentro i bounds della tab bar propria → reorder (`computeDragTarget(clientX)` + `EXCHANGE_TABS_BY_ID`);
+- handler `drop` (`onTabsDrop`) tenuto come percorso preferenziale con flag anti-doppia-esecuzione (se un futuro Electron fixa il bug, funziona il drop e il `dragend` non duplica);
+- downside cosmetico accettato dall'utente: durante il drag sopra la propria tabbar il cursore OS mostra il divieto (lo stato dell'operazione è azzerato lato browser, non modificabile da JS). Rivalutare se Electron fixa il bug.
+
+Impatti sugli altri task: il drag verso l'ESTERNO della finestra sorgente NON è affetto (confermato: hover-taskbar OLE funziona) → il drop cross-finestra (task4) dovrebbe funzionare normalmente; il detach (task3) NON deve usare `dropEffect === 'none'` come segnale (su questa piattaforma è sempre `'none'` per i drag interni) → usare le coordinate schermo del `dragend` (vedi aggiornamento nel plan task3).
+
+Fonti: github.com/electron/electron/issues/42252 (root cause dettagliata), Chromium #1005747 e #327244265. Testo integrale: `docs/Ai/DECISIONS.md` 2026-07-03.
