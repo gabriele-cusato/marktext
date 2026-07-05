@@ -1,3 +1,11 @@
+## 2026-07-05 — Warning: mai sopprimerli, sempre fix alla radice
+
+- Decisione utente (feature warning-fix): i warning (vue-i18n, Vite, Vue, Electron, npm, ecc.)
+  non vanno MAI silenziati tramite opzioni che disattivano il controllo; vanno risolti alla
+  radice (es. riformulare stringhe, aggiungere chiavi, correggere config). Vale anche per le
+  feature future.
+- Registro completo dei warning e delle cause: `docs/Ai/Warning-fix-notes.md`.
+
 ## 2026-07-01 — Version control consentito
 
 - Consentito usare `git` solo per verifiche operative dopo Agent-Code: `status`, `diff`, elenco file modificati e ispezione patch contro plan.
