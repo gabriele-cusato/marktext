@@ -232,6 +232,8 @@
   "sideBar": {
     "search": {
       "searchInFolder": "폴더에서 검색...",
+      "searchInTabsTitle": "모든 탭에서 검색",
+      "searchInTabsPlaceholder": "모든 탭에서 검색...",
       "noFolderOpen": "열린 폴더 없음",
       "noResultsFound": "결과를 찾을 수 없습니다.",
       "cancel": "취소",
@@ -442,7 +444,7 @@
         "tabBarVisibility": "탭이 표시되는지 여부",
         "sourceCodeModeEnabled": "소스 코드 모드가 기본적으로 활성화되어 있는지 여부",
         "searchExclusions": "검색에서 제외할 glob 패턴 목록",
-        "searchMaxFileSize": "최대 파일 크기(<maxFileSize><suffix>). 접미사가 주어지지 않으면 K, M 또는 G 접미사가 허용되며, 숫자는 바이트로 처리됩니다",
+        "searchMaxFileSize": "최대 파일 크기([maxFileSize][suffix]). 접미사가 주어지지 않으면 K, M 또는 G 접미사가 허용되며, 숫자는 바이트로 처리됩니다",
         "searchIncludeHidden": "숨겨진 파일과 디렉터리에서 검색할지 여부",
         "searchNoIgnore": ".gitignore와 같은 무시 파일을 무시할지 여부",
         "searchFollowSymlinks": "심볼릭 링크를 따라야 하는지 여부",
@@ -1026,7 +1028,8 @@
   },
   "common": {
     "cancel": "취소",
-    "ok": "확인"
+    "ok": "확인",
+    "close": "닫기"
   },
   "dialog": {
     "cancel": "취소",
@@ -1155,7 +1158,7 @@
     },
     "htmlBlock": {
       "title": "HTML 블록",
-      "subtitle": "<div> HTML </div>"
+      "subtitle": "[div] HTML [/div]"
     },
     "codeBlock": {
       "title": "코드 블록",
@@ -1349,12 +1352,12 @@
     "insertColumnRight": "오른쪽에 열 삽입",
     "removeColumn": "열 제거",
     "copyContent": "내용 복사",
-    "emptyMathFormula": "< 빈 수학 공식 >",
-    "invalidMathFormula": "< 잘못된 수학 공식 >",
-    "emptyMermaidBlock": "< 빈 Mermaid 블록 >",
+    "emptyMathFormula": "[ 빈 수학 공식 ]",
+    "invalidMathFormula": "[ 잘못된 수학 공식 ]",
+    "emptyMermaidBlock": "[ 빈 Mermaid 블록 ]",
     "loading": "로딩 중...",
-    "emptyDiagramBlock": "< 빈 다이어그램 블록 >",
-    "emptyHtmlBlock": "< 빈 HTML 블록 >",
+    "emptyDiagramBlock": "[ 빈 다이어그램 블록 ]",
+    "emptyHtmlBlock": "[ 빈 HTML 블록 ]",
     "onlyTopBlockCanRenderIcon": "최상위 블록만 앞의 아이콘 버튼을 렌더링할 수 있습니다.",
     "unhandledFunctionType": "처리되지 않은 함수 유형: {functionType}",
     "highlight-start": "[하이라이트 시작]",

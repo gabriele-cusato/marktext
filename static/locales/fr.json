@@ -232,6 +232,8 @@
   "sideBar": {
     "search": {
       "searchInFolder": "Rechercher dans le dossier...",
+      "searchInTabsTitle": "Rechercher dans tous les onglets",
+      "searchInTabsPlaceholder": "Rechercher dans tous les onglets...",
       "noFolderOpen": "Aucun dossier ouvert",
       "noResultsFound": "Aucun résultat trouvé.",
       "cancel": "Annuler",
@@ -442,7 +444,7 @@
         "tabBarVisibility": "Les onglets sont-ils affichés",
         "sourceCodeModeEnabled": "Le mode code source est-il activé par défaut",
         "searchExclusions": "Liste des motifs glob à exclure de la recherche",
-        "searchMaxFileSize": "La taille maximale de fichier (<maxFileSize><suffix>). Les suffixes K, M ou G sont autorisés si aucun suffixe n'est donné, le nombre est traité comme des octets",
+        "searchMaxFileSize": "La taille maximale de fichier ([maxFileSize][suffix]). Les suffixes K, M ou G sont autorisés si aucun suffixe n'est donné, le nombre est traité comme des octets",
         "searchIncludeHidden": "Rechercher dans les fichiers et répertoires cachés",
         "searchNoIgnore": "Ignorer les fichiers d'ignore comme .gitignore",
         "searchFollowSymlinks": "Les liens symboliques doivent-ils être suivis",
@@ -1026,7 +1028,8 @@
   },
   "common": {
     "cancel": "Annuler",
-    "ok": "OK"
+    "ok": "OK",
+    "close": "Fermer"
   },
   "dialog": {
     "cancel": "Annuler",
@@ -1155,7 +1158,7 @@
     },
     "htmlBlock": {
       "title": "Bloc HTML",
-      "subtitle": "<div> HTML </div>"
+      "subtitle": "[div] HTML [/div]"
     },
     "codeBlock": {
       "title": "Bloc de code",
@@ -1349,12 +1352,12 @@
     "insertColumnRight": "Insérer une colonne à droite",
     "removeColumn": "Supprimer la colonne",
     "copyContent": "Copier le contenu",
-    "emptyMathFormula": "< Formule mathématique vide >",
-    "invalidMathFormula": "< Formule mathématique invalide >",
-    "emptyMermaidBlock": "< Bloc Mermaid vide >",
+    "emptyMathFormula": "[ Formule mathématique vide ]",
+    "invalidMathFormula": "[ Formule mathématique invalide ]",
+    "emptyMermaidBlock": "[ Bloc Mermaid vide ]",
     "loading": "Chargement...",
-    "emptyDiagramBlock": "< Bloc de diagramme vide >",
-    "emptyHtmlBlock": "< Bloc HTML vide >",
+    "emptyDiagramBlock": "[ Bloc de diagramme vide ]",
+    "emptyHtmlBlock": "[ Bloc HTML vide ]",
     "onlyTopBlockCanRenderIcon": "Seul le bloc supérieur peut rendre le bouton d'icône avant.",
     "unhandledFunctionType": "Type de fonction non géré : {functionType}",
     "highlight-start": "[début de surbrillance]",

@@ -1,7 +1,7 @@
 <template>
   <div class="side-bar-search">
     <div class="search-header">
-      <span class="search-title">{{ t('sideBar.search.searchInTabs', 'Cerca in tutte le tab') }}</span>
+      <span class="search-title">{{ t('sideBar.search.searchInTabsTitle', 'Cerca in tutte le tab') }}</span>
       <span
         class="search-close"
         :title="t('common.close', 'Chiudi')"
@@ -19,7 +19,7 @@
         v-model="keyword"
         type="text"
         class="search-input"
-        :placeholder="t('sideBar.search.searchInTabs', 'Search in all tabs...')"
+        :placeholder="t('sideBar.search.searchInTabsPlaceholder', 'Search in all tabs...')"
         @input="onInput"
         @keydown.enter.prevent="onEnter"
       >

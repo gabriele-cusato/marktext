@@ -232,6 +232,8 @@
   "sideBar": {
     "search": {
       "searchInFolder": "在資料夾中搜尋…",
+      "searchInTabsTitle": "在所有分頁中搜尋",
+      "searchInTabsPlaceholder": "在所有分頁中搜尋…",
       "noFolderOpen": "沒有開啟的資料夾",
       "noResultsFound": "找不到結果。",
       "cancel": "取消",
@@ -442,7 +444,7 @@
         "tabBarVisibility": "是否顯示標籤頁",
         "sourceCodeModeEnabled": "是否預設啟用原始碼模式",
         "searchExclusions": "要從搜尋中排除的 glob 模式清單",
-        "searchMaxFileSize": "最大檔案大小（<maxFileSize><suffix>）。如果沒有後綴，允許使用 K、M 或 G 後綴，數字會被視為位元組",
+        "searchMaxFileSize": "最大檔案大小（[maxFileSize][suffix]）。如果沒有後綴，允許使用 K、M 或 G 後綴，數字會被視為位元組",
         "searchIncludeHidden": "是否在隱藏檔案和目錄中搜尋",
         "searchNoIgnore": "是否忽略像 .gitignore 這樣的忽略檔案",
         "searchFollowSymlinks": "是否應該跟隨符號連結",
@@ -1026,7 +1028,8 @@
   },
   "common": {
     "cancel": "取消",
-    "ok": "確定"
+    "ok": "確定",
+    "close": "關閉"
   },
   "dialog": {
     "cancel": "取消",
@@ -1151,7 +1154,7 @@
     },
     "htmlBlock": {
       "title": "HTML 區塊",
-      "subtitle": "<div> HTML </div>"
+      "subtitle": "[div] HTML [/div]"
     },
     "codeBlock": {
       "title": "程式碼區塊",
@@ -1357,12 +1360,12 @@
     "insertColumnRight": "在右側插入欄",
     "removeColumn": "刪除欄",
     "copyContent": "複製內容",
-    "emptyMathFormula": "< 空數學公式 >",
-    "invalidMathFormula": "< 無效數學公式 >",
-    "emptyMermaidBlock": "< 空 Mermaid 區塊 >",
+    "emptyMathFormula": "[ 空數學公式 ]",
+    "invalidMathFormula": "[ 無效數學公式 ]",
+    "emptyMermaidBlock": "[ 空 Mermaid 區塊 ]",
     "loading": "載入中…",
-    "emptyDiagramBlock": "< 空圖表區塊 >",
-    "emptyHtmlBlock": "< 空 HTML 區塊 >",
+    "emptyDiagramBlock": "[ 空圖表區塊 ]",
+    "emptyHtmlBlock": "[ 空 HTML 區塊 ]",
     "onlyTopBlockCanRenderIcon": "只有最上層區塊可以渲染前置圖示按鈕。",
     "unhandledFunctionType": "未處理的功能類型: {functionType}",
     "highlight-start": "[高亮開始]",

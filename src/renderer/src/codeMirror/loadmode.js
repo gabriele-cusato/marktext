@@ -1,7 +1,13 @@
 // CodeMirror, copyright (c) by Marijn Haverbeke and others
 // Distributed under an MIT license: https://codemirror.net/LICENSE
 
-const codeMirrorMode = import.meta.glob('../../../../node_modules/codemirror/mode/**/*.js')
+// Esclude meta.js dal glob dinamico: è già importato staticamente in index.js
+// (serve a startup per la tabella estensione->mode) e l'import dinamico duplicato
+// genera il warning Vite "dynamic import will not move module into another chunk".
+const codeMirrorMode = import.meta.glob([
+  '../../../../node_modules/codemirror/mode/**/*.js',
+  '!../../../../node_modules/codemirror/mode/meta.js'
+])
 
 const loadMore = (CodeMirror) => {
   if (!CodeMirror.modeURL) {

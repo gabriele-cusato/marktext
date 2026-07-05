@@ -231,6 +231,8 @@
   "sideBar": {
     "search": {
       "searchInFolder": "Im Ordner suchen...",
+      "searchInTabsTitle": "In allen Tabs suchen",
+      "searchInTabsPlaceholder": "In allen Tabs suchen...",
       "noFolderOpen": "Kein Ordner geöffnet",
       "noResultsFound": "Keine Ergebnisse gefunden.",
       "cancel": "Abbrechen",
@@ -441,7 +443,7 @@
         "tabBarVisibility": "Ob die Tabs angezeigt werden",
         "sourceCodeModeEnabled": "Ob der Quellcode-Modus standardmäßig aktiviert ist",
         "searchExclusions": "Liste der Glob-Muster, die von der Suche ausgeschlossen werden sollen",
-        "searchMaxFileSize": "Die maximale Dateigröße (<maxFileSize><suffix>). Suffixe von K, M oder G sind erlaubt, wenn kein Suffix angegeben ist, wird die Zahl als Bytes behandelt",
+        "searchMaxFileSize": "Die maximale Dateigröße ([maxFileSize][suffix]). Suffixe von K, M oder G sind erlaubt, wenn kein Suffix angegeben ist, wird die Zahl als Bytes behandelt",
         "searchIncludeHidden": "Ob in versteckten Dateien und Verzeichnissen gesucht werden soll",
         "searchNoIgnore": "Ob Ignore-Dateien wie .gitignore ignoriert werden sollen",
         "searchFollowSymlinks": "Ob symbolische Links verfolgt werden sollen",
@@ -1024,7 +1026,8 @@
   },
   "common": {
     "cancel": "Abbrechen",
-    "ok": "OK"
+    "ok": "OK",
+    "close": "Schließen"
   },
   "dialog": {
     "cancel": "Abbrechen",
@@ -1153,7 +1156,7 @@
     },
     "htmlBlock": {
       "title": "HTML-Block",
-      "subtitle": "<div> HTML </div>"
+      "subtitle": "[div] HTML [/div]"
     },
     "codeBlock": {
       "title": "Code-Block",
@@ -1347,12 +1350,12 @@
     "insertColumnRight": "Spalte rechts einfügen",
     "removeColumn": "Spalte entfernen",
     "copyContent": "Inhalt kopieren",
-    "emptyMathFormula": "< Leere mathematische Formel >",
-    "invalidMathFormula": "< Ungültige mathematische Formel >",
-    "emptyMermaidBlock": "< Leerer Mermaid-Block >",
+    "emptyMathFormula": "[ Leere mathematische Formel ]",
+    "invalidMathFormula": "[ Ungültige mathematische Formel ]",
+    "emptyMermaidBlock": "[ Leerer Mermaid-Block ]",
     "loading": "Lädt...",
-    "emptyDiagramBlock": "< Leerer Diagramm-Block >",
-    "emptyHtmlBlock": "< Leerer HTML-Block >",
+    "emptyDiagramBlock": "[ Leerer Diagramm-Block ]",
+    "emptyHtmlBlock": "[ Leerer HTML-Block ]",
     "onlyTopBlockCanRenderIcon": "Nur der oberste Block kann das vordere Symbol rendern.",
     "unhandledFunctionType": "Unbehandelter Funktionstyp: {functionType}",
     "highlight-start": "[Hervorhebung Start]",

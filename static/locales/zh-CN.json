@@ -232,6 +232,8 @@
   "sideBar": {
     "search": {
       "searchInFolder": "在文件夹中搜索…",
+      "searchInTabsTitle": "在所有标签页中搜索",
+      "searchInTabsPlaceholder": "在所有标签页中搜索…",
       "noFolderOpen": "没有打开的文件夹",
       "noResultsFound": "未找到结果。",
       "cancel": "取消",
@@ -442,7 +444,7 @@
         "tabBarVisibility": "是否显示标签页",
         "sourceCodeModeEnabled": "是否默认启用源代码模式",
         "searchExclusions": "要从搜索中排除的 glob 模式列表",
-        "searchMaxFileSize": "最大文件大小（<maxFileSize><suffix>）。如果没有后缀，允许使用 K、M 或 G 后缀，数字会被视为字节",
+        "searchMaxFileSize": "最大文件大小（[maxFileSize][suffix]）。如果没有后缀，允许使用 K、M 或 G 后缀，数字会被视为字节",
         "searchIncludeHidden": "是否在隐藏文件和目录中搜索",
         "searchNoIgnore": "是否忽略像 .gitignore 这样的忽略文件",
         "searchFollowSymlinks": "是否应该跟随符号链接",
@@ -1033,7 +1035,8 @@
   },
   "common": {
     "cancel": "取消",
-    "ok": "确定"
+    "ok": "确定",
+    "close": "关闭"
   },
   "dialog": {
     "cancel": "取消",
@@ -1162,7 +1165,7 @@
     },
     "htmlBlock": {
       "title": "HTML 块",
-      "subtitle": "<div> HTML </div>"
+      "subtitle": "[div] HTML [/div]"
     },
     "codeBlock": {
       "title": "代码块",
@@ -1356,12 +1359,12 @@
     "insertColumnRight": "在右侧插入列",
     "removeColumn": "删除列",
     "copyContent": "复制内容",
-    "emptyMathFormula": "< 空数学公式 >",
-    "invalidMathFormula": "< 无效数学公式 >",
-    "emptyMermaidBlock": "< 空 Mermaid 块 >",
+    "emptyMathFormula": "[ 空数学公式 ]",
+    "invalidMathFormula": "[ 无效数学公式 ]",
+    "emptyMermaidBlock": "[ 空 Mermaid 块 ]",
     "loading": "加载中…",
-    "emptyDiagramBlock": "< 空图表块 >",
-    "emptyHtmlBlock": "< 空 HTML 块 >",
+    "emptyDiagramBlock": "[ 空图表块 ]",
+    "emptyHtmlBlock": "[ 空 HTML 块 ]",
     "onlyTopBlockCanRenderIcon": "只有顶级块可以渲染前置图标按钮。",
     "unhandledFunctionType": "未处理的功能类型: {functionType}",
     "highlight-start": "[高亮开始]",

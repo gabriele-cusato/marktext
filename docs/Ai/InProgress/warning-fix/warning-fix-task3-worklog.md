@@ -1,9 +1,11 @@
 # warning-fix — task3 — worklog
 
+## Stato: DA TESTARE
+
 ## Avanzamento
-- [ ] Escludere meta.js dal glob dinamico in loadmode.js (verificando sintassi negazione Vite)
-- [ ] Verificare che requireMode non riceva mai 'meta' (grep + eventuale guardia)
-- [ ] Build `npm run build` senza warning meta.js
+- [x] Escludere meta.js dal glob dinamico in loadmode.js (verificando sintassi negazione Vite)
+- [x] Verificare che requireMode non riceva mai 'meta' (grep + eventuale guardia)
+- [x] Build `npm run build` senza warning meta.js
 
 ## Test
-(da compilare dopo il test dell'utente: source mode con highlight js/html ecc.)
+- 2026-07-06 (utente): source mode OK, nessun warning meta.js. Task CHIUSO.

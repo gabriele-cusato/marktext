@@ -31,14 +31,15 @@ con causa individuata, decisioni dell'utente e stato. Feature collegata: `InProg
     fallback (casi di detection fallita: node-gyp#2952, #3251, #2754).
   - `clang=0` (variabile GYP, forza gcc su Linux): non deprecato in sé, solo il trasporto
     via `.npmrc`.
-- Stato: task1.
+- Stato: task1 — APPLICATO 2026-07-05: blocco `config.node_gyp` in package.json, `.npmrc`
+  eliminato, rebuild nativo verificato OK. DA TESTARE dall'utente (dev/build senza warning).
 
 ### 2. Browserslist: caniuse-lite is 7 months old (dev)
 
 - Causa: database `caniuse-lite` nel lockfile vecchio di 7 mesi. Nessuna config browserslist
   in `package.json` (verificato).
 - Fix: `npx update-browserslist-db@latest` (tocca solo il lockfile).
-- Stato: task2.
+- Stato: task2 — APPLICATO 2026-07-05 (giro packages-update-fix), DA TESTARE dall'utente.
 
 ### 3. Vite: meta.js dynamically imported ma anche statically imported (build)
 
@@ -69,13 +70,17 @@ con causa individuata, decisioni dell'utente e stato. Feature collegata: `InProg
   la riga sorgente in `node_modules/app-builder-lib` per la diagnosi certa.
 - Da fare comunque: `npm install` per rigenerare il lockfile (item aperto pre-esistente) e
   rimozione riga stale in electron-builder.yml; poi verificare se il warning persiste.
-- Stato: task4.
+- Stato: task4 — RISOLTO 2026-07-05: dopo lockfile pulito + electron-builder 26.15.3 il messaggio
+  non compare più (packaging di verifica OK, exe generato). Test app pacchettizzata: utente.
 
 ### 5. Terminale dev: "Request Autofill.enable failed" (dev)
 
 - Causa: rumore noto del protocollo DevTools di Chromium in Electron (Autofill non implementato).
   Nessun codice del progetto coinvolto (grep confermato: zero match per "Autofill" in src/).
 - Decisione: non azionabile lato codice, da ignorare. NESSUN task.
+- Confermato dall'utente 2026-07-06: compare ancora all'apertura di F12 — comportamento atteso e
+  PERMANENTE (DevTools chiede il dominio Autofill del protocollo Chrome che Electron non
+  implementa; rumore noto e diffuso in tutte le app Electron, non fixabile lato app). Da NON ritentare.
 
 ### 6. ElementPlusError: el-dialog slot "title" deprecato (F12)
 

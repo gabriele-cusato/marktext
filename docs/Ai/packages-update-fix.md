@@ -159,6 +159,35 @@ Nota rapporto con la feature warning-fix: i passi 1-3 toccano il lockfile e poss
 l'esito dei task 2 e 4 (browserslist, warning electron-builder) — farli PRIMA o INSIEME a quei
 task, mai in mezzo ai test di altri task, per non confondere le cause di eventuali regressioni.
 
+## ESITO APPLICAZIONE — 2026-07-05 (passi 1-3 eseguiti)
+
+Eseguiti nello stesso giro (baseline commit `5013dfc`, working tree pulito prima dei comandi):
+
+- `npm uninstall languine` → vulnerabilità da **30 a 3** in un colpo. (Primo tentativo fallito
+  con EBUSY: MarkText dev era aperto e bloccava i file di Electron — chiuse le finestre in modo
+  pulito e riprovato. Lezione: chiudere sempre app/dev server prima di toccare node_modules.)
+- `npm install` → lockfile rigenerato: rimosse anche le voci orfane dragula/dom-autoscroller.
+  `npm ls --all`: nessun invalid/extraneous (solo UNMET OPTIONAL platform-specific, normali).
+- `npm audit fix` → fixati dompurify 3.4.11 e form-data; restava 1 low (esbuild sotto vite).
+- `npm update` → 999 pacchetti aggiornati alla colonna Wanted; **`npm audit`: 0 vulnerabilità**
+  (anche l'esbuild residuo risolto dall'update di vite 7.3.6). Electron 39.2.7 → 39.8.10,
+  electron-builder 26.4.0 → 26.15.3, dompurify 3.4.11, element-plus 2.14.2, mermaid 11.16.0, ecc.
+- `npx update-browserslist-db` → caniuse-lite 1.0.30001800, già allineato dall'update.
+- `npm run rebuild-native` → ced, keytar, native-keymap ricompilati su Electron 39.8.10, OK.
+- Rimossa riga stale `!node_modules/dragula/resources` da electron-builder.yml.
+- Verifiche: `npm run build` OK (exit 0); `npx electron-builder --dir` OK — **il warning
+  "cannot find path for dependency name=undefined" NON compare più** (builder 26.15.3 + lockfile
+  pulito); exe generato e firmato in dist/win-unpacked.
+- `npm outdated` finale: restano SOLO i major rimandati per scelta (electron 43, codemirror 6,
+  eslint 10, vite 8, vue-router 5, katex 0.17, postcss-preset-env 11, @babel/eslint-parser 8,
+  eslint-plugin-jsonc 3, neostandard 0.13, vite-plugin-electron-renderer 1.0).
+- Nota: una deprecazione transitiva segnalata durante l'install (`boolean@3.2.0`, trascinata da
+  dipendenze Electron): non azionabile direttamente, sparirà con gli update dei pacchetti che la usano.
+- NON eseguito (per scelta, feature warning-fix): fix `.npmrc` msvs_version/clang (task1) — i
+  warning npm "Unknown project config" sono ancora presenti e attesi.
+
+Test runtime utente: pendente (vedi worklog task2/task4 warning-fix).
+
 ## Come tornare indietro (rollback di un giro di aggiornamenti)
 
 Il commit salva `package.json` + `package-lock.json` = ricetta esatta delle versioni. Ma

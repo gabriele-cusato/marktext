@@ -139,7 +139,8 @@ const pathname = computed(() => currentFile.value?.pathname)
 const filename = computed(() => currentFile.value?.filename)
 const isSaved = computed(() => currentFile.value?.isSaved)
 const markdown = computed(() => currentFile.value?.markdown)
-const cursor = computed(() => currentFile.value?.cursor)
+// Mai undefined: in source mode la tab può non avere ancora un cursore Muya popolato (task8).
+const cursor = computed(() => currentFile.value?.cursor ?? null)
 const wordCount = computed(() => currentFile.value?.wordCount)
 const muyaIndexCursor = computed(() => currentFile.value?.muyaIndexCursor)
 

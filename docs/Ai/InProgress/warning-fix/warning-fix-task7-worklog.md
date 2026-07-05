@@ -1,11 +1,15 @@
 # warning-fix — task7 — worklog
 
 ## Avanzamento
-- [ ] Censimento completo chiavi con `< ... >` nei 9 locale
-- [ ] Grep confronti hardcoded con i vecchi valori in src/ e test
-- [ ] Riformulazione en.json
-- [ ] Riformulazione altri 8 locale
-- [ ] Build di verifica
+- [x] Censimento completo chiavi con `< ... >` nei 9 locale: oltre alle 5 chiavi `editor.*` note, individuate anche `editor.emptyMathFormula`/`invalidMathFormula`/`emptyMermaidBlock`/`emptyDiagramBlock`/`emptyHtmlBlock`, la chiave `preferences.search.items.searchMaxFileSize` (contiene `<maxFileSize><suffix>`, passata a `t()` in `src/renderer/src/prefComponents/sideBar/config.js:121` senza interpolazione) e una chiave `subtitle` (blocco quick-insert HTML, valore `"<div> HTML </div>"` uguale su tutti i 9 locale). Insieme consistente su tutti i 9 file.
+- [x] Grep confronti hardcoded con i vecchi valori in src/ e test: nessun confronto stringa trovato. Individuate due occorrenze testuali simili ma fuori scope: `src/main/preferences/schema.json:376` (stessa frase `<maxFileSize><suffix>` nella description dello schema, MA la chiave `searchMaxFileSize` è filtrata esplicitamente dai risultati di ricerca in `config.js` — mai renderizzata, nessun confronto) e `src/muya/lib/parser/render/renderInlines/inlineMath.js:40` (stringa hardcoded `'< Invalid Mathematical Formula >'` come fallback in caso di errore KaTeX, NON passa da `t()` quindi non genera il warning intlify; il file è in `src/muya/lib/` che il plan vieta esplicitamente di toccare). Nessuna modifica su questi due siti.
+- [x] Riformulazione en.json: `emptyMathFormula`/`invalidMathFormula`/`emptyMermaidBlock`/`emptyDiagramBlock`/`emptyHtmlBlock` → bracket quadre (es. `"[ Empty HTML Block ]"`); `subtitle` blocco HTML → `"[div] HTML [/div]"`; `searchMaxFileSize` → `"([maxFileSize][suffix])"`.
+- [x] Riformulazione altri 8 locale (de, es, fr, ja, ko, pt, zh-CN, zh-TW): stessa sostituzione bracket angolari→quadre, traduzione esistente conservata invariata. Verificato con grep che non resta alcun pattern `<...>` nei 9 file. In aggiunta, individuati e rigenerati anche i file `*.min.json` (derivati automaticamente dai `.json` pieni via `npm run minify-locales`, usati a runtime per le lingue diverse dall'inglese secondo `src/common/i18n.js:26`): senza rigenerarli sarebbero rimasti stringhe vecchie con `<...>` in produzione. Verificato con `node -e "JSON.parse(...)"` su tutti i 18 file (9 pieni + 9 min): tutti validi.
+- [x] Build di verifica: `npm run build` → exit 0, nessun errore.
+
+## Nota fuori scope (non modificata, riportata per trasparenza)
+- `src/main/preferences/schema.json:376`: stessa frase `<maxFileSize><suffix>` nella description dello schema preferenze. La chiave corrispondente (`searchMaxFileSize`) è però esclusa esplicitamente dai risultati mostrati in `config.js` (filtro riga ~153): il testo non viene mai renderizzato in UI, nessun confronto hardcoded coinvolto. Non toccato perché fuori dai "file da toccare" del plan e non rientra nel sottoproblema 2 (nessun confronto trovato).
+- `src/muya/lib/parser/render/renderInlines/inlineMath.js:40`: stringa hardcoded `'< Invalid Mathematical Formula >'` come fallback su errore KaTeX. Non passa da `t()` quindi non genera il warning intlify oggetto di questo task. Il file è in `src/muya/lib/`, che il plan vieta esplicitamente di toccare. Non modificato.
 
 ## Test
-(da compilare dopo il test dell'utente: nuovo paragrafo, blocco HTML vuoto, formula vuota, mermaid vuoto — placeholder `[ ... ]` visibili e nessun warning "Detected HTML")
+- 2026-07-06 (utente): OK, nessun warning "Detected HTML". Task CHIUSO.

@@ -239,6 +239,8 @@
   "sideBar": {
     "search": {
       "searchInFolder": "Search in folder...",
+      "searchInTabsTitle": "Search in all tabs",
+      "searchInTabsPlaceholder": "Search in all tabs...",
       "noFolderOpen": "No folder open",
       "noResultsFound": "No results found.",
       "cancel": "Cancel",
@@ -449,7 +451,7 @@
         "tabBarVisibility": "Whether the tabs are shown",
         "sourceCodeModeEnabled": "Whether the source-code mode is enabled by default",
         "searchExclusions": "List of glob patterns to exclude from search",
-        "searchMaxFileSize": "The maximal file size (<maxFileSize><suffix>). Suffixes of K, M or G are allowed if not suffix is given the number is treated as bytes",
+        "searchMaxFileSize": "The maximal file size ([maxFileSize][suffix]). Suffixes of K, M or G are allowed if not suffix is given the number is treated as bytes",
         "searchIncludeHidden": "Whether to search in hidden files and directories",
         "searchNoIgnore": "Whether to ignore ignore files like .gitignore",
         "searchFollowSymlinks": "Whether symlinks should be followed",
@@ -1045,7 +1047,8 @@
   },
   "common": {
     "cancel": "Cancel",
-    "ok": "OK"
+    "ok": "OK",
+    "close": "Close"
   },
   "dialog": {
     "cancel": "Cancel",
@@ -1180,7 +1183,7 @@
     },
     "htmlBlock": {
       "title": "HTML Block",
-      "subtitle": "<div> HTML </div>"
+      "subtitle": "[div] HTML [/div]"
     },
     "codeBlock": {
       "title": "Code Block",
@@ -1365,12 +1368,12 @@
     "insertColumnRight": "Insert Column Right",
     "removeColumn": "Remove Column",
     "copyContent": "Copy content",
-    "emptyMathFormula": "< Empty Mathematical Formula >",
-    "invalidMathFormula": "< Invalid Mathematical Formula >",
-    "emptyMermaidBlock": "< Empty Mermaid Block >",
+    "emptyMathFormula": "[ Empty Mathematical Formula ]",
+    "invalidMathFormula": "[ Invalid Mathematical Formula ]",
+    "emptyMermaidBlock": "[ Empty Mermaid Block ]",
     "loading": "Loading...",
-    "emptyDiagramBlock": "< Empty Diagram Block >",
-    "emptyHtmlBlock": "< Empty HTML Block >",
+    "emptyDiagramBlock": "[ Empty Diagram Block ]",
+    "emptyHtmlBlock": "[ Empty HTML Block ]",
     "onlyTopBlockCanRenderIcon": "Only top most block can render front icon button.",
     "unhandledFunctionType": "Unhandled functionType: {functionType}",
     "highlight-start": "[highlight end]",

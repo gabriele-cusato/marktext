@@ -232,6 +232,8 @@
   "sideBar": {
     "search": {
       "searchInFolder": "フォルダ内を検索...",
+      "searchInTabsTitle": "すべてのタブ内を検索",
+      "searchInTabsPlaceholder": "すべてのタブ内を検索...",
       "noFolderOpen": "フォルダが開かれていません",
       "noResultsFound": "結果が見つかりませんでした。",
       "cancel": "キャンセル",
@@ -442,7 +444,7 @@
         "tabBarVisibility": "タブが表示されているかどうか",
         "sourceCodeModeEnabled": "ソースコードモードがデフォルトで有効かどうか",
         "searchExclusions": "検索から除外するglobパターンのリスト",
-        "searchMaxFileSize": "最大ファイルサイズ（<maxFileSize><suffix>）。K、M、またはGの接尾辞が許可されます。接尾辞がない場合、数値はバイトとして扱われます",
+        "searchMaxFileSize": "最大ファイルサイズ（[maxFileSize][suffix]）。K、M、またはGの接尾辞が許可されます。接尾辞がない場合、数値はバイトとして扱われます",
         "searchIncludeHidden": "隠しファイルとディレクトリで検索するかどうか",
         "searchNoIgnore": ".gitignoreのような無視ファイルを無視するかどうか",
         "searchFollowSymlinks": "シンボリックリンクをフォローするかどうか",
@@ -1026,7 +1028,8 @@
   },
   "common": {
     "cancel": "キャンセル",
-    "ok": "OK"
+    "ok": "OK",
+    "close": "閉じる"
   },
   "dialog": {
     "cancel": "キャンセル",
@@ -1155,7 +1158,7 @@
     },
     "htmlBlock": {
       "title": "HTMLブロック",
-      "subtitle": "<div> HTML </div>"
+      "subtitle": "[div] HTML [/div]"
     },
     "codeBlock": {
       "title": "コードブロック",
@@ -1349,12 +1352,12 @@
     "insertColumnRight": "右に列を挿入",
     "removeColumn": "列を削除",
     "copyContent": "内容をコピー",
-    "emptyMathFormula": "< 空の数式 >",
-    "invalidMathFormula": "< 無効な数式 >",
-    "emptyMermaidBlock": "< 空のMermaidブロック >",
+    "emptyMathFormula": "[ 空の数式 ]",
+    "invalidMathFormula": "[ 無効な数式 ]",
+    "emptyMermaidBlock": "[ 空のMermaidブロック ]",
     "loading": "読み込み中...",
-    "emptyDiagramBlock": "< 空の図表ブロック >",
-    "emptyHtmlBlock": "< 空のHTMLブロック >",
+    "emptyDiagramBlock": "[ 空の図表ブロック ]",
+    "emptyHtmlBlock": "[ 空のHTMLブロック ]",
     "onlyTopBlockCanRenderIcon": "最上位ブロックのみが前のアイコンボタンをレンダリングできます。",
     "unhandledFunctionType": "未処理の関数タイプ: {functionType}",
     "highlight-start": "[ハイライト開始]",

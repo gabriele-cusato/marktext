@@ -46,10 +46,10 @@ defineProps({
     required: true
   },
   cursor: {
-    validator(value) {
-      return typeof value === 'object'
-    },
-    required: true
+    // In source mode il cursore non viene mai popolato (handlePreSave passa solo muyaIndexCursor):
+    // il valore può restare null finché la tab non ha un cursore Muya salvato.
+    type: Object,
+    default: null
   },
   muyaIndexCursor: {
     type: Object,

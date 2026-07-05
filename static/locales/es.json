@@ -231,6 +231,8 @@
   "sideBar": {
     "search": {
       "searchInFolder": "Buscar en carpeta...",
+      "searchInTabsTitle": "Buscar en todas las pestañas",
+      "searchInTabsPlaceholder": "Buscar en todas las pestañas...",
       "noFolderOpen": "No hay carpeta abierta",
       "noResultsFound": "No se encontraron resultados.",
       "cancel": "Cancelar",
@@ -441,7 +443,7 @@
         "tabBarVisibility": "Si las pestañas se muestran",
         "sourceCodeModeEnabled": "Si el modo de código fuente está habilitado por defecto",
         "searchExclusions": "Lista de patrones glob para excluir de la búsqueda",
-        "searchMaxFileSize": "El tamaño máximo de archivo (<maxFileSize><suffix>). Se permiten sufijos de K, M o G si no se da sufijo el número se trata como bytes",
+        "searchMaxFileSize": "El tamaño máximo de archivo ([maxFileSize][suffix]). Se permiten sufijos de K, M o G si no se da sufijo el número se trata como bytes",
         "searchIncludeHidden": "Si buscar en archivos y directorios ocultos",
         "searchNoIgnore": "Si ignorar archivos de ignore como .gitignore",
         "searchFollowSymlinks": "Si los enlaces simbólicos deben seguirse",
@@ -1024,7 +1026,8 @@
   },
   "common": {
     "cancel": "Cancelar",
-    "ok": "OK"
+    "ok": "OK",
+    "close": "Cerrar"
   },
   "dialog": {
     "cancel": "Cancelar",
@@ -1149,7 +1152,7 @@
     },
     "htmlBlock": {
       "title": "Bloque HTML",
-      "subtitle": "<div> HTML </div>"
+      "subtitle": "[div] HTML [/div]"
     },
     "codeBlock": {
       "title": "Bloque de Código",
@@ -1347,12 +1350,12 @@
     "insertColumnRight": "Insertar columna a la derecha",
     "removeColumn": "Eliminar columna",
     "copyContent": "Copiar contenido",
-    "emptyMathFormula": "< Fórmula matemática vacía >",
-    "invalidMathFormula": "< Fórmula matemática inválida >",
-    "emptyMermaidBlock": "< Bloque Mermaid vacío >",
+    "emptyMathFormula": "[ Fórmula matemática vacía ]",
+    "invalidMathFormula": "[ Fórmula matemática inválida ]",
+    "emptyMermaidBlock": "[ Bloque Mermaid vacío ]",
     "loading": "Cargando...",
-    "emptyDiagramBlock": "< Bloque de diagrama vacío >",
-    "emptyHtmlBlock": "< Bloque HTML vacío >",
+    "emptyDiagramBlock": "[ Bloque de diagrama vacío ]",
+    "emptyHtmlBlock": "[ Bloque HTML vacío ]",
     "onlyTopBlockCanRenderIcon": "Solo el bloque superior puede renderizar el botón de icono frontal.",
     "unhandledFunctionType": "Tipo de función no manejado: {functionType}",
     "highlight-start": "[inicio de resaltado]",
