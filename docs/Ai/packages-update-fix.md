@@ -159,6 +159,35 @@ Nota rapporto con la feature warning-fix: i passi 1-3 toccano il lockfile e poss
 l'esito dei task 2 e 4 (browserslist, warning electron-builder) — farli PRIMA o INSIEME a quei
 task, mai in mezzo ai test di altri task, per non confondere le cause di eventuali regressioni.
 
+## Come tornare indietro (rollback di un giro di aggiornamenti)
+
+Il commit salva `package.json` + `package-lock.json` = ricetta esatta delle versioni. Ma
+`node_modules/` su disco NON è versionato: il solo checkout git non basta, va riallineato.
+
+Procedura completa:
+
+1. Ripristinare i file dal commit precedente al giro incriminato:
+   ```
+   git checkout <commit> -- package.json package-lock.json
+   ```
+   (oppure revert del commit degli aggiornamenti).
+2. **`npm ci`** — cancella `node_modules` e reinstalla ESATTAMENTE ciò che dice il lockfile
+   ripristinato. È il passo che risolve davvero: senza, su disco restano le versioni nuove.
+   (`npm ci` elimina anche la cache Vite in `node_modules/.vite`.)
+3. Solo se il giro includeva un bump di Electron o di moduli nativi (keytar, ced, native-keymap,
+   @vscode/ripgrep): `npm run rebuild-native` dopo il ci.
+4. Verifica: `npm run dev` parte e `git status` pulito.
+
+Cosa il rollback git NON copre (fuori dal repo):
+- npm globale (`npm install -g npm@...`): si torna indietro solo con un altro install globale
+  della versione precedente.
+- versione di Node cambiata via nvm: `nvm use <versione precedente>`.
+- dati utente dell'app (userData, backup sessioni): gli aggiornamenti pacchetti non li toccano.
+
+Regola operativa: **un commit dedicato per ogni giro di update** (languine+audit fix; npm update;
+Electron major) = punto di ripristino isolato. Se qualcosa si rompe si reverte solo quel giro,
+senza perdere il resto; il colpevole si biseca con `git diff package-lock.json` e downgrade mirato.
+
 ## Come rifare questi controlli in futuro
 
 - `npm outdated` — cosa è vecchio (Wanted = sicuro, Latest = major).
