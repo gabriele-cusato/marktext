@@ -24,6 +24,10 @@
 
 - **[editor-advanced](editor-advanced/editor-advanced.md)** — Multi-selezione additiva Ctrl (H1, pianificato), commenti `Ctrl+K C/U` per linguaggio (H3, bloccato da T-M1), undo unificato Muya↔source (H8, ✅ implementato 2026-06-15, 6 file, verificato runtime con 6 bug risolti). BUG-CP1 inserimento markdown reale in source, BUG-CP2 switch non ri-renderizza, BUG-CTRLZ cross-tab (fix `clearHistory()` post-`setValue`), BUG-MUYA-INPUT cursore stale (3 siti guard), BUG-MUYA-UNDO-SWITCH cursor noHistory, BUG-MUYA-HEADING-DNA testo vs heading (accettato cosmetico). **Limite noto:** righe vuote source↔Muya non 1:1 (ambiguità markdown), zero perdita dati.
 
+## Editor UI Fixes
+
+- **[editor-ui-fixes](editor-ui-fixes/editor-ui-fixes.md)** — Quattro fix UI: errore console al rename tab (try/catch scrollToCursor), cursore non mantenuto Muya→source (gate dirtySince + priorità mount), menu quickInsert che si restringe post-ricerca (fullRenderObj pristino), etichette lunghe sottomenu "turn into" che si sovrappongono (CSS flex+ellipsis). ✅ Verificato utente 2026-07-06 (4/4 task).
+
 ## Session Persistence
 
 - **[session-persistence](session-persistence/session-persistence.md)** — Backup periodico (~7s) di tab non salvate in userData/backup/, restore al boot di tutte le tab (untitled/dirty/salvate), chiusura silenziosa finestra (default ON, gate preferenza). Atomico (tmp+rename), nessun popup, crash-safe (max ~7s persi). Single-window Notepad++ con feature ON. File 8 toccati (session.js NUOVO, main process session-save handlers, pref schema/default). ✅ Verificato utente 2026-06-21 (macOS + feedback Linux/Windows smoke-test). **Prerequisito H5 multi-finestra-aware.**
