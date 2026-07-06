@@ -417,17 +417,16 @@ watch(sourceCode, (value, oldValue) => {
     // H8 #1 — flush del tail di Muya nello stack unificato PRIMA di passare a source (simmetrico del
     // flush source→Muya). Cattura l'eventuale parola pending non ancora committata a un checkpoint.
     // Anti-loop: no-op se identica alla cima. Muya resta montato → editor.value valido qui.
-    // Guard: solo view-switch dello STESSO file (Muya tiene davvero questo tab) E solo se l'utente
-    // ha davvero editato (dirtySince). Senza il gate dirtySince, a idx=0 (seed "") il getMarkdown di
-    // un doc vuoto = "\n" ≠ "" → push spurio che TRONCA lo stack (splice) e azzera il redo. Muya
-    // ri-serializza (non idempotente) → l'uguaglianza-markdown non basta come protezione qui.
+    // Guard esterno: solo view-switch dello STESSO file (Muya tiene davvero questo tab). Il gate
+    // dirtySince è spostato più sotto, sul solo pushUnified: senza dirtySince, a idx=0 (seed "") il
+    // getMarkdown di un doc vuoto = "\n" ≠ "" → push spurio che TRONCA lo stack (splice) e azzera il
+    // redo. Il salvataggio del cursore invece va fatto SEMPRE (anche senza edit), vedi sotto.
     const file = currentFile.value
     if (
       editor.value &&
       file &&
       currentMuyaTabId.value === file.id &&
-      isUnifiedTarget(file.pathname) &&
-      dirtySince
+      isUnifiedTarget(file.pathname)
     ) {
       let liveCursor = file.muyaIndexCursor
       try {
@@ -435,8 +434,20 @@ watch(sourceCode, (value, oldValue) => {
       } catch (e) {
         /* cursore stale: tengo il fallback */
       }
-      pushUnified(file.id, editor.value.getMarkdown(), liveCursor, 'muya-switch-flush')
-      dirtySince = false
+      // Scrive SEMPRE il cursore live sullo store (riferimento reattivo Pinia) affinché sourceCode.vue
+      // possa posizionare CodeMirror sulla riga corrispondente al mount, leggendo il prop
+      // muyaIndexCursor: simmetrico al salvataggio già fatto in prepareTabSwitch per source→Muya.
+      // Fuori dal gate dirtySince: lo spostamento del solo cursore in Muya non alza dirtySince, ma la
+      // posizione va comunque salvata, altrimenti source si aprirebbe su una posizione stale.
+      if (liveCursor) {
+        file.muyaIndexCursor = liveCursor
+      }
+      // pushUnified solo se l'utente ha davvero editato: il gate dirtySince resta qui (vedi commento
+      // sopra sul push spurio che troncherebbe lo stack a idx=0).
+      if (dirtySince) {
+        pushUnified(file.id, editor.value.getMarkdown(), liveCursor, 'muya-switch-flush')
+        dirtySince = false
+      }
     }
     if (editor.value) {
       editor.value.hideAllFloatTools()
@@ -752,7 +763,16 @@ const scrollToCursor = (duration = 300) => {
   nextTick(() => {
     if (sourceCode.value) return // P3: re-check, sourceCode può cambiare tra chiamata e tick
     const { container } = editor.value
-    const { y } = editor.value.getSelection().cursorCoords
+    let cursorCoords
+    try {
+      // getSelection() lancia se non c'è un cursore attivo dentro l'editor (es. rename tab dal
+      // context menu: la tab diventa corrente ma il focus resta fuori dall'editor, quindi Muya
+      // non trova una selezione DOM valida). In quel caso non c'è nulla da scrollare: usciamo.
+      ;({ cursorCoords } = editor.value.getSelection())
+    } catch {
+      return
+    }
+    const { y } = cursorCoords
     animatedScrollTo(container, container.scrollTop + y - STANDAR_Y, duration)
   })
 }

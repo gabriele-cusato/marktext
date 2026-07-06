@@ -1205,12 +1205,15 @@ onMounted(() => {
   // Ripristino da snapshot salvato in onBeforeUnmount (cambio tab → smonta/rimonta).
   // cmStatePerTab è a livello modulo → sopravvive ai remount.
   const { history: histToRestore, savedCursor } = restoreCmStateForTab(codeMirrorInstance, id, props.markdown)
-  // Cursor: preferisce snapshot → muyaIndexCursor → prima riga.
-  if (savedCursor) {
-    codeMirrorInstance.setCursor(savedCursor)
-  } else if (muyaIndexCursor && muyaIndexCursor.anchor && muyaIndexCursor.focus) {
+  // Cursor: preferisce muyaIndexCursor → snapshot → prima riga. Questo mount avviene SOLO all'ingresso
+  // in source mode (i cambi tab in source passano da handleFileChange senza rimontare), quindi qui
+  // muyaIndexCursor è la posizione fresca da cui l'utente arriva (Muya) e deve vincere sullo snapshot
+  // CM, che è la posizione della sessione source PRECEDENTE ed è stale rispetto al cursore Muya.
+  if (muyaIndexCursor && muyaIndexCursor.anchor && muyaIndexCursor.focus) {
     const { anchor, focus } = muyaIndexCursor
     codeMirrorInstance.setSelection(anchor, focus, { scroll: true })
+  } else if (savedCursor) {
+    codeMirrorInstance.setCursor(savedCursor)
   } else {
     setCursorAtFirstLine(codeMirrorInstance)
   }

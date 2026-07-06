@@ -15,7 +15,7 @@
   flex-direction: column;
 }
 
-.ag-front-menu > ul li {
+.ag-front-menu ul li {
   display: flex;
   flex-direction: row;
   height: 28px;
@@ -57,9 +57,13 @@
   left: -16px;
 }
 
-.ag-front-menu > ul li > span {
+.ag-front-menu ul li > span {
   display: inline-block;
   flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--editorColor);
 }
 
@@ -67,10 +71,11 @@
   color: var(--deleteColor);
 }
 
-.ag-front-menu > ul li > .short-cut {
+.ag-front-menu ul li > .short-cut {
   color: var(--editorColor50);
   transform: scale(0.8);
   margin-right: 10px;
+  flex-shrink: 0;
 }
 
 .ag-front-menu .submenu {
