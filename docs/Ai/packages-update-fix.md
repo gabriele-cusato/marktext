@@ -228,3 +228,201 @@ senza perdere il resto; il colpevole si biseca con `git diff package-lock.json` 
   `https://endoflife.date/api/electron.json`).
 - Automazione consigliata: **Dependabot** (gratuito su GitHub) o **Renovate** sul fork — PR
   automatiche per update e alert sicurezza, senza controlli manuali periodici.
+
+## PIANO AGGIORNAMENTO MAJOR RESIDUI — 2026-07-06
+
+Snapshot `npm outdated` del 2026-07-06 (dopo i passi 1-3): restano solo major (più vitest, che è
+patch). Classificazione dev/prod verificata da `package.json`. Obiettivo dell'utente: aggiornarli
+**tutti** alla latest, anche i fortemente sconsigliati, potendo provare e tornare indietro.
+
+Principio guida: **un giro = un commit dedicato**. Aggiornare più major insieme rende impossibile
+capire quale ha rotto cosa. Aggiornare a piccoli gruppi omogenei, testare, poi committare o
+revertire. I major hanno breaking changes per contratto: vanno provati, non dati per compatibili.
+
+### Metodo per provare e tornare indietro (vale per OGNI giro)
+
+Git versiona `package.json` + `package-lock.json`, NON `node_modules/`: dopo un ripristino git va
+sempre riallineato il disco con `npm ci`.
+
+**Modo consigliato per sperimentare (senza committare finché non convinto):**
+```
+# 1. partire da working tree pulito (git status pulito)
+# 2. fare l'update del giro (comandi sotto)
+# 3. testare (test specifici del giro)
+# 4a. se OK  -> git add -A && git commit -m "update: <giro>"
+# 4b. se NO  -> scartare tutto:
+git checkout -- package.json package-lock.json
+npm ci                     # riallinea node_modules ESATTAMENTE al lockfile ripristinato
+```
+
+**Modo alternativo (committare il giro, revertire dopo):**
+```
+npm install ...            # update del giro
+git add -A && git commit -m "update: <giro>"
+# test... se va tenuto, fine. Se va tolto:
+git reset --hard HEAD~1    # (se il commit NON è ancora pushato)
+#   oppure, se già condiviso: git revert --no-edit HEAD
+npm ci                     # SEMPRE dopo, per riallineare node_modules
+```
+
+**IMPORTANTE — se il giro tocca Electron o moduli nativi** (keytar, ced, native-keymap): dopo
+`npm ci` i binari nativi vanno ricompilati contro la nuova ABI. Farlo dentro l'ambiente **VS2022
+v143** (Developer PowerShell for VS 2022, oppure `Enter-VsDevShell` su una PowerShell normale —
+vedi sezione "Ambiente build nativi" sotto), poi:
+```
+npm run rebuild-native     # = npx @electron/rebuild -f
+```
+Senza questo passo l'app non carica i moduli nativi anche se il lockfile è corretto.
+
+### Ambiente build nativi (lezione appresa il 2026-07-06)
+
+Su un PC con **VS2026 (VS18) + VS2022** entrambi installati, node-gyp sceglie di default VS2026, il
+cui toolset è **v145**. Le librerie Spectre di v145 non sono installabili → errore `MSB8040`
+(richieste librerie con mitigazioni Spectre). Le Spectre v143 (VS2022) non aiutano perché la build
+usa v145. La rilevazione VS di node-gyp inoltre fallisce via PowerShell e trova solo VS2026.
+**Soluzione**: forzare la compilazione con VS2022 v143 (dove le Spectre v143 x64 sono installate),
+caricando l'ambiente VS2022 nella shell prima di qualunque build nativa:
+```
+$vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -version "[17.0,18.0)" -products * -property installationPath -format value | Select-Object -First 1
+Import-Module (Join-Path $vs "Common7\Tools\Microsoft.VisualStudio.DevShell.dll")
+Enter-VsDevShell -VsInstallPath $vs -DevCmdArguments "-arch=x64" -SkipAutomaticLocation
+# verifica: $env:VCINSTALLDIR deve puntare a ...\2022\...\VC\
+```
+Vale solo per quella finestra. In alternativa aprire direttamente "Developer PowerShell for VS 2022".
+Prerequisito ambiente: `nvm use 22.21.1` (Node 24 di sistema non deve vincere nel PATH).
+
+#### Procedura corretta su PC nuovo (o quando l'MSVC di default dà MSB8040)
+
+Passaggi che alla fine hanno funzionato, in ordine. Chiave: eseguire l'install **dentro
+l'ambiente VS2022 v143**, così i moduli nativi compilano col toolset giusto e tutti i postinstall
+(incluso il download del binario Electron) girano correttamente in un colpo solo.
+
+1. Chiudere app e dev server (electron/node residui bloccano `node_modules`, es. EBUSY su `ced`).
+2. Aprire **"Developer PowerShell for VS 2022"** (oppure caricare VS2022 con `Enter-VsDevShell`, sopra).
+3. `nvm use 22.21.1` e verificare `node -v` = v22.21.1 (il Node di sistema non deve vincere).
+4. Verificare `$env:VCINSTALLDIR` → deve puntare a `...\2022\...\VC\`.
+5. Dalla root progetto: `npm ci` — reinstalla dal lockfile e compila i nativi con v143 (Spectre
+   v143 x64 presenti) senza MSB8040.
+6. `npm run dev` per verificare che l'app parta.
+
+Requisito una tantum in VS2022: componente **MSVC v143 - VS 2022 C++ x64/x86 con mitigazione
+Spectre (versione = cartella MSVC più recente sotto `...\2022\...\VC\Tools\MSVC\`)**.
+Se in futuro il giro include un bump di Electron o dei moduli nativi, dopo il `npm ci` eseguire
+anche `npm run rebuild-native` nella stessa shell VS2022.
+
+### Ordine consigliato dei giri (dal più sicuro al più rischioso)
+
+Fare i giri in quest'ordine; ognuno è un commit isolato e reversibile con il metodo sopra.
+
+#### Giro 1 — vitest (patch, rischio nullo)
+Non è un major: `4.1.9 → 4.1.10` (Wanted già 4.1.10). Solo test runner, zero runtime.
+```
+npm install -D vitest@latest
+```
+Test: `npm run test:unit`.
+Rollback: non serve praticamente mai; se serve, metodo generale.
+
+#### Giro 2 — stack ESLint (dev only, nessun impatto runtime)
+Aggiornare INSIEME perché interdipendenti (eslint 10 richiede parser/plugin/config compatibili):
+`@babel/eslint-parser 7→8`, `eslint 9→10`, `eslint-plugin-jsonc 2→3`, `neostandard 0.12→0.13`.
+```
+npm install -D eslint@latest @babel/eslint-parser@latest eslint-plugin-jsonc@latest neostandard@latest
+```
+Perché a rischio basso: è tutto tooling di sviluppo, non entra nell'app pacchettizzata. Il rischio è
+solo che la config lint (flat config) cambi e `npm run lint` segnali errori nuovi da sistemare.
+Test: `npm run lint` (= `eslint --cache .`). Deve girare senza crash di config. Warning/errori di
+regole nuovi si valutano e si sistemano o si silenziano nella config.
+Rollback: metodo generale (nessun nativo coinvolto).
+
+#### Giro 3 — postcss-preset-env 10 → 11 (build CSS)
+```
+npm install -D postcss-preset-env@latest
+```
+Perché a rischio basso: tocca solo la pipeline CSS in build. Il rischio è che cambi quali feature
+CSS moderne vengono trasformate/polyfillate → possibili differenze visive.
+Test: `npm run build`, poi `npm run dev` e controllo visivo dei temi (`src/renderer/src/assets/themes/`)
+e dei componenti principali (editor, sidebar, dialog).
+Rollback: metodo generale.
+
+#### Giro 4 — katex 0.16 → 0.17 (rendering formule, dipendenza PROD)
+```
+npm install katex@latest
+```
+Perché va testato: katex rende le formule matematiche nell'editor. Un major può cambiare resa o
+macro supportate. Leggere il changelog katex 0.17.
+Test: documento con formula LaTeX **inline** (`$...$`) e **blocco** (`$$...$$`), verifica resa in
+WYSIWYG e in preview, poi export HTML/PDF con formule.
+Rollback: metodo generale.
+
+#### Giro 5 — vue-router 4 → 5 (dipendenza PROD, uso limitato)
+```
+npm install vue-router@latest
+```
+Perché va testato: uso limitato (RouterView in `Main`), ma un major può cambiare API di routing.
+Leggere la migration guide vue-router 5.
+Test: apertura finestra editor, apertura finestra Preferenze, navigazione tra le pagine
+(`src/renderer/src/pages/`). Verificare che non ci siano errori in console del renderer.
+Rollback: metodo generale.
+
+#### Giro 6 — vite 8 + vite-plugin-electron-renderer 1.0 (build system) — PARZIALMENTE BLOCCATO
+
+**Vite 8: NON aggiornare ora (bloccante verificato).** `electron-vite@5` (attuale, già latest)
+dichiara `peerDependencies.vite = "^5.0.0 || ^6.0.0 || ^7.0.0"` (verificato con
+`npm view electron-vite@latest peerDependencies` il 2026-07-06): **non include Vite 8**. Forzare
+Vite 8 rompe il peer e con ogni probabilità il build. Attendere una versione di electron-vite che
+dichiari il supporto a Vite 8, poi aggiornarli insieme.
+Se lo si vuole comunque provare (sconsigliato):
+```
+npm install -D vite@latest        # richiederà --force o genererà peer warning; build a rischio
+```
+
+`vite-plugin-electron-renderer 0.14 → 1.0` si può provare da solo (non dipende da Vite 8):
+```
+npm install -D vite-plugin-electron-renderer@latest
+```
+Perché a rischio: è un plugin critico del build del renderer; leggere il changelog 1.0 prima.
+Test: `npm run build`, `npm run dev`, l'app deve partire e il renderer caricare senza errori.
+Rollback: metodo generale.
+
+#### Giro 7 — electron 39 → 43 (SCONSIGLIATO come giro unico; farlo come feature dedicata)
+
+```
+npm install -D electron@latest
+# poi, nell'ambiente VS2022 v143 (vedi "Ambiente build nativi"):
+npm run rebuild-native
+```
+**Perché sconsigliato in blocco:** è un salto di **3 major** in un colpo (39→40→41→42→43). Ogni
+major ha breaking changes proprie (https://www.electronjs.org/docs/latest/breaking-changes), il Node
+interno passa da 22 a 24, e tutti i moduli nativi vanno ricompilati contro la nuova ABI (ripetere la
+trafila VS2022/v143). Va comunque fatto perché **Electron 39 è EOL** (motivo = sicurezza, non i
+warn), ma **un major alla volta**, buildando e testando a ogni gradino, come feature dedicata con
+plan. Bundlarlo con altri update rende impossibile bisecare le regressioni.
+Test (pesante, a ogni gradino): `npm run build`, `npm run build:win`, app pacchettizzata che si
+avvia; drag&drop tab (reorder, detach, cross-window, taskbar — area sensibile, electron#42252 in
+DECISIONS.md); dialog; export HTML/PDF; source mode; scorciatoie (native-keymap); keychain (keytar);
+ricerca file (@vscode/ripgrep). Verificare le API Node usate nel main process col passaggio a Node 24.
+Rollback: metodo generale + `npm run rebuild-native` nell'ambiente VS2022 dopo `npm ci` (il giro
+tocca i nativi). Conviene un commit dedicato SOLO per Electron, così il revert non trascina altro.
+
+#### Giro 8 — codemirror 5 → 6 (FORTEMENTE SCONSIGLIATO; è una migrazione, non un update)
+
+```
+npm install codemirror@latest        # porterà a CM6: romperà il build finché il codice non è migrato
+```
+**Perché fortemente sconsigliato:** CodeMirror 6 è una **riscrittura totale** con API completamente
+diversa da CM5 (moduli `@codemirror/*`, state/view separati, niente drop-in). La *source mode* del
+progetto è costruita sull'API CM5, e i task pianificati tab-bar-layout (T-M1..T-M6) assumono CM5.
+Aggiornare il solo pacchetto **non aggiorna il codice**: import e chiamate CM5 si rompono e la source
+mode smette di compilare/funzionare. Non è un aggiornamento, è un **progetto di migrazione dedicato**
+(riscrivere l'integrazione editor). Da NON fare in questo giro né come semplice bump.
+Test (se lo si prova comunque): il build fallirà o la source mode non caricherà — è il
+comportamento atteso, conferma che serve la migrazione. Tornare indietro.
+Rollback: metodo generale (probabilmente necessario subito).
+
+### Nota finale sui warning deprecati
+
+Anche completando i giri 1-6, i `npm warn deprecated` (`boolean`, `glob@7`, `rimraf@2`, `inflight`,
+`lodash.isequal`, `prebuild-install`) **non spariscono**: sono trascinati da `electron`,
+`electron-builder`, `electron-updater`, `keytar` — tutti già al massimo del loro major. Spariranno
+solo con l'upgrade Electron (giro 7) e con l'eventuale sostituzione di keytar (abbandonato a monte).
+Sono innocui (`npm audit` = 0, solo a install fresco): non giustificano da soli i giri rischiosi.
