@@ -3,7 +3,10 @@
     <!-- v2: tab bar sempre visibile (forzata, ignora showTabBar) -->
     <tabs />
     <div class="editor-row">
-      <div class="container" @wheel="onContainerWheel">
+      <div
+        class="container"
+        @wheel="onContainerWheel"
+      >
         <editor
           :markdown="markdown"
           :cursor="cursor"

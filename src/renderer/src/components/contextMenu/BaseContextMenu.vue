@@ -27,10 +27,12 @@
               :is="it.iconComponent"
               v-if="it.iconComponent"
             />
+            <!-- eslint-disable vue/no-v-html -- icona SVG statica da ./icons, nessun input utente -->
             <span
               v-else-if="it.iconKey"
               v-html="ICONS[it.iconKey] || ''"
             />
+            <!-- eslint-enable vue/no-v-html -->
           </span>
           <span class="v2-ctx-label">{{ it.label }}</span>
           <span
@@ -68,7 +70,7 @@ const adjustPosition = async () => {
   await nextTick()
   if (!menuRef.value) return
   const r = menuRef.value.getBoundingClientRect()
-  const padX = 8, padY = 8
+  const padX = 8; const padY = 8
   pos.value = {
     x: Math.min(props.x, window.innerWidth - r.width - padX),
     y: Math.min(props.y, window.innerHeight - r.height - padY)

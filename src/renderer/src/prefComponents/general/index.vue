@@ -119,7 +119,10 @@
               >
                 {{ t('preferences.general.startup.selectFolder') }}
               </el-button>
-              <span v-if="defaultDirectoryToOpen" class="directory-path">{{ defaultDirectoryToOpen }}</span>
+              <span
+                v-if="defaultDirectoryToOpen"
+                class="directory-path"
+              >{{ defaultDirectoryToOpen }}</span>
             </div>
             <div class="startup-option">
               <el-radio label="blank">
@@ -133,7 +136,9 @@
 
     <compound>
       <template #head>
-        <h6 class="title">Session snapshot &amp; periodic backup</h6>
+        <h6 class="title">
+          Session snapshot &amp; periodic backup
+        </h6>
       </template>
       <template #children>
         <bool
@@ -153,11 +158,20 @@
         <section class="startup-action-ctrl">
           <div class="startup-option">
             <span>Backup location</span>
-            <el-button size="small" @click="selectSessionBackupPath">
+            <el-button
+              size="small"
+              @click="selectSessionBackupPath"
+            >
               Select folder
             </el-button>
-            <span v-if="sessionBackupPath" class="directory-path">{{ sessionBackupPath }}</span>
-            <span v-else class="directory-path">Default: &lt;userData&gt;/backup</span>
+            <span
+              v-if="sessionBackupPath"
+              class="directory-path"
+            >{{ sessionBackupPath }}</span>
+            <span
+              v-else
+              class="directory-path"
+            >Default: &lt;userData&gt;/backup</span>
           </div>
         </section>
       </template>

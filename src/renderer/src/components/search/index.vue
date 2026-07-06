@@ -16,171 +16,189 @@
       :class="['search-bar', mode === 'floating' ? 'v2-search-floating' : 'v2-search-docked']"
       @click.stop="noop"
     >
-    <!-- F2: Header solo in floating mode con titolo + hint -->
-    <div
-      v-if="mode === 'floating'"
-      class="v2-search-hdr"
-    >
-      <span class="v2-search-title">Find &amp; Replace</span>
-      <span class="v2-search-hint">↵ to dock</span>
-    </div>
-
-    <!-- B13: X chiude in docked mode (sostituisce comportamento click-fuori) -->
-    <div
-      v-if="mode === 'docked'"
-      class="v2-search-docked-close"
-      title="Chiudi (Esc)"
-      @click.stop="emptySearch(true)"
-    >
-      <svg width="10" height="10" viewBox="0 0 10 10">
-        <line x1="0" y1="0" x2="10" y2="10" stroke="currentColor" stroke-width="1.5"/>
-        <line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" stroke-width="1.5"/>
-      </svg>
-    </div>
-
-    <div
-      class="left-arrow"
-      @click="toggleSearchType"
-    >
-      <svg
-        class="icon"
-        aria-hidden="true"
-        :class="{ 'arrow-right': type === 'search' }"
+      <!-- F2: Header solo in floating mode con titolo + hint -->
+      <div
+        v-if="mode === 'floating'"
+        class="v2-search-hdr"
       >
-        <use xlink:href="#icon-arrowdown" />
-      </svg>
-    </div>
-    <div class="right-controls">
-      <section class="search">
-        <div
-          class="input-wrapper"
-          :class="{ error: !!searchErrorMsg }"
+        <span class="v2-search-title">Find &amp; Replace</span>
+        <span class="v2-search-hint">↵ to dock</span>
+      </div>
+
+      <!-- B13: X chiude in docked mode (sostituisce comportamento click-fuori) -->
+      <div
+        v-if="mode === 'docked'"
+        class="v2-search-docked-close"
+        title="Chiudi (Esc)"
+        @click.stop="emptySearch(true)"
+      >
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 10 10"
         >
-          <input
-            ref="search"
-            v-model="searchValue"
-            type="text"
-            :placeholder="t('search.searchPlaceholder')"
-            @keyup="debouncedSearchFn($event)"
-            @keydown.enter.prevent="dockOrClose"
-          >
-          <div class="controls">
-            <span class="search-result">{{ highlightIndex + 1 }} /
-              {{ highlightCount }}
-            </span>
-            <span
-              :title="t('search.caseSensitive')"
-              class="is-case-sensitive"
-              :class="{ active: isCaseSensitive }"
-              @click.stop="toggleCtrl('isCaseSensitive')"
-            >
-              <FindCaseIcon aria-hidden="true" />
-            </span>
-            <span
-              :title="t('search.wholeWord')"
-              class="is-whole-word"
-              :class="{ active: isWholeWord }"
-              @click.stop="toggleCtrl('isWholeWord')"
-            >
-              <FindWordIcon aria-hidden="true" />
-            </span>
-            <span
-              :title="t('search.useRegex')"
-              class="is-regex"
-              :class="{ active: isRegexp }"
-              @click.stop="toggleCtrl('isRegexp')"
-            >
-              <FindRegexIcon aria-hidden="true" />
-            </span>
-          </div>
-          <div
-            v-if="searchErrorMsg"
-            class="error-msg"
-          >
-            {{ searchErrorMsg }}
-          </div>
-        </div>
-        <div class="button-group">
-          <button
-            class="button right"
-            @click="find('prev')"
-          >
-            <svg
-              class="icon"
-              aria-hidden="true"
-            >
-              <use xlink:href="#icon-arrow-up" />
-            </svg>
-          </button>
-          <button
-            class="button"
-            @click="find('next')"
-          >
-            <svg
-              class="icon"
-              aria-hidden="true"
-            >
-              <use xlink:href="#icon-arrowdown" />
-            </svg>
-          </button>
-        </div>
-      </section>
-      <section
-        v-if="type === 'replace'"
-        class="replace"
+          <line
+            x1="0"
+            y1="0"
+            x2="10"
+            y2="10"
+            stroke="currentColor"
+            stroke-width="1.5"
+          />
+          <line
+            x1="10"
+            y1="0"
+            x2="0"
+            y2="10"
+            stroke="currentColor"
+            stroke-width="1.5"
+          />
+        </svg>
+      </div>
+
+      <div
+        class="left-arrow"
+        @click="toggleSearchType"
       >
-        <div class="input-wrapper replace-input">
-          <input
-            v-model="replaceValue"
-            type="text"
-            :placeholder="t('search.replacementPlaceholder')"
+        <svg
+          class="icon"
+          aria-hidden="true"
+          :class="{ 'arrow-right': type === 'search' }"
+        >
+          <use xlink:href="#icon-arrowdown" />
+        </svg>
+      </div>
+      <div class="right-controls">
+        <section class="search">
+          <div
+            class="input-wrapper"
+            :class="{ error: !!searchErrorMsg }"
           >
-        </div>
-        <div class="button-group">
-          <el-tooltip
-            class="item"
-            effect="dark"
-            :content="t('search.replaceAll')"
-            placement="top"
-            :visible-arrow="false"
-            :open-delay="1000"
-          >
+            <input
+              ref="search"
+              v-model="searchValue"
+              type="text"
+              :placeholder="t('search.searchPlaceholder')"
+              @keyup="debouncedSearchFn($event)"
+              @keydown.enter.prevent="dockOrClose"
+            >
+            <div class="controls">
+              <span class="search-result">{{ highlightIndex + 1 }} /
+                {{ highlightCount }}
+              </span>
+              <span
+                :title="t('search.caseSensitive')"
+                class="is-case-sensitive"
+                :class="{ active: isCaseSensitive }"
+                @click.stop="toggleCtrl('isCaseSensitive')"
+              >
+                <FindCaseIcon aria-hidden="true" />
+              </span>
+              <span
+                :title="t('search.wholeWord')"
+                class="is-whole-word"
+                :class="{ active: isWholeWord }"
+                @click.stop="toggleCtrl('isWholeWord')"
+              >
+                <FindWordIcon aria-hidden="true" />
+              </span>
+              <span
+                :title="t('search.useRegex')"
+                class="is-regex"
+                :class="{ active: isRegexp }"
+                @click.stop="toggleCtrl('isRegexp')"
+              >
+                <FindRegexIcon aria-hidden="true" />
+              </span>
+            </div>
+            <div
+              v-if="searchErrorMsg"
+              class="error-msg"
+            >
+              {{ searchErrorMsg }}
+            </div>
+          </div>
+          <div class="button-group">
             <button
               class="button right"
-              @click="replace(false)"
+              @click="find('prev')"
             >
               <svg
                 class="icon"
                 aria-hidden="true"
               >
-                <use xlink:href="#icon-all-inclusive" />
+                <use xlink:href="#icon-arrow-up" />
               </svg>
             </button>
-          </el-tooltip>
-          <el-tooltip
-            class="item"
-            effect="dark"
-            :content="t('search.replaceSingle')"
-            placement="top"
-            :visible-arrow="false"
-            :open-delay="1000"
-          >
             <button
               class="button"
-              @click="replace(true)"
+              @click="find('next')"
             >
               <svg
                 class="icon"
                 aria-hidden="true"
               >
-                <use xlink:href="#icon-replace" />
+                <use xlink:href="#icon-arrowdown" />
               </svg>
             </button>
-          </el-tooltip>
-        </div>
-      </section>
+          </div>
+        </section>
+        <section
+          v-if="type === 'replace'"
+          class="replace"
+        >
+          <div class="input-wrapper replace-input">
+            <input
+              v-model="replaceValue"
+              type="text"
+              :placeholder="t('search.replacementPlaceholder')"
+            >
+          </div>
+          <div class="button-group">
+            <el-tooltip
+              class="item"
+              effect="dark"
+              :content="t('search.replaceAll')"
+              placement="top"
+              :visible-arrow="false"
+              :open-delay="1000"
+            >
+              <button
+                class="button right"
+                @click="replace(false)"
+              >
+                <svg
+                  class="icon"
+                  aria-hidden="true"
+                >
+                  <use xlink:href="#icon-all-inclusive" />
+                </svg>
+              </button>
+            </el-tooltip>
+            <el-tooltip
+              class="item"
+              effect="dark"
+              :content="t('search.replaceSingle')"
+              placement="top"
+              :visible-arrow="false"
+              :open-delay="1000"
+            >
+              <button
+                class="button"
+                @click="replace(true)"
+              >
+                <svg
+                  class="icon"
+                  aria-hidden="true"
+                >
+                  <use xlink:href="#icon-replace" />
+                </svg>
+              </button>
+            </el-tooltip>
+          </div>
+        </section>
+      </div>
     </div>
-  </div>
   </Transition>
 </template>
 

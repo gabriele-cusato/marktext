@@ -7,9 +7,27 @@
         :title="t('common.close', 'Chiudi')"
         @click="closeSidebar"
       >
-        <svg width="10" height="10" viewBox="0 0 10 10">
-          <line x1="0" y1="0" x2="10" y2="10" stroke="currentColor" stroke-width="1.5" />
-          <line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" stroke-width="1.5" />
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 10 10"
+        >
+          <line
+            x1="0"
+            y1="0"
+            x2="10"
+            y2="10"
+            stroke="currentColor"
+            stroke-width="1.5"
+          />
+          <line
+            x1="10"
+            y1="0"
+            x2="0"
+            y2="10"
+            stroke="currentColor"
+            stroke-width="1.5"
+          />
         </svg>
       </span>
     </div>
@@ -198,7 +216,8 @@ const search = (emitHighlight = true, preserveCursor = false) => {
     const text = tab.markdown || ''
     const lines = text.split('\n')
     const matches = []
-    outer: for (let i = 0; i < lines.length; i++) {
+    for (let i = 0; i < lines.length; i++) {
+      if (truncated) break
       const line = lines[i]
       pattern.lastIndex = 0
       let m
@@ -212,7 +231,7 @@ const search = (emitHighlight = true, preserveCursor = false) => {
         totalMatches++
         if (matches.length >= MAX_MATCHES_PER_TAB || totalMatches >= MAX_MATCHES_TOTAL) {
           truncated = true
-          break outer
+          break
         }
       }
     }

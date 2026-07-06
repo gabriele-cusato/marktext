@@ -337,11 +337,13 @@ const handleFileChange = ({ id, markdown: newMarkdown, cursor, scrollTop, forceR
   if (editor.value) {
     const fileSize = (newMarkdown || currentTab.value?.markdown || '').length
     const isHuge = fileSize > 10 * 1024 * 1024 // 10 MB
-    editor.value.setOption('highlightSelectionMatches', isHuge ? false : {
-      minChars: 2,
-      wordsOnly: true,
-      showToken: false
-    })
+    editor.value.setOption('highlightSelectionMatches', isHuge
+      ? false
+      : {
+        minChars: 2,
+        wordsOnly: true,
+        showToken: false
+      })
     editor.value.setOption('styleActiveLine', !isHuge)
   }
 
@@ -431,7 +433,6 @@ const handleSourceCommentFromMain = () => {
 const handleSourceUncommentFromMain = () => {
   handleSourceCommentActionFromMain('uncomment')
 }
-
 
 // Flush sincronizzato CM→store prima del salvataggio (Ctrl+S / Save As).
 // FILE_SAVE emette 'pre-save' via bus (mitt = sincrono) PRIMA di leggere tab.markdown.
@@ -1057,7 +1058,7 @@ onMounted(() => {
       'Alt-Up': 'swapLineUp',
       'Alt-Down': 'swapLineDown',
       // H1: Esc collassa la multi-selezione se attiva; altrimenti passa al handler find-panel.
-      'Escape': (cm) => {
+      Escape: (cm) => {
         if (cm.listSelections().length > 1) {
           cm.execCommand('singleSelection')
         } else {

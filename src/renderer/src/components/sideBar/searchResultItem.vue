@@ -130,8 +130,8 @@ const handleSearchResultClick = (searchMatch) => {
   const { filePath, tabId } = props.searchResult
 
   // Prefer matching by tabId (works for Untitled tabs without pathname)
-  const openedTab = tabs.value.find((f) => f.id === tabId)
-    || tabs.value.find((f) => window.fileUtils.isSamePathSync(f.pathname, filePath))
+  const openedTab = tabs.value.find((f) => f.id === tabId) ||
+    tabs.value.find((f) => window.fileUtils.isSamePathSync(f.pathname, filePath))
 
   // Cursore in formato CodeMirror {line, ch}: usato SOLO per i tab source e per l'apertura da disco.
   const cursor = {

@@ -11,12 +11,18 @@
       >
         <!-- Riga quickaction: Impostazioni (sinistra) e Cambia Tema (destra) -->
         <div class="v2-cmd-quickbar">
-          <button class="v2-cmd-qbtn" @click="openSettings">
+          <button
+            class="v2-cmd-qbtn"
+            @click="openSettings"
+          >
             <span class="v2-cmd-qbtn-icon">⚙</span>
             <span class="v2-cmd-qbtn-label">Preferences</span>
           </button>
           <div class="v2-cmd-qdiv" />
-          <button class="v2-cmd-qbtn" @click="changeTheme">
+          <button
+            class="v2-cmd-qbtn"
+            @click="changeTheme"
+          >
             <span class="v2-cmd-qbtn-icon">{{ themeValue === 'dark' ? '◐' : '◑' }}</span>
             <span class="v2-cmd-qbtn-label">Theme</span>
           </button>
@@ -37,7 +43,9 @@
             v-if="query"
             class="v2-cmd-clear"
             @click="query = ''"
-          >✕</button>
+          >
+            ✕
+          </button>
         </div>
 
         <loading v-if="searcherBusy" />

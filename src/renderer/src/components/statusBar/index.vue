@@ -16,25 +16,33 @@
           ? t('statusBar.nonMarkdown', 'Source only: non-markdown file')
           : t('statusBar.toggleSource', 'Toggle Source / Markdown (Ctrl+E)')"
         @click="toggleSourceMode"
-      >{{ sourceCode ? 'Source' : 'MD' }}</button>
+      >
+        {{ sourceCode ? 'Source' : 'MD' }}
+      </button>
       <button
         :class="['v2-chip', { 'v2-chip-on': wordWrap, 'v2-chip-disabled': !sourceCode }]"
         :title="!sourceCode ? t('statusBar.wrapUnavailable', 'Wrap not available in markdown mode') : t('statusBar.toggleWrap', 'Toggle Word Wrap')"
         :disabled="!sourceCode"
         @click="toggleWrap"
-      >Wrap</button>
+      >
+        Wrap
+      </button>
       <button
         class="v2-chip"
         :title="t('statusBar.resetZoom', 'Reset Zoom (Ctrl+0)')"
         @click="resetZoom"
-      >{{ zoomDisplay }}</button>
+      >
+        {{ zoomDisplay }}
+      </button>
 
       <!-- EOL chip + dropdown -->
       <div class="v2-chip-wrap">
         <button
           class="v2-chip"
           @click.stop="toggleEolMenu"
-        >{{ eolDisplay }}</button>
+        >
+          {{ eolDisplay }}
+        </button>
         <div
           v-if="eolOpen"
           class="v2-chip-drop"
@@ -57,7 +65,9 @@
         <button
           class="v2-chip"
           @click.stop="toggleEncMenu"
-        >{{ encodingDisplay }}</button>
+        >
+          {{ encodingDisplay }}
+        </button>
         <div
           v-if="encOpen"
           class="v2-chip-drop v2-chip-drop-wide"
@@ -96,7 +106,9 @@
               :key="group.label"
               class="v2-drop-group"
             >
-              <div class="v2-drop-group-label">{{ group.label }}</div>
+              <div class="v2-drop-group-label">
+                {{ group.label }}
+              </div>
               <div
                 v-for="item of group.items"
                 :key="item.encoding"
@@ -241,62 +253,101 @@ const TOP_ENC = [
 
 // Sottomenu "Altri set di caratteri" - categorie con relative chiavi (M-REV12: label via t())
 const ENC_GROUPS = computed(() => [
-  { label: t('statusBar.encodingGroup.arabic', 'Arabic'), items: [
-    { label: ENCODING_NAME_MAP.arabic, encoding: 'arabic', isBom: false },
-    { label: ENCODING_NAME_MAP.cp1256, encoding: 'cp1256', isBom: false }
-  ]},
-  { label: t('statusBar.encodingGroup.baltic', 'Baltic'), items: [
-    { label: ENCODING_NAME_MAP.latin4, encoding: 'latin4', isBom: false },
-    { label: ENCODING_NAME_MAP.cp1257, encoding: 'cp1257', isBom: false }
-  ]},
-  { label: t('statusBar.encodingGroup.cyrillic', 'Cyrillic'), items: [
-    { label: ENCODING_NAME_MAP.cp866, encoding: 'cp866', isBom: false },
-    { label: ENCODING_NAME_MAP.iso88595, encoding: 'iso88595', isBom: false },
-    { label: ENCODING_NAME_MAP.koi8r, encoding: 'koi8r', isBom: false },
-    { label: ENCODING_NAME_MAP.koi8u, encoding: 'koi8u', isBom: false },
-    { label: ENCODING_NAME_MAP.cp1251, encoding: 'cp1251', isBom: false }
-  ]},
-  { label: t('statusBar.encodingGroup.centralEuropean', 'Central European'), items: [
-    { label: ENCODING_NAME_MAP.iso88592, encoding: 'iso88592', isBom: false },
-    { label: ENCODING_NAME_MAP.windows1250, encoding: 'windows1250', isBom: false }
-  ]},
-  { label: t('statusBar.encodingGroup.chinese', 'Chinese'), items: [
-    { label: ENCODING_NAME_MAP.gb2312, encoding: 'gb2312', isBom: false },
-    { label: ENCODING_NAME_MAP.gb18030, encoding: 'gb18030', isBom: false },
-    { label: ENCODING_NAME_MAP.gbk, encoding: 'gbk', isBom: false },
-    { label: ENCODING_NAME_MAP.big5, encoding: 'big5', isBom: false },
-    { label: ENCODING_NAME_MAP.big5hkscs, encoding: 'big5hkscs', isBom: false }
-  ]},
-  { label: t('statusBar.encodingGroup.easternEuropean', 'Eastern European'), items: [
-    { label: ENCODING_NAME_MAP.iso885913, encoding: 'iso885913', isBom: false }
-  ]},
-  { label: t('statusBar.encodingGroup.greek', 'Greek'), items: [
-    { label: ENCODING_NAME_MAP.greek, encoding: 'greek', isBom: false },
-    { label: ENCODING_NAME_MAP.cp1253, encoding: 'cp1253', isBom: false }
-  ]},
-  { label: t('statusBar.encodingGroup.hebrew', 'Hebrew'), items: [
-    { label: ENCODING_NAME_MAP.hebrew, encoding: 'hebrew', isBom: false },
-    { label: ENCODING_NAME_MAP.cp1255, encoding: 'cp1255', isBom: false }
-  ]},
-  { label: t('statusBar.encodingGroup.japanese', 'Japanese'), items: [
-    { label: ENCODING_NAME_MAP.shiftjis, encoding: 'shiftjis', isBom: false },
-    { label: ENCODING_NAME_MAP.eucjp, encoding: 'eucjp', isBom: false }
-  ]},
-  { label: t('statusBar.encodingGroup.korean', 'Korean'), items: [
-    { label: ENCODING_NAME_MAP.euckr, encoding: 'euckr', isBom: false }
-  ]},
-  { label: t('statusBar.encodingGroup.northernEuropean', 'Northern European'), items: [
-    { label: ENCODING_NAME_MAP.latin6, encoding: 'latin6', isBom: false }
-  ]},
-  { label: t('statusBar.encodingGroup.turkish', 'Turkish'), items: [
-    { label: ENCODING_NAME_MAP.latin5, encoding: 'latin5', isBom: false },
-    { label: ENCODING_NAME_MAP.cp1254, encoding: 'cp1254', isBom: false }
-  ]},
-  { label: t('statusBar.encodingGroup.westernEuropean', 'Western European'), items: [
-    { label: ENCODING_NAME_MAP.ascii, encoding: 'ascii', isBom: false },
-    { label: ENCODING_NAME_MAP.latin3, encoding: 'latin3', isBom: false },
-    { label: ENCODING_NAME_MAP.iso885915, encoding: 'iso885915', isBom: false }
-  ]}
+  {
+    label: t('statusBar.encodingGroup.arabic', 'Arabic'),
+    items: [
+      { label: ENCODING_NAME_MAP.arabic, encoding: 'arabic', isBom: false },
+      { label: ENCODING_NAME_MAP.cp1256, encoding: 'cp1256', isBom: false }
+    ]
+  },
+  {
+    label: t('statusBar.encodingGroup.baltic', 'Baltic'),
+    items: [
+      { label: ENCODING_NAME_MAP.latin4, encoding: 'latin4', isBom: false },
+      { label: ENCODING_NAME_MAP.cp1257, encoding: 'cp1257', isBom: false }
+    ]
+  },
+  {
+    label: t('statusBar.encodingGroup.cyrillic', 'Cyrillic'),
+    items: [
+      { label: ENCODING_NAME_MAP.cp866, encoding: 'cp866', isBom: false },
+      { label: ENCODING_NAME_MAP.iso88595, encoding: 'iso88595', isBom: false },
+      { label: ENCODING_NAME_MAP.koi8r, encoding: 'koi8r', isBom: false },
+      { label: ENCODING_NAME_MAP.koi8u, encoding: 'koi8u', isBom: false },
+      { label: ENCODING_NAME_MAP.cp1251, encoding: 'cp1251', isBom: false }
+    ]
+  },
+  {
+    label: t('statusBar.encodingGroup.centralEuropean', 'Central European'),
+    items: [
+      { label: ENCODING_NAME_MAP.iso88592, encoding: 'iso88592', isBom: false },
+      { label: ENCODING_NAME_MAP.windows1250, encoding: 'windows1250', isBom: false }
+    ]
+  },
+  {
+    label: t('statusBar.encodingGroup.chinese', 'Chinese'),
+    items: [
+      { label: ENCODING_NAME_MAP.gb2312, encoding: 'gb2312', isBom: false },
+      { label: ENCODING_NAME_MAP.gb18030, encoding: 'gb18030', isBom: false },
+      { label: ENCODING_NAME_MAP.gbk, encoding: 'gbk', isBom: false },
+      { label: ENCODING_NAME_MAP.big5, encoding: 'big5', isBom: false },
+      { label: ENCODING_NAME_MAP.big5hkscs, encoding: 'big5hkscs', isBom: false }
+    ]
+  },
+  {
+    label: t('statusBar.encodingGroup.easternEuropean', 'Eastern European'),
+    items: [
+      { label: ENCODING_NAME_MAP.iso885913, encoding: 'iso885913', isBom: false }
+    ]
+  },
+  {
+    label: t('statusBar.encodingGroup.greek', 'Greek'),
+    items: [
+      { label: ENCODING_NAME_MAP.greek, encoding: 'greek', isBom: false },
+      { label: ENCODING_NAME_MAP.cp1253, encoding: 'cp1253', isBom: false }
+    ]
+  },
+  {
+    label: t('statusBar.encodingGroup.hebrew', 'Hebrew'),
+    items: [
+      { label: ENCODING_NAME_MAP.hebrew, encoding: 'hebrew', isBom: false },
+      { label: ENCODING_NAME_MAP.cp1255, encoding: 'cp1255', isBom: false }
+    ]
+  },
+  {
+    label: t('statusBar.encodingGroup.japanese', 'Japanese'),
+    items: [
+      { label: ENCODING_NAME_MAP.shiftjis, encoding: 'shiftjis', isBom: false },
+      { label: ENCODING_NAME_MAP.eucjp, encoding: 'eucjp', isBom: false }
+    ]
+  },
+  {
+    label: t('statusBar.encodingGroup.korean', 'Korean'),
+    items: [
+      { label: ENCODING_NAME_MAP.euckr, encoding: 'euckr', isBom: false }
+    ]
+  },
+  {
+    label: t('statusBar.encodingGroup.northernEuropean', 'Northern European'),
+    items: [
+      { label: ENCODING_NAME_MAP.latin6, encoding: 'latin6', isBom: false }
+    ]
+  },
+  {
+    label: t('statusBar.encodingGroup.turkish', 'Turkish'),
+    items: [
+      { label: ENCODING_NAME_MAP.latin5, encoding: 'latin5', isBom: false },
+      { label: ENCODING_NAME_MAP.cp1254, encoding: 'cp1254', isBom: false }
+    ]
+  },
+  {
+    label: t('statusBar.encodingGroup.westernEuropean', 'Western European'),
+    items: [
+      { label: ENCODING_NAME_MAP.ascii, encoding: 'ascii', isBom: false },
+      { label: ENCODING_NAME_MAP.latin3, encoding: 'latin3', isBom: false },
+      { label: ENCODING_NAME_MAP.iso885915, encoding: 'iso885915', isBom: false }
+    ]
+  }
 ])
 
 const toggleEncMenu = () => {

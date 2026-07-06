@@ -53,7 +53,13 @@
             class="v2-tab-pin"
             title="Pinned"
           >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <svg
+              width="11"
+              height="11"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              aria-hidden="true"
+            >
               <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z" />
             </svg>
           </span>
@@ -66,7 +72,9 @@
           <button
             class="v2-tab-x"
             @click.stop="removeFileInTab(file)"
-          >×</button>
+          >
+            ×
+          </button>
         </li>
         <!-- drag-html5-dnd-task2: indicatore d'inserimento del drag HTML5 nativo (sostituisce
              il mirror DOM di dragula, rimosso). position:absolute (come il "+" sotto) → fuori
@@ -87,9 +95,11 @@
         <li
           v-if="!hasMultiRow"
           class="v2-tab-new-li"
-          @click.stop="newFile()"
           title="New Tab (Ctrl+T)"
-        >+</li>
+          @click.stop="newFile()"
+        >
+          +
+        </li>
       </ul>
 
       <!-- Suggerimento "espandibile": freccetta giù centrata orizzontalmente sullo
@@ -99,12 +109,20 @@
            dell'intera bar. Appare (fade-in) + lampeggia ~2s SOLO in multi-row collassato;
            scompare (fade-out) se torna single-row o se la bar è espansa (tabs-hovered).
            pointer-events:none → non interferisce con hover-expand / drag. -->
-      <div class="v2-multirow-hint" aria-hidden="true">
+      <div
+        class="v2-multirow-hint"
+        aria-hidden="true"
+      >
         <svg
           class="v2-multirow-hint-arrow"
-          width="14" height="9" viewBox="0 0 14 9"
-          fill="none" stroke="currentColor" stroke-width="2"
-          stroke-linecap="round" stroke-linejoin="round"
+          width="14"
+          height="9"
+          viewBox="0 0 14 9"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
         >
           <path d="M1 1.5 L7 7 L13 1.5" />
         </svg>
@@ -136,7 +154,10 @@
             @click.stop="selectFile(pinnedTab)"
             @contextmenu.prevent="handleContextMenu($event, pinnedTab)"
           >
-            <span v-if="!pinnedTab.isSaved" class="v2-tab-dot" />
+            <span
+              v-if="!pinnedTab.isSaved"
+              class="v2-tab-dot"
+            />
             <span class="v2-tab-name">{{ pinnedTab.filename }}</span>
             <span class="v2-tab-pinned-badge">↑</span>
           </div>
@@ -147,7 +168,9 @@
           class="v2-tr-plus"
           title="New Tab (Ctrl+T)"
           @click.stop="newFile()"
-        >+</button>
+        >
+          +
+        </button>
 
         <!-- B1: separatore tra elementi tab (clone, +) e icone app (⌘, 📂) -->
         <div class="v2-tr-sep" />
@@ -157,15 +180,27 @@
         class="v2-tr-btn"
         title="Command Palette (Ctrl+K)"
         @click="openCommandPalette"
-      >⌘</button>
+      >
+        ⌘
+      </button>
       <button
         class="v2-tr-btn v2-tr-btn-open"
         title="Apri file (Ctrl+O)"
         @click="openFileDialog"
       >
         <!-- NB4: SVG cartella aperta minimal, monocromatica -->
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
-          <path d="M1.5 4.5h4.5l1.5 1.5H14.5v7.5H1.5V4.5z" stroke-linejoin="round"/>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.3"
+        >
+          <path
+            d="M1.5 4.5h4.5l1.5 1.5H14.5v7.5H1.5V4.5z"
+            stroke-linejoin="round"
+          />
         </svg>
       </button>
       <!-- T-ME: su macOS i 3 controlli finestra custom + il loro separatore spariscono
@@ -179,8 +214,19 @@
           title="Riduci a icona"
           @click="winMinimize"
         >
-          <svg width="10" height="10" viewBox="0 0 10 10">
-            <line x1="0" y1="5" x2="10" y2="5" stroke="currentColor" stroke-width="1.2"/>
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+          >
+            <line
+              x1="0"
+              y1="5"
+              x2="10"
+              y2="5"
+              stroke="currentColor"
+              stroke-width="1.2"
+            />
           </svg>
         </button>
         <button
@@ -188,12 +234,46 @@
           :title="isMaximized ? 'Ripristina' : 'Massimizza'"
           @click="winMaximize"
         >
-          <svg v-if="!isMaximized" width="10" height="10" viewBox="0 0 10 10">
-            <rect x="0.6" y="0.6" width="8.8" height="8.8" stroke="currentColor" stroke-width="1.2" fill="none"/>
+          <svg
+            v-if="!isMaximized"
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+          >
+            <rect
+              x="0.6"
+              y="0.6"
+              width="8.8"
+              height="8.8"
+              stroke="currentColor"
+              stroke-width="1.2"
+              fill="none"
+            />
           </svg>
-          <svg v-else width="10" height="10" viewBox="0 0 10 10">
-            <rect x="2" y="0.6" width="7.4" height="7.4" stroke="currentColor" stroke-width="1.2" fill="none"/>
-            <rect x="0.6" y="2" width="7.4" height="7.4" stroke="currentColor" stroke-width="1.2" fill="var(--v2-bg)"/>
+          <svg
+            v-else
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+          >
+            <rect
+              x="2"
+              y="0.6"
+              width="7.4"
+              height="7.4"
+              stroke="currentColor"
+              stroke-width="1.2"
+              fill="none"
+            />
+            <rect
+              x="0.6"
+              y="2"
+              width="7.4"
+              height="7.4"
+              stroke="currentColor"
+              stroke-width="1.2"
+              fill="var(--v2-bg)"
+            />
           </svg>
         </button>
         <button
@@ -201,9 +281,27 @@
           title="Chiudi"
           @click="winClose"
         >
-          <svg width="10" height="10" viewBox="0 0 10 10">
-            <line x1="0" y1="0" x2="10" y2="10" stroke="currentColor" stroke-width="1.2"/>
-            <line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" stroke-width="1.2"/>
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+          >
+            <line
+              x1="0"
+              y1="0"
+              x2="10"
+              y2="10"
+              stroke="currentColor"
+              stroke-width="1.2"
+            />
+            <line
+              x1="10"
+              y1="0"
+              x2="0"
+              y2="10"
+              stroke="currentColor"
+              stroke-width="1.2"
+            />
           </svg>
         </button>
       </template>
@@ -221,10 +319,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, computed, watch, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import { useLayoutStore } from '@/store/layout'
-import { usePreferencesStore } from '@/store/preferences'
 import { storeToRefs } from 'pinia'
 import bus from '../../bus'
 import TabContextMenu from '../contextMenu/TabContextMenu.vue'
@@ -234,10 +331,8 @@ import { isOsx } from '@/util'
 
 const editorStore = useEditorStore()
 const layoutStore = useLayoutStore()
-const preferencesStore = usePreferencesStore()
 
 const { currentFile, tabs } = storeToRefs(editorStore)
-const { theme } = storeToRefs(preferencesStore)
 
 const tabContainer = ref(null)
 const tabDropContainer = ref(null)
@@ -313,8 +408,6 @@ let dragBlobUrl = null
 const ctxOpen = ref(false)
 const ctxPos = ref({ x: 0, y: 0 })
 const ctxTab = ref(null)
-
-const currentTheme = computed(() => theme.value)
 
 const selectFile = (file) => {
   if (file.id !== currentFile.value.id) {
@@ -544,10 +637,10 @@ const onTabDragEnd = (event) => {
     const tabbarEl = tabDropContainer.value ? tabDropContainer.value.closest('.v2-tabbar') : null
     const insideTabbar = tabbarEl
       ? (() => {
-          const rect = tabbarEl.getBoundingClientRect()
-          return event.clientX >= rect.left && event.clientX <= rect.right &&
+        const rect = tabbarEl.getBoundingClientRect()
+        return event.clientX >= rect.left && event.clientX <= rect.right &&
             event.clientY >= rect.top && event.clientY <= rect.bottom
-        })()
+      })()
       : false
     if (insideTabbar) {
       const { targetId } = computeDragTarget(event.clientX, event.clientY)
@@ -1049,16 +1142,16 @@ watch(hasMultiRow, (newVal) => {
     const tabbarEl = tabDropContainer.value ? tabDropContainer.value.closest('.v2-tabbar') : null
     console.error('[DEBUG flicker] LOOP RILEVATO: ' + flickerFlipTimes.length +
       ' flip di hasMultiRow in <3s. Stato: ' + JSON.stringify({
-        newVal,
-        tabbarClientW: tabbarEl ? tabbarEl.clientWidth : null,
-        innerWidth: window.innerWidth,
-        paddingRight: tabbarEl ? tabbarEl.style.paddingRight : null,
-        ulWidth: tabDropContainer.value ? tabDropContainer.value.style.width : null,
-        hovered: tabsAreaHovered.value,
-        pinnedTab: pinnedTab.value ? pinnedTab.value.id : null,
-        tabsCount: tabs.value.length,
-        dragging: draggedTabId.value
-      }))
+      newVal,
+      tabbarClientW: tabbarEl ? tabbarEl.clientWidth : null,
+      innerWidth: window.innerWidth,
+      paddingRight: tabbarEl ? tabbarEl.style.paddingRight : null,
+      ulWidth: tabDropContainer.value ? tabDropContainer.value.style.width : null,
+      hovered: tabsAreaHovered.value,
+      pinnedTab: pinnedTab.value ? pinnedTab.value.id : null,
+      tabsCount: tabs.value.length,
+      dragging: draggedTabId.value
+    }))
   }
   // P-DF8-3 (rev S7-fix): lock ridotto da 500ms → 150ms.
   layoutLockUntil = Date.now() + 150

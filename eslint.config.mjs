@@ -19,7 +19,10 @@ export default [
       'src/muya/webpack.config.js',
       'static/locales/*.min.json',
       // Third-party/vendor libraries
-      'src/muya/lib/assets/libs/**'
+      'src/muya/lib/assets/libs/**',
+      // Generated docs site (built assets, minified bundles)
+      'MarkTextDocs/**',
+      '**/*.min.js'
     ]
   },
 

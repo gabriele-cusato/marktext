@@ -1939,7 +1939,6 @@ const getRootFolderFromState = (projectStore) => {
   return ''
 }
 
-
 /**
  * Normalizes a block of text for semantic comparison.
  * Removes whitespace differences while preserving content.
@@ -1964,6 +1963,7 @@ const normalizeBlock = (text) => {
     // Collapse multiple inline spaces to single space (\x02 is not a space, survives)
     .replace(/[ \t]+/g, ' ')
     // Restore hard-breaks AFTER the inline-space collapse so "  " is not re-collapsed
+    // eslint-disable-next-line no-control-regex
     .replace(/\x02/g, '  ')
     // Trim
     .trim()

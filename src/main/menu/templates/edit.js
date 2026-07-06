@@ -3,7 +3,6 @@ import { isOsx } from '../../config'
 import { COMMANDS } from '../../commands'
 import { t } from '../../i18n'
 
-
 export default function (keybindings) {
   return {
     label: t('menu.edit.edit'),
