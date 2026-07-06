@@ -451,3 +451,73 @@ Anche completando i giri 1-6, i `npm warn deprecated` (`boolean`, `glob@7`, `rim
 `electron-builder`, `electron-updater`, `keytar` — tutti già al massimo del loro major. Spariranno
 solo con l'upgrade Electron (giro 7) e con l'eventuale sostituzione di keytar (abbandonato a monte).
 Sono innocui (`npm audit` = 0, solo a install fresco): non giustificano da soli i giri rischiosi.
+
+## PROCEDURA COMPATTA — riprodurre lo stato su altro PC (2026-07-06)
+
+**Punto chiave**: i giri 1-6 sono GIÀ COMMITTATI (package.json + lockfile + fix di codice/config).
+Sull'altro PC NON serve rifare gli `npm install ...@latest` uno a uno: basta allinearsi al repo con
+`npm ci`. Il registro comandi (sez. B) è solo per riferimento/ripetizione da zero.
+
+### A. Sincronizzare l'altro PC (caso normale, consigliato)
+
+1. `git pull` (o fetch + checkout del branch aggiornato).
+2. Ambiente:
+   - `nvm use 22.21.1` (verifica `node -v` = v22.21.1; il Node di sistema non deve vincere nel PATH).
+   - Per i moduli nativi aprire **"Developer PowerShell for VS 2022"** (o `Enter-VsDevShell`, vedi
+     sezione "Ambiente build nativi"), così node-gyp usa VS2022 v143 (Spectre presenti) e non VS2026 v145.
+3. Chiudere app/dev server (evita EBUSY su `ced`).
+4. `npm ci` — installa le versioni ESATTE del lockfile e compila i nativi con v143.
+   - Se `MSB8040` / errori nativi → seguire "Procedura corretta su PC nuovo" (sezione Ambiente build nativi).
+5. Verifiche finali:
+   - `npm run lint` → **0 problemi**.
+   - `npm run build` → exit 0 (resta solo un warning innocuo `@vueuse/core #__PURE__`, non azionabile).
+   - `npm run dev` e/o `npm start` → app parte.
+
+### B. Registro comandi eseguiti nei giri 1-6 (per rifare da zero, se serve)
+
+Ordine e comandi realmente usati (test dopo ognuno, poi commit dedicato):
+
+```
+# Giro 1 — vitest (patch)
+npm install -D vitest@latest
+npm run test:unit
+
+# Giro 2 — stack ESLint (eslint RESTA 9: la 10 è bloccata dal peer eslint ^9 di neostandard 0.13)
+npm install -D @babel/eslint-parser@latest eslint-plugin-jsonc@latest neostandard@latest
+#   + in eslint.config.mjs aggiunti agli ignore: 'MarkTextDocs/**', '**/*.min.js'
+npx eslint . --fix          # ~404 problemi di formattazione risolti
+#   + 5 errori corretti a mano (file.js unused import, tabs.vue dead chain currentTheme,
+#     search.vue label 'outer' rimossa, editor.js eslint-disable no-control-regex su \x02)
+#   + 2 warning vue/no-v-html risolti con blocco eslint-disable/enable (SVG statico, no input utente)
+npm run lint                # deve dare 0
+
+# Giro 3 — postcss (build CSS)
+npm install -D postcss-preset-env@latest
+npm run build && npm run dev
+
+# Giro 4 — katex (dipendenza PROD, no -D)
+npm install katex@latest
+npm run dev                 # test formule $...$ e $$...$$ + export
+
+# Giro 5 — vue-router (dipendenza PROD, no -D)
+npm install vue-router@latest
+npm run dev                 # test finestre editor/Preferenze
+
+# Giro 6 — vite-plugin-electron-renderer (Vite 8 NON aggiornato: peer electron-vite ^5/6/7)
+npm install -D vite-plugin-electron-renderer@latest
+npm run build && npm run dev
+```
+
+### C. Bloccati / non fatti (stato al 2026-07-06)
+
+- **eslint 10**: bloccato dal peer `eslint ^9` di neostandard 0.13. Riprovare quando neostandard supporta eslint 10.
+- **vite 8**: bloccato dal peer `vite ^5 || ^6 || ^7` di electron-vite 5. Riprovare quando electron-vite supporta Vite 8.
+- **Giro 7 electron 39→43**: NON fatto (feature dedicata, EOL/sicurezza; native rebuild + retest pesante).
+- **Giro 8 codemirror 5→6**: NON fatto (migrazione, non update; romperebbe la source mode).
+
+### D. Warning/errori noti emersi (non bloccanti per gli update)
+
+- `@vueuse/core #__PURE__` (build): dipendenza, non azionabile lato codice; sparirà con Vite 8 (giro 6/upstream). NON sopprimere.
+- `selectionChange: expected cursor but cursor is null` (F12, `paragraphCtrl.js:21`): pre-esistente,
+  già tracciato in feature `editor-ui-fixes` task1 (fix previsto in `scrollToCursor`, NON toccare Muya).
+  Non è regressione degli update.

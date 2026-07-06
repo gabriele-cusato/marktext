@@ -16,6 +16,10 @@
 
 - **[ui-v2](ui-v2/ui-v2.md)** — Design system v2 (token `--v2-*` light/dark), status bar creato (Prg/Ln/Col/EOL/encoding/zoom), command palette quickbar, `markRaw` CodeMirror fix critico, magic margin CM interno, `justLoaded` flag Muya-specific, input type Enter vs LineBreak, dragula + Vue v-for riconciliamento `:key`. 12 bug UI fix (scroll interno CM, clone pinnedTab, tab posizione drag, mini-finestra resize). **Leggere PRIMA:** `markRaw` obbligatorio, scroll CM API (getScrollInfo, scrollTo, on('scroll')), doppio rAF per measure affidabile.
 
+## Source Mode & Commenti
+
+- **[source-comments-html-open](source-comments-html-open/source-comments-html-open.md)** — Source mode "da IDE": mode CodeMirror per estensione (task1), commenti `Ctrl+/` / `Ctrl+K C/U` line+block (task2), apri `.html` nel browser (task3), colori source (task5), commenti **indent-aware** dopo l'indent per `lineComment` (`.js`/`.py`, task8) e per block-comment-only (HTML/XML/Markdown `<!-- -->`, task9/11 — helper custom in `sourceCode.vue`, CodeMirror ignora `options.indent`). Bug di contorno: chord `Ctrl+K` intercettato dal main (task4/6), falso "file changed on disk" dopo save (task7), race scrittura non atomica → `rename` singola syscall (task10). ✅ 11 task, verificato utente 2026-07-06. **Trappole:** non patchare `node_modules/codemirror` per l'indent, non tornare a `move` per il save, non far ricomparire il falso "file changed" toccando il watcher.
+
 ## Editor Advanced
 
 - **[editor-advanced](editor-advanced/editor-advanced.md)** — Multi-selezione additiva Ctrl (H1, pianificato), commenti `Ctrl+K C/U` per linguaggio (H3, bloccato da T-M1), undo unificato Muya↔source (H8, ✅ implementato 2026-06-15, 6 file, verificato runtime con 6 bug risolti). BUG-CP1 inserimento markdown reale in source, BUG-CP2 switch non ri-renderizza, BUG-CTRLZ cross-tab (fix `clearHistory()` post-`setValue`), BUG-MUYA-INPUT cursore stale (3 siti guard), BUG-MUYA-UNDO-SWITCH cursor noHistory, BUG-MUYA-HEADING-DNA testo vs heading (accettato cosmetico). **Limite noto:** righe vuote source↔Muya non 1:1 (ambiguità markdown), zero perdita dati.
