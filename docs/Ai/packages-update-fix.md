@@ -310,17 +310,42 @@ Spectre (versione = cartella MSVC più recente sotto `...\2022\...\VC\Tools\MSVC
 Se in futuro il giro include un bump di Electron o dei moduli nativi, dopo il `npm ci` eseguire
 anche `npm run rebuild-native` nella stessa shell VS2022.
 
+### Copertura test: cosa i test automatici NON coprono
+
+Copertura reale del progetto (verificata 2026-07-06):
+- **Unit** (`vitest run`): solo `tests/unit/filesystem-paths`, `encoding`, `config` — utility del main
+  process. NON coprono editor/Muya, CSS/temi, KaTeX, vue-router, dialog, export.
+- **E2E** (`playwright`): solo `tests/e2e/app-launch.spec.js` — smoke test "l'app si avvia".
+
+Conseguenza per giro: i test automatici bastano **solo per i giri 1 (vitest) e 2 (ESLint)**, che
+sono dev-only o auto-verificanti. Dal **giro 3 in poi** i pacchetti toccano runtime/UI che nessun
+test copre → **obbligatorio test manuale** con `npm run dev` sulla superficie specifica del pacchetto
+(temi, formule, navigazione finestre, ecc. — dettaglio nel singolo giro). Lo smoke e2e conferma solo
+l'avvio, non la correttezza di resa/feature.
+
+| Giro | Automatici bastano | Test necessario |
+|------|--------------------|-----------------|
+| 1 vitest | Sì | `npm run test:unit` |
+| 2 ESLint | Sì | `npm run lint` |
+| 3 postcss | No | build + controllo visivo temi/componenti |
+| 4 katex | No | formule inline/blocco + preview + export |
+| 5 vue-router | No | apertura finestre editor/Preferenze, console pulita |
+| 6 vite-plugin | Parziale | build + `npm run dev` + smoke e2e |
+| 7 electron | No | retest manuale pesante (drag tab, dialog, export, nativi) |
+
 ### Ordine consigliato dei giri (dal più sicuro al più rischioso)
 
 Fare i giri in quest'ordine; ognuno è un commit isolato e reversibile con il metodo sopra.
 
-#### Giro 1 — vitest (patch, rischio nullo)
+#### Giro 1 — vitest (patch, rischio nullo) — FATTO 2026-07-06
 Non è un major: `4.1.9 → 4.1.10` (Wanted già 4.1.10). Solo test runner, zero runtime.
 ```
 npm install -D vitest@latest
 ```
 Test: `npm run test:unit`.
 Rollback: non serve praticamente mai; se serve, metodo generale.
+**Esito 2026-07-06**: `test:unit` verde, app parte. Nessun test runtime necessario (vitest è
+dev-only, non entra nell'app) → giro sufficiente e OK. Da committare.
 
 #### Giro 2 — stack ESLint (dev only, nessun impatto runtime)
 Aggiornare INSIEME perché interdipendenti (eslint 10 richiede parser/plugin/config compatibili):
