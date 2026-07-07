@@ -1,3 +1,25 @@
+## 2026-07-07 — Modus operandi soluzioni: preferire la strada SOLIDA/PULITA anche se costa più modifiche (con conferma)
+
+**Regola permanente per come proporre e scegliere le soluzioni in questo progetto** (richiesta
+esplicita utente, da applicare in OGNI sessione, anche a contesto pulito):
+
+- Quando esiste un fix "pezza" rapido (soppressione warning, flag, workaround locale) e un fix
+  **corretto alla radice** più costoso (refactor, più file toccati, migrazione a API nativa/mantenuta),
+  l'utente vuole **la strada solida e duratura**, NON la pezza. Anche se richiede più lavoro,
+  più file, o una feature dedicata.
+- Criteri di "solido": elimina il problema alla radice; usa componenti nativi/mantenuti invece di
+  addon esterni morti o hack; migliora sicurezza/manutenibilità; non si ripresenta ai major futuri.
+- **SEMPRE proporre prima e attendere conferma esplicita** dell'utente (vale il gate DECISIONS
+  2026-07-03): riepilogo della strada solida + costo/scope + tradeoff, poi l'utente decide. Non
+  partire in autonomia solo perché "è la strada giusta".
+- Mai spacciare una soppressione per fix: se una cosa è un cerotto, dirlo apertamente e indicare
+  qual è invece la soluzione corretta e quanto costa.
+- Esempi già emersi (contesto per sessioni future): keytar → `safeStorage` (API nativa Electron,
+  non tenere l'addon morto); native-keymap napi → buildare contro Node ed escluderlo da
+  electron-rebuild (non sopprimere il C4996); warning `crypto.fips`/`fs.F_OK` da
+  vite-plugin-electron-renderer → la strada pulita è togliere `nodeIntegration` dal renderer e
+  spostare l'I/O Node nel main via IPC (feature `renderer-no-node-integration`), non silenziare.
+
 ## 2026-07-07 — Drag file in finestra + taskbar: causa = elevazione (UIPI), CONFERMATO, non è bug di codice
 
 - Sintomo: trascinare un file da Explorer dentro la finestra di MarkText per aprirlo NON

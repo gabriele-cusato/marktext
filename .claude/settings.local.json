@@ -12,7 +12,12 @@
       "WebFetch(domain:opencode.ai)",
       "Read(//c/Users/cusato.gabriele/.config/opencode/skills/**)",
       "WebFetch(domain:developers.openai.com)",
-      "Bash(node *)"
+      "Bash(node *)",
+      "Bash(fd -g \"install.js\" node_modules/electron -H -d 1)",
+      "Bash(ls node_modules/electron/path.txt)",
+      "Bash(cat node_modules/electron/path.txt)",
+      "Bash(ls node_modules/electron/dist/electron.exe)",
+      "Bash(fd -g \"install-electron*\" node_modules/.bin -H)"
     ]
   }
 }
