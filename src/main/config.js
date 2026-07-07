@@ -19,7 +19,7 @@ export const editorWinOptions = Object.freeze({
     // enable it always and set the HTML spelling attribute to false.
     spellcheck: true,
     nodeIntegration: true,
-    webSecurity: false,
+    webSecurity: true,
     preload: path.join(__dirname, '../preload/index.js')
   },
   useContentSize: true,
@@ -48,7 +48,7 @@ export const preferencesWinOptions = Object.freeze({
     // Always true to access native spellchecker.
     spellcheck: true,
     nodeIntegration: true,
-    webSecurity: false,
+    webSecurity: true,
     preload: path.join(__dirname, '../preload/index.js')
   },
   fullscreenable: false,

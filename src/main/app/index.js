@@ -1,9 +1,20 @@
 import path from 'path'
 import fsPromises from 'fs/promises'
 import { exec } from 'child_process'
+import { pathToFileURL } from 'node:url'
 import dayjs from 'dayjs'
 import log from 'electron-log'
-import { app, BrowserWindow, clipboard, dialog, nativeTheme, shell, ipcMain } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  dialog,
+  nativeTheme,
+  shell,
+  ipcMain,
+  protocol,
+  net
+} from 'electron'
 import { isChildOfDirectory } from 'common/filesystem/paths'
 import { isLinux, isOsx, isWindows } from '../config'
 import parseArgs from '../cli/parser'
@@ -47,6 +58,21 @@ class App {
     this._listenForIpcMain()
     // Initialize theme listener
     this._themeListenerRegistered = false
+
+    // safe-file: scheme privilegiato per servire immagini locali con webSecurity:true.
+    // Va registrato PRIMA dell'evento 'ready' (unica occasione consentita da Electron).
+    protocol.registerSchemesAsPrivileged([
+      {
+        scheme: 'safe-file',
+        privileges: {
+          standard: true,
+          secure: true,
+          supportFetchAPI: true,
+          stream: true,
+          bypassCSP: false
+        }
+      }
+    ])
   }
 
   /**
@@ -208,6 +234,25 @@ class App {
   }
 
   ready = () => {
+    // Handler dello scheme safe-file: serve i file locali con webSecurity:true attivo.
+    // request.url è del tipo "safe-file:///C:/percorso/con spazi/img.png" (host vuoto, triple
+    // slash) su Windows, oppure "safe-file:///percorso/img.png" su POSIX.
+    protocol.handle('safe-file', (request) => {
+      try {
+        const url = new URL(request.url)
+        let filePath = decodeURIComponent(url.pathname)
+        // Su Windows il pathname mantiene lo slash iniziale prima della lettera di unità
+        // (es. "/C:/percorso"): va tolto per ottenere un path filesystem valido.
+        if (isWindows && /^\/[a-zA-Z]:/.test(filePath)) {
+          filePath = filePath.slice(1)
+        }
+        return net.fetch(pathToFileURL(filePath).toString())
+      } catch (error) {
+        log.error(`Failed to resolve safe-file request "${request.url}":`, error)
+        return new Response(null, { status: 404 })
+      }
+    })
+
     const { _args: args, _openFilesCache } = this
     const { preferences } = this._accessor
 

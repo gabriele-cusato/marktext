@@ -36,7 +36,17 @@ Eliminare i 3 security warning in console dev (Disabled webSecurity, allowRunnin
 ### Incremento 1 — scheme custom + immagini inline + webSecurity:true
 1. In `src/main/app/index.js` (prima di app ready) registrare lo scheme privilegiato (es. `safe-file`) con `protocol.registerSchemesAsPrivileged` (privileges: standard, secure, supportFetchAPI, stream; bypassCSP:false). Verificare la firma esatta sulla doc Electron 39.
 2. Registrare il handler con `protocol.handle('safe-file', ...)` (dopo app ready) che: decodifica l'URL → path locale, valida (esiste, è file), serve il contenuto (via `net.fetch('file://'+path)` o lettura stream). Gestire Windows (drive letter, spazi, encoding).
-3. In `correctImageSrc` (`getImageInfo.js`) e `utils/index.js:260-283`: emettere `safe-file://...` invece di `file://...` per i path locali (URL http/https e data:/blob: restano invariati).
+3. **SOLO in `getImageInfo` (`src/muya/lib/utils/index.js:259-306`)** — unico chokepoint di
+   rendering (confermato: `renderLeafBlock.js:144` e `renderInlines/image.js:36` instradano ogni
+   `src` da qui): emettere `safe-file://` per i path locali, ai DUE punti di ritorno pertinenti:
+   - ramo path assoluto/relativo locale (riga ~282): `'file://' + path.resolve(...)` →
+     `'safe-file://' + path.resolve(...)`;
+   - ramo `isUrl` (righe ~273-276): se `src` inizia con `file://`, riscrivere il prefisso in
+     `safe-file://` (così i `<img src="file://...">` GIÀ salvati vengono aggiornati a render);
+     lasciare invariati http/https (e data:/blob:, che non passano da questi rami).
+   **NON toccare `correctImageSrc` (`getImageInfo.js:22`)**: il suo output finisce in `block.text`
+   (`imageCtrl.js:114,159`) = markdown PERSISTITO su disco → cambiarlo corromperebbe i file salvati.
+   Su disco l'`src` resta `file://`; la conversione a `safe-file://` avviene solo a render.
 4. In `src/renderer/index.html` CSP: aggiungere il nuovo scheme a `img-src` (accanto a `file:` che si può poi rimuovere se non più usato).
 5. `config.js`: `webSecurity:true` su editor e preferences.
 6. **Test utente**: immagine locale embeddata (`![](C:/...)`) si vede inline nell'editor in **dev** E in **app packaged**; nessun warning webSecurity/allowRunningInsecureContent in dev.

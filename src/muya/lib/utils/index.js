@@ -270,16 +270,22 @@ export const getImageInfo = (src, baseUrl = window.DIRNAME) => {
         console.warn('"baseUrl" is not defined!')
       }
 
+      // Il markdown salvato su disco può contenere "file://" letterale (correctImageSrc lo
+      // scrive così). Solo a render lo si riscrive verso lo scheme custom "safe-file" (servito
+      // da protocol.handle con webSecurity:true); http/https restano invariati.
       return {
         isUnknownType: false,
-        src
+        src: src.startsWith('file://') ? src.replace(/^file:\/\//, 'safe-file://') : src
       }
     } else {
       // Correct relative path on desktop. If we resolve a absolute path "path.resolve" doesn't do anything.
       // NOTE: We don't need to convert Windows styled path to UNIX style because Chromium handels this internal.
+      // "safe-file://" (non "file://") perché webSecurity:true blocca file:// cross-origin: lo
+      // scheme custom è servito da protocol.handle nel main process. Il markdown su disco resta
+      // "file://" (vedi correctImageSrc in getImageInfo.js), qui si riscrive solo per il rendering.
       return {
         isUnknownType: false,
-        src: 'file://' + path.resolve(baseUrl, src)
+        src: 'safe-file://' + path.resolve(baseUrl, src)
       }
     }
   } else if (isUrl && !imageExtension) {
