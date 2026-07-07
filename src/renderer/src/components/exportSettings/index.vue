@@ -46,13 +46,13 @@
                 <div>{{ t('exportSettings.page.widthHeight') }}</div>
                 <el-input-number
                   v-model="pageSizeWidth"
-                  size="mini"
+                  size="small"
                   controls-position="right"
                   :min="100"
                 />
                 <el-input-number
                   v-model="pageSizeHeight"
-                  size="mini"
+                  size="small"
                   controls-position="right"
                   :min="100"
                 />
@@ -75,14 +75,14 @@
                 </div>
                 <el-input-number
                   v-model="pageMarginTop"
-                  size="mini"
+                  size="small"
                   controls-position="right"
                   :min="0"
                   :max="100"
                 />
                 <el-input-number
                   v-model="pageMarginBottom"
-                  size="mini"
+                  size="small"
                   controls-position="right"
                   :min="0"
                   :max="100"
@@ -94,14 +94,14 @@
                 </div>
                 <el-input-number
                   v-model="pageMarginLeft"
-                  size="mini"
+                  size="small"
                   controls-position="right"
                   :min="0"
                   :max="100"
                 />
                 <el-input-number
                   v-model="pageMarginRight"
-                  size="mini"
+                  size="small"
                   controls-position="right"
                   :min="0"
                   :max="100"

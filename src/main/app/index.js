@@ -241,10 +241,19 @@ class App {
       try {
         const url = new URL(request.url)
         let filePath = decodeURIComponent(url.pathname)
-        // Su Windows il pathname mantiene lo slash iniziale prima della lettera di unità
-        // (es. "/C:/percorso"): va tolto per ottenere un path filesystem valido.
-        if (isWindows && /^\/[a-zA-Z]:/.test(filePath)) {
-          filePath = filePath.slice(1)
+        // Su Windows lo scheme "safe-file" (standard:true) può essere parsato da Chromium in due
+        // forme diverse a seconda del numero di slash emessi da muya:
+        if (isWindows) {
+          if (/^\/[a-zA-Z]:/.test(filePath)) {
+            // forma safe-file:///C:/... (host vuoto, triple slash): il pathname mantiene lo slash
+            // iniziale prima della lettera di unità (es. "/C:/percorso"), va tolto per ottenere un
+            // path filesystem valido.
+            filePath = filePath.slice(1)
+          } else if (/^[a-zA-Z]$/.test(url.host)) {
+            // forma safe-file://C:/... (doppio slash): Chromium interpreta "C" come host perdendo i
+            // due punti, quindi si ricompone il path unendo lettera di unità e pathname.
+            filePath = `${url.host}:${filePath}`
+          }
         }
         return net.fetch(pathToFileURL(filePath).toString())
       } catch (error) {

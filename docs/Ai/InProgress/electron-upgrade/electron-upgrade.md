@@ -49,6 +49,9 @@ Seguire **`electron-upgrade-istruzioni-pc-principale.md`** (ambiente VS2022 Comm
 `npm ci` con `--use-system-ca`; **scaricare binario** `node node_modules/electron/install.js`;
 `@electron/rebuild -f --only ced,keytar`; verifica `npm run dev`).
 
+> **FATTO 2026-07-07 sul PC principale**: eseguiti i passi delle istruzioni, `npm run dev` parte
+> pulito su Electron 43 esattamente come sul PC test. Ambiente allineato sui due PC.
+
 ### 2. Esito test manuale 2026-07-07 (su Electron 43)
 - ✅ OK: drag tab, scorciatoie (Ctrl+K commenti), ricerca file, export, source mode, `npm run dev` pulito.
 - ⚠️ Dialog **apri** → si apre in **Download** (breaking change E43: defaultPath default = Download).

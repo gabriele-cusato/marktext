@@ -49,7 +49,7 @@
           <el-input-number
             ref="rowInput"
             v-model="tableChecker.rows"
-            size="mini"
+            size="small"
             controls-position="right"
             :min="1"
             :max="30"
@@ -58,7 +58,7 @@
         <el-form-item :label="t('editor.insertTable.columns')">
           <el-input-number
             v-model="tableChecker.columns"
-            size="mini"
+            size="small"
             controls-position="right"
             :min="1"
             :max="20"
