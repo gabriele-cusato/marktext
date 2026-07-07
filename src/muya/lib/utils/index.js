@@ -258,7 +258,9 @@ export const checkImageContentType = (url) => {
  */
 export const getImageInfo = (src, baseUrl = window.DIRNAME) => {
   const imageExtension = IMAGE_EXT_REG.test(src)
-  const isUrl = URL_REG.test(src) || (imageExtension && /^file:\/\/.+/.test(src))
+  // Riconosce anche "safe-file://" (oltre a "file://") come URL già pronto: rende la funzione
+  // idempotente per gli src già renderizzati (es. printService.js che ri-processa l'src renderizzato).
+  const isUrl = URL_REG.test(src) || (imageExtension && /^(?:safe-file|file):\/\/.+/.test(src))
 
   // Treat a URL with valid extension as image.
   if (imageExtension) {

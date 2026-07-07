@@ -120,7 +120,11 @@ indietro per incremento.
 - Rischio: capire se `webSecurity:false` serve davvero in prod (probabile: caricamento immagini
   locali `file://`) prima di condizionarlo; CSP da rendere dinamica dev/prod.
 - Decisione utente: task separato, per ultimo, con test runtime accurato.
-- Stato: task10.
+- Stato: task10 — RISOLTO 2026-07-07 (strategia B, custom protocol `safe-file`). 3 incrementi:
+  (1) scheme `safe-file` + `webSecurity:true` + CSP img-src; (2) `getImageInfo` idempotente + fix
+  copia immagine; (3) CSP dev/prod via plugin Vite. Testato in dev, preview e app packaged: i 3
+  warning webSecurity/allowRunningInsecureContent/CSP spariti in prod. Bug collaterale del transformer
+  immagine (race pre-esistente) trovato e risolto a parte. Dettagli: `InProgress/warning-fix/warning-fix-task10-worklog.md`.
 
 ### 8. [intlify] Not found 'sideBar.search.searchInTabs' / 'common.close' (F12)
 

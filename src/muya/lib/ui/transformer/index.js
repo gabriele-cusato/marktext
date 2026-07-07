@@ -45,7 +45,12 @@ class Transformer {
       if (reference) {
         this.imageInfo = imageInfo
         setTimeout(() => {
-          this.render()
+          // La reference può essere stata azzerata (es. immagine cancellata) tra il dispatch
+          // e questo callback differito: riverificare prima di renderizzare, altrimenti
+          // update() leggerebbe getBoundingClientRect() su null.
+          if (this.reference) {
+            this.render()
+          }
         })
       } else {
         this.hide()
@@ -80,6 +85,10 @@ class Transformer {
   }
 
   update() {
+    // Difesa: se la reference non è più valida (immagine rimossa), non tentare il layout.
+    if (!this.reference) {
+      return
+    }
     const rect = this.reference.getBoundingClientRect()
     CIRCLES.forEach((c) => {
       const circle = this.container.querySelector(`.${c}`)

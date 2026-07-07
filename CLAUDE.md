@@ -244,6 +244,54 @@ npm run test:unit:watch  # watch mode
 npm run test:e2e         # e2e con Playwright (fa build prima)
 ```
 
+## Ambiente ristretto (Criteri di gruppo / rete aziendale)
+
+Su alcune macchine i Criteri di gruppo bloccano l'esecuzione del **wrapper `npm`/`npx`** (errore
+"Il programma è bloccato dai Criteri di gruppo") e la PowerShell può girare in ConstrainedLanguage
+mode. In quei casi `npm run <script>` non parte, ma **`node` diretto sì**: eseguire il binario dello
+script bypassando `npm`. Regola generale: aprire `package.json`, leggere cosa fa lo script, e
+lanciarne le parti con `node <path-del-bin>`.
+
+Equivalenze dirette degli script principali:
+
+| Script npm | Comando diretto (bypassa npm) |
+|---|---|
+| `npm run dev` | `node node_modules/electron-vite/bin/electron-vite.js dev` |
+| `npm run build` | `node node_modules/electron-vite/bin/electron-vite.js build` |
+| `npm start` (preview build prod) | `node node_modules/electron-vite/bin/electron-vite.js preview` |
+| `npm run minify-locales` | `node scripts/minify-locales.mjs` |
+| `npx @electron/rebuild` | `node node_modules/@electron/rebuild/lib/cli.js` |
+| `electron-builder ...` | `node node_modules/electron-builder/cli.js ...` |
+
+`build:win` completo = i 4 passi in sequenza (PowerShell 7 supporta `&&`):
+```
+node scripts/minify-locales.mjs && node node_modules/@electron/rebuild/lib/cli.js && node node_modules/electron-vite/bin/electron-vite.js build && node node_modules/electron-builder/cli.js --win --publish never
+```
+`preview` gira sull'ultima build: rifare `... build` prima di `... preview` per vedere le modifiche.
+Nota: alcuni warning di sicurezza (es. CSP `unsafe-eval`) compaiono in dev/preview e spariscono solo
+nel pacchettizzato; per verificarli usare `preview`, non `dev`.
+
+### Blocco download per certificato (SSL inspection aziendale)
+
+Se un comando che scarica file (es. `electron-builder` che scarica Electron, `@electron/rebuild`,
+tool vari) fallisce con `unable to get local issuer certificate` / `SELF_SIGNED_CERT_IN_CHAIN`:
+la rete aziendale intercetta TLS con una CA che Node non ha nella sua lista interna (Node di default
+NON usa il cert store di Windows). Se quella CA è già nel registro di Windows (di norma lo è su
+macchine gestite), la soluzione **sicura** è far usare a Node il store di sistema:
+
+```powershell
+$env:NODE_OPTIONS = "--use-system-ca"   # Node >= 22.15 supporta --use-system-ca
+node node_modules/electron-builder/cli.js --win --publish never
+Remove-Item Env:NODE_OPTIONS
+```
+
+Verifiche read-only prima di agire: `node -e "process.version"` (>= 22.15?); catena presentata da un
+host con `tls.connect(...rejectUnauthorized:false)` per leggere l'issuer; `Get-ChildItem
+Cert:\LocalMachine\Root, Cert:\CurrentUser\Root | Where-Object { $_.Subject -match '<nome-CA>' }`
+per confermare che la CA è nel registro; e un test `node --use-system-ca -e "https.get(...)"` che
+deve stampare OK **prima** di lanciare il build lungo. NON usare `NODE_TLS_REJECT_UNAUTHORIZED=0`
+(disabilita la verifica dei certificati) né committare `strict-ssl=false`.
+
 ## Entry Points
 
 - `src/main/index.js` — avvio app, eseguito una volta

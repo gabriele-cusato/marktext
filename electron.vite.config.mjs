@@ -10,6 +10,24 @@ import { fileURLToPath } from 'url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
+// Plugin locale: rende la CSP di index.html dipendente dall'ambiente.
+// In dev (serve) mantiene 'unsafe-eval' e ws:/wss: richiesti da Vite/HMR;
+// in build di produzione li rimuove per eliminare il warning "Insecure CSP".
+const cspEnvPlugin = () => {
+  let isServe = false
+  return {
+    name: 'mt-csp-env',
+    config(_, { command }) {
+      isServe = command === 'serve'
+    },
+    transformIndexHtml(html) {
+      return html
+        .replaceAll('__CSP_UNSAFE_EVAL__', isServe ? "'unsafe-eval'" : '')
+        .replaceAll('__CSP_WS__', isServe ? 'ws: wss:' : '')
+    }
+  }
+}
+
 export default defineConfig({
   main: {
     // --> Bundled as CommonJS
@@ -83,7 +101,8 @@ export default defineConfig({
       svgLoader(),
       renderer({
         nodeIntegration: true
-      })
+      }),
+      cspEnvPlugin()
     ],
     css: {
       postcss: {

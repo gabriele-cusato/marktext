@@ -137,6 +137,7 @@ const copyCutCtrl = (ContentState) => {
       image.setAttribute(
         'src',
         finalSrc
+          .replace('safe-file://', '') // Il fallback legge l'src RENDERIZZATO (schema custom safe-file); va rimosso prima di "file://" altrimenti resterebbe un prefisso "safe-" spezzato
           .replace('file://', '') // We should not include file:// in the copied image path since markdown should not have the protocol specified
           .replace(/\?msec=\d+/, '') // We also want to remove the "msec" query parameter used for cache busting
       )
