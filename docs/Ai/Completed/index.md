@@ -1,5 +1,9 @@
 # Feature Completate
 
+## Build, Config & Quality
+
+- **[warning-fix](warning-fix/warning-fix.md)** — Risoluzione alla radice di 11 warning (build/dev/console): npm config, browserslist, Vite, electron-builder, i18n (chiavi + HTML), prop validation, Element Plus dialog, security (webSecurity + CSP dinamica custom protocol `safe-file`). 10 warning risolti, 1 ignorato (DevTools non azionabile), 1 indagine conclusa (normalizeHeaderText DNA cursore). **Regola permanente:** task10 (security) — invarianti `correctImageSrc` non toccato, `getImageInfo` unico chokepoint idempotente, CSP dev/prod via plugin Vite. Bug collaterale risolto (race transformer su cancellazione immagine).
+
 ## Editor Core
 
 - **[editor-core](editor-core/editor-core.md)** — Architettura editor a due modalità (Muya WYSIWYG vs CodeMirror source), dirty flag, salvataggio atomico, pre-save flush, watcher file esterno, reload dialog, recaricamento forceReload (clearHistory invariante), encoding/EOL, keybinding mode-aware. 14 bug risolti B1–B14 (tutti verificati 2026-05-30). **Leggere PRIMA di modificare:** `_applySourceCodeForFile` ordering, `handlePreSave` senza guardie, `cmStatePerTab` restauro, `justLoaded` settling, `pendingExternalChange` background.
