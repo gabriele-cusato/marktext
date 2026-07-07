@@ -445,7 +445,7 @@ export const debugLanguageState = () => {
 // 在页面上添加调试按钮（仅开发环境显示）
 if (typeof document !== 'undefined') {
   const isDev = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.DEV) ||
-    (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'development');
+    (typeof window !== 'undefined' && window.electron && window.electron.process && window.electron.process.env && window.electron.process.env.NODE_ENV === 'development');
   if (isDev) {
     // 确保按钮容器存在
     const buttonContainer = document.createElement('div');

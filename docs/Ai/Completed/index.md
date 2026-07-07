@@ -2,6 +2,8 @@
 
 ## Build, Config & Quality
 
+- **[electron-upgrade](electron-upgrade/electron-upgrade.md)** — Aggiornamento Electron 39→43 (EOL), salto diretto unico, build nativi ricompilati con `--only ced,keytar` (native-keymap N-API escluso), FIX safe-file handler parsing URL Windows E43, FIX size="mini"→small Element Plus, binario scaricato manualmente. ✅ Dev OK, packaged OK, build:win OK, commit+push.
+
 - **[warning-fix](warning-fix/warning-fix.md)** — Risoluzione alla radice di 11 warning (build/dev/console): npm config, browserslist, Vite, electron-builder, i18n (chiavi + HTML), prop validation, Element Plus dialog, security (webSecurity + CSP dinamica custom protocol `safe-file`). 10 warning risolti, 1 ignorato (DevTools non azionabile), 1 indagine conclusa (normalizeHeaderText DNA cursore). **Regola permanente:** task10 (security) — invarianti `correctImageSrc` non toccato, `getImageInfo` unico chokepoint idempotente, CSP dev/prod via plugin Vite. Bug collaterale risolto (race transformer su cancellazione immagine).
 
 ## Editor Core

@@ -157,10 +157,9 @@
 </template>
 
 <script setup>
-import { getCurrentWindow, Menu as RemoteMenu } from '@electron/remote'
 import { usePreferencesStore } from '@/store/preferences.js'
 import { useLayoutStore } from '@/store/layout.js'
-import { ref, computed, watch, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onBeforeUnmount, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { minimizePath, restorePath, maximizePath, closePath } from '../../assets/window-controls.js'
 import { PATH_SEPARATOR } from '../../config'
@@ -223,8 +222,10 @@ const windowIconRestore = restorePath
 const windowIconMaximize = maximizePath
 const windowIconClose = closePath
 
-const isFullScreen = ref(getCurrentWindow().isFullScreen())
-const isMaximized = ref(getCurrentWindow().isMaximized())
+// Stato iniziale a default false: viene richiesto in modo asincrono al mount via IPC,
+// gli aggiornamenti live restano gestiti dai listener mt::window-* esistenti.
+const isFullScreen = ref(false)
+const isMaximized = ref(false)
 const show = ref('word')
 
 const { titleBarStyle } = storeToRefs(preferencesStore)
@@ -266,17 +267,14 @@ const handleWordClick = () => {
 }
 
 const handleCloseClick = () => {
-  getCurrentWindow().close()
+  window.electron.ipcRenderer.send('mt::cmd-close-window')
 }
 
 const handleMaximizeClick = () => {
-  const win = getCurrentWindow()
-  if (win.isFullScreen()) {
-    win.setFullScreen(false)
-  } else if (win.isMaximized()) {
-    win.unmaximize()
+  if (isFullScreen.value) {
+    window.electron.ipcRenderer.send('mt::window-toggle-full-screen')
   } else {
-    win.maximize()
+    window.electron.ipcRenderer.send('mt::maximize-window')
   }
 }
 
@@ -287,12 +285,11 @@ const toggleMaxmizeOnMacOS = () => {
 }
 
 const handleMinimizeClick = () => {
-  getCurrentWindow().minimize()
+  window.electron.ipcRenderer.send('mt::minimize-window')
 }
 
 const handleMenuClick = () => {
-  const win = getCurrentWindow()
-  RemoteMenu.getApplicationMenu().popup({ window: win, x: 23, y: 20 })
+  window.electron.ipcRenderer.send('mt::popup-app-menu', { x: 23, y: 20 })
 }
 
 const rename = () => {
@@ -318,6 +315,13 @@ window.electron.ipcRenderer.on('mt::window-maximize', onMaximize)
 window.electron.ipcRenderer.on('mt::window-unmaximize', onUnmaximize)
 window.electron.ipcRenderer.on('mt::window-enter-full-screen', onEnterFullScreen)
 window.electron.ipcRenderer.on('mt::window-leave-full-screen', onLeaveFullScreen)
+
+onMounted(async () => {
+  const { isMaximized: initMax, isFullScreen: initFs } =
+    await window.electron.ipcRenderer.invoke('mt::window-state')
+  isMaximized.value = initMax
+  isFullScreen.value = initFs
+})
 
 onBeforeUnmount(() => {
   window.electron.ipcRenderer.removeListener('mt::window-maximize', onMaximize)

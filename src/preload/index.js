@@ -12,6 +12,9 @@ import {
 import { rgPath } from '@vscode/ripgrep'
 import path from 'path'
 import commandExists from 'command-exists'
+import { statSync, constants } from 'fs'
+import { tmpdir } from 'os'
+import zlib from 'zlib'
 import { loadTranslations } from '../common/i18n'
 
 const i18nUtils = {
@@ -24,6 +27,12 @@ const customElectronAPI = {
   webUtils
 }
 
+const processExtraAPI = {
+  resourcesPath: process.resourcesPath,
+  tmpdir: tmpdir(),
+  deflateSync: (data) => zlib.deflateSync(data, { level: 3 })
+}
+
 const fileUtilsAPI = {
   isFile: (path) => isFile(path),
   isDirectory: (path) => isDirectory(path),
@@ -34,14 +43,29 @@ const fileUtilsAPI = {
   move: (src, dest) => fs.move(src, dest),
   stat: (path) => fs.stat(path),
   writeFile: (path, data) => fs.writeFile(path, data),
-  readFile: (path) => fs.readFile(path),
+  readFile: (path, encoding) => fs.readFile(path, encoding),
+  readdir: (path) => fs.readdir(path),
   ensureDirSync: (path) => ensureDirSync(path),
   pathExistsSync: (path) => fs.pathExistsSync(path),
   isChildOfDirectory: (dir, child) => isChildOfDirectory(dir, child),
   hasMarkdownExtension: (filename) => hasMarkdownExtension(filename),
   MARKDOWN_INCLUSIONS,
   isSamePathSync: (pathA, pathB) => isSamePathSync(pathA, pathB),
-  isImageFile: (filepath) => isImageFile(filepath)
+  isImageFile: (filepath) => isImageFile(filepath),
+  readFileBase64: (path) => fs.readFile(path, 'base64'),
+  unlink: (path) => fs.remove(path),
+  isFileExecutableSync: (filepath) => {
+    try {
+      const stat = statSync(filepath)
+      if (process.platform === 'win32') return stat.isFile()
+      return (
+        stat.isFile() &&
+        (stat.mode & (constants.S_IXUSR | constants.S_IXGRP | constants.S_IXOTH)) !== 0
+      )
+    } catch {
+      return false
+    }
+  }
 }
 
 const commandAPI = {
@@ -92,6 +116,7 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('path', path)
     contextBridge.exposeInMainWorld('commandExists', commandAPI)
     contextBridge.exposeInMainWorld('i18nUtils', i18nUtils)
+    contextBridge.exposeInMainWorld('marktextEnv', processExtraAPI)
   } catch (error) {
     console.error(error)
   }
@@ -102,4 +127,5 @@ if (process.contextIsolated) {
   window.path = path
   window.commandExists = commandAPI
   window.i18nUtils = i18nUtils
+  window.marktextEnv = processExtraAPI
 }

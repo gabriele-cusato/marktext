@@ -1,6 +1,5 @@
 import runSanitize from './dompurify'
 import { URL_REG, DATA_URL_REG, IMAGE_EXT_REG } from '../config'
-import path from 'path'
 export { getUniqueId, getLongUniqueId } from './random'
 
 const TIMEOUT = 1500
@@ -287,7 +286,7 @@ export const getImageInfo = (src, baseUrl = window.DIRNAME) => {
       // "file://" (vedi correctImageSrc in getImageInfo.js), qui si riscrive solo per il rendering.
       return {
         isUnknownType: false,
-        src: 'safe-file://' + path.resolve(baseUrl, src)
+        src: 'safe-file://' + window.path.resolve(baseUrl, src)
       }
     }
   } else if (isUrl && !imageExtension) {

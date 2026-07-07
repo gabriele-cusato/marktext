@@ -31,6 +31,24 @@ regressione. Le tabelle breaking-change per 41/42/43 (nei plan task) restano la 
 osservare** nel retest manuale. Se emerge una regressione, si isola col diff e, se serve, si scende
 di un major per capire.
 
+## CHIUSURA 2026-07-07 — upgrade 39→43 COMPLETATO e testato
+
+Gate reale superato sul PC principale:
+- **FIX #1** (safe-file:// immagini locali, `src/main/app/index.js`): fatto + testato OK (dev e packaged).
+- **FIX #2** (`size="mini"`→`small`, exportSettings/editor.vue): fatto + testato OK (dialog Export senza warning).
+- **build:win** + app pacchettizzata: si avvia; immagini/export/drag tab OK anche nel packaged.
+- **Commit + push**: fatti dall'utente.
+
+Aperti/rimandati (NON bloccanti, ognuno richiede una scelta o è feature separata):
+- **FIX #3 (candidato)**: due `Not allowed to load local resource: file:///...` in console per immagini
+  con path spazi+parentesi (CrossDevice/OneDrive). Immagini si vedono comunque (fallback safe-file).
+  Da valutare se sopprimere il tentativo `file://` a monte. Dettaglio in fix1-worklog §Test.
+- **Dialog "apri"→Download** (E43 UX): decidere se tracciare ultima cartella + `defaultPath` o accettare.
+- **N1 keytar→safeStorage**, **N3 ced→detector JS**, **script postinstall auto-download binario**,
+  **Renovate/Dependabot**: opzionali, richiedono decisione utente (vedi native-deps-plan / task2-4-plans).
+- **keychain** (keytar/token uploader): non testato (utente non usa l'uploader).
+- Warning `crypto.fips`/`fs.F_OK`: feature separata `renderer-no-node-integration`.
+
 ## RIPRENDI DA QUI — handoff 2026-07-07 ore 18:00 (per PC principale)
 
 ### 0. Modifiche di codice fatte oggi (NON committate su questo PC test)

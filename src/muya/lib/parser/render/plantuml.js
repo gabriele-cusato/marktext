@@ -1,4 +1,3 @@
-import zlib from 'zlib'
 import { toHTML, h } from './snabbdom'
 
 const PLANTUML_URL = 'https://www.plantuml.com/plantuml'
@@ -10,6 +9,18 @@ function replaceChar(tableIn, tableOut, char) {
 
 function maketrans(tableIn, tableOut, value) {
   return [...value].map((i) => replaceChar(tableIn, tableOut, i)).join('')
+}
+
+// Converte il risultato di deflateSync (Buffer o Uint8Array, a seconda del bridge) in base64,
+// identico a `Buffer.toString('base64')` lato Node.
+function uint8ToBase64(data) {
+  const bytes = data instanceof Uint8Array ? data : new Uint8Array(data)
+  let binary = ''
+  const chunk = 0x8000
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk))
+  }
+  return btoa(binary)
 }
 
 export default class Diagram {
@@ -37,8 +48,8 @@ export default class Diagram {
     const tableOut = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_'
 
     const utf8Value = decodeURIComponent(encodeURIComponent(value))
-    const compressedValue = zlib.deflateSync(utf8Value, { level: 3 })
-    const base64Value = compressedValue.toString('base64')
+    const compressedValue = window.marktextEnv.deflateSync(utf8Value)
+    const base64Value = uint8ToBase64(compressedValue)
     return maketrans(tableIn, tableOut, base64Value)
   }
 

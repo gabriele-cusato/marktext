@@ -3,7 +3,6 @@ import path from 'path'
 import { app, dialog, crashReporter } from 'electron'
 import log from 'electron-log'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
-import { initialize as remoteInitializeServer } from '@electron/remote/main/index.js'
 
 import cli from './cli'
 import setupExceptionHandler, { initExceptionLogger } from './exceptionHandler'
@@ -73,9 +72,6 @@ if (!process.mas && process.env.NODE_ENV !== 'development') {
     process.exit(0)
   }
 }
-
-// Enable remote module for windows
-remoteInitializeServer()
 
 // Windows-specific AppUserModelID
 electronApp.setAppUserModelId('com.electron.marktext')

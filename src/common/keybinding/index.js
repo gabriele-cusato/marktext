@@ -1,4 +1,9 @@
-const isOsx = process.platform === 'darwin'
+// Cross-env: lato main `process.platform` esiste; lato renderer (nodeIntegration:false) `process`
+// può non esistere, quindi si ricava da `navigator.userAgent`.
+const isOsx =
+  typeof process !== 'undefined' && process.platform
+    ? process.platform === 'darwin'
+    : typeof navigator !== 'undefined' && /Mac/i.test(navigator.userAgent)
 
 const _normalizeAccelerator = (accelerator) => {
   return accelerator

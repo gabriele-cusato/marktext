@@ -11,4 +11,5 @@ Verifica statica: `size="mini"` assente in entrambi i file; `size="small"` prese
 Nessuna build/avvio eseguiti (compito dell'utente, come da plan).
 
 ## Test
-(Da compilare dall'orchestratore dopo il test utente.)
+Test utente 2026-07-07 (PC principale, Electron 43): **OK**. Dialog Export funziona in dev e nell'app
+pacchettizzata; nessun warning "Invalid prop size" residuo. Componenti con dimensione corretta.

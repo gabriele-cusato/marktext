@@ -412,6 +412,20 @@ class WindowManager extends EventEmitter {
       this._appMenu.updateAlwaysOnTopMenu(win.id, flag)
     })
 
+    // Toggle fullscreen finestra (sostituisce win.setFullScreen(!win.isFullScreen()) via @electron/remote)
+    ipcMain.on('mt::window-toggle-full-screen', (e) => {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      if (win) win.setFullScreen(!win.isFullScreen())
+    })
+
+    // Stato iniziale finestra (maximized/fullscreen), richiesto dal renderer al mount della titlebar
+    ipcMain.handle('mt::window-state', (e) => {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      return win
+        ? { isMaximized: win.isMaximized(), isFullScreen: win.isFullScreen() }
+        : { isMaximized: false, isFullScreen: false }
+    })
+
     // --- local events ---------------
 
     ipcMain.on('watcher-unwatch-all-by-id', (windowId) => {

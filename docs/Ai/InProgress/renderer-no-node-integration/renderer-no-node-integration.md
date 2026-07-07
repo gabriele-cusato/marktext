@@ -1,5 +1,9 @@
 # renderer-no-node-integration — plan: togliere nodeIntegration dal renderer
 
+> **RIPRESA 2026-07-07 → leggere prima `_HANDOFF.md`** (in questa cartella): stato reale (task1-8 fatti,
+> task9=flip da fare con edit pronti), scoperte importanti, cosa testare, come riprendere. Questo plan
+> madre resta come contesto/scopo; la decomposizione reale è in `-task1..8-plan.md` + `_HANDOFF.md`.
+
 ## Scopo
 
 Eliminare l'uso diretto di Node (built-in, `process`, `Buffer`, `@electron/remote`) dal processo

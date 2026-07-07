@@ -25,7 +25,7 @@ import './assets/styles/v2-tokens.css'
 
 // -----------------------------------------------
 
-global.marktext = {}
+window.marktext = {}
 bootstrapRenderer()
 
 // -----------------------------------------------
@@ -43,7 +43,7 @@ const router = createRouter({
   history: createWebHashHistory(),
   // it seems like something might have changed in vue-router? it uses the full "file path" instead of
   // links like /editor if we use the old createWebHistory()
-  routes: routes(global.marktext.env.type)
+  routes: routes(window.marktext.env.type)
 })
 
 app.use(router)

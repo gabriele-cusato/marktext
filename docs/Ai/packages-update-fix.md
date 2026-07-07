@@ -409,7 +409,15 @@ Perché a rischio: è un plugin critico del build del renderer; leggere il chang
 Test: `npm run build`, `npm run dev`, l'app deve partire e il renderer caricare senza errori.
 Rollback: metodo generale.
 
-#### Giro 7 — electron 39 → 43 (SCONSIGLIATO come giro unico; farlo come feature dedicata)
+#### Giro 7 — electron 39 → 43 — **FATTO 2026-07-07** (feature dedicata `electron-upgrade`)
+
+> **ESITO 2026-07-07**: eseguito come feature dedicata `docs/Ai/InProgress/electron-upgrade/`. Per
+> tempo l'utente ha scelto il **salto unico 39→43** (non un major alla volta). Stato: `electron@43`,
+> nativi ricompilati (`--only ced,keytar`; native-keymap napi escluso), fix `safe-file` (E43) +
+> `size="mini"`→`small` (element-plus). Testato in dev e in app pacchettizzata (`build:win`): immagini,
+> export, drag tab OK. Commit+push fatti. Residui/aperti nel riassunto `Completed/electron-upgrade/`.
+> Il testo sotto resta come contesto storico del perché era sconsigliato in blocco.
+
 
 ```
 npm install -D electron@latest
@@ -512,7 +520,7 @@ npm run build && npm run dev
 
 - **eslint 10**: bloccato dal peer `eslint ^9` di neostandard 0.13. Riprovare quando neostandard supporta eslint 10.
 - **vite 8**: bloccato dal peer `vite ^5 || ^6 || ^7` di electron-vite 5. Riprovare quando electron-vite supporta Vite 8.
-- **Giro 7 electron 39→43**: NON fatto (feature dedicata, EOL/sicurezza; native rebuild + retest pesante).
+- **Giro 7 electron 39→43**: **FATTO 2026-07-07** (feature dedicata `electron-upgrade`, salto unico 39→43, testato + committato). Vedi §Giro 7.
 - **Giro 8 codemirror 5→6**: NON fatto (migrazione, non update; romperebbe la source mode).
 
 ### D. Warning/errori noti emersi (non bloccanti per gli update)

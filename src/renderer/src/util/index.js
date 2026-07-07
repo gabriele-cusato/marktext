@@ -159,9 +159,9 @@ export const deepClone = (obj) => {
   return JSON.parse(JSON.stringify(obj))
 }
 
-export const isOsx = process.platform === 'darwin'
-export const isWindows = process.platform === 'win32'
-export const isLinux = process.platform === 'linux'
+export const isOsx = window.electron.process.platform === 'darwin'
+export const isWindows = window.electron.process.platform === 'win32'
+export const isLinux = window.electron.process.platform === 'linux'
 
 // Estensioni trattate come markdown → editor WYSIWYG (Muya). Tutto il resto → CodeMirror (source).
 // Fonte di verità unica per la scelta della modalità: usata da store/editor.js (_applySourceCodeForFile)

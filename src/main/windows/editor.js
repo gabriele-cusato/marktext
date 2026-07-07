@@ -1,6 +1,5 @@
 import path from 'path'
 import { BrowserWindow, dialog, ipcMain, screen } from 'electron'
-import { enable as remoteEnable } from '@electron/remote/main/index.js'
 import log from 'electron-log'
 import windowStateKeeper from 'electron-window-state'
 import { isChildOfDirectory, isSamePathSync } from 'common/filesystem/paths'
@@ -201,7 +200,6 @@ class EditorWindow extends BaseWindow {
       }
     })
 
-    remoteEnable(win.webContents)
     this.id = win.id
 
     if (spellcheckerEnabled && !isOsx) {

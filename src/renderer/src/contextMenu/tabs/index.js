@@ -1,4 +1,3 @@
-import { getCurrentWindow, Menu as RemoteMenu, MenuItem as RemoteMenuItem } from '@electron/remote'
 /* eslint-disable camelcase */
 import {
   SEPARATOR,
@@ -10,11 +9,22 @@ import {
   getCOPY_PATH,
   getSHOW_IN_FOLDER
 } from './menuItems'
+import * as contextMenu from './actions'
 /* eslint-enable camelcase */
 
-export const showContextMenu = (event, tab) => {
-  const menu = new RemoteMenu()
-  const win = getCurrentWindow()
+// Mappa id (definiti in menuItems.js) → azione da eseguire nel renderer, con tabId già noto
+// lato renderer (non serve farlo transitare per il main).
+const TABS_DISPATCH = {
+  closeThisTab: (tabId) => contextMenu.closeThis(tabId),
+  closeOtherTabs: (tabId) => contextMenu.closeOthers(tabId),
+  closeSavedTabs: () => contextMenu.closeSaved(),
+  closeAllTabs: () => contextMenu.closeAll(),
+  renameFile: (tabId) => contextMenu.rename(tabId),
+  copyPath: (tabId) => contextMenu.copyPath(tabId),
+  showInFolder: (tabId) => contextMenu.showInFolder(tabId)
+}
+
+export const showContextMenu = async (event, tab) => {
   const { pathname } = tab
   // 动态获取菜单项以确保翻译正确
   const closeThis = getCLOSE_THIS()
@@ -41,10 +51,16 @@ export const showContextMenu = (event, tab) => {
     item.enabled = !!pathname
   })
 
-  CONTEXT_ITEMS.forEach((item) => {
-    const menuItem = new RemoteMenuItem(item)
-    menuItem._tabId = tab.id
-    menu.append(menuItem)
+  // Serializza il template per l'IPC: il main costruisce e apre il menu, poi ritorna l'id cliccato.
+  const items = CONTEXT_ITEMS.map((it) =>
+    it.type === 'separator'
+      ? { type: 'separator' }
+      : { id: it.id, label: it.label, enabled: it.enabled !== false }
+  )
+  const clickedId = await window.electron.ipcRenderer.invoke('mt::popup-context-menu', {
+    items,
+    x: event.clientX,
+    y: event.clientY
   })
-  menu.popup([{ window: win, x: event.clientX, y: event.clientY }])
+  if (clickedId) TABS_DISPATCH[clickedId]?.(tab.id)
 }

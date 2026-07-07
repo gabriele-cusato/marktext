@@ -4,7 +4,8 @@ import RendererPaths from './node/paths'
 let exceptionLogger = (s) => console.error(s)
 
 const configureLogger = () => {
-  log.transports.console.level = process.env.NODE_ENV === 'development' ? 'info' : false // mirror to window console
+  log.transports.console.level =
+    window.electron.process.env.NODE_ENV === 'development' ? 'info' : false // mirror to window console
   exceptionLogger = log.error
 }
 
@@ -74,7 +75,7 @@ const bootstrapRenderer = () => {
     },
     paths
   }
-  global.marktext = marktext
+  window.marktext = marktext
 
   configureLogger()
 }

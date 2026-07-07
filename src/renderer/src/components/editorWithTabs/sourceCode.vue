@@ -414,7 +414,7 @@ const handleToLowerCase = () => {
 }
 
 const sendSourceCodeFocusState = (focused) => {
-  const { windowId } = global.marktext.env
+  const { windowId } = window.marktext.env
   window.electron.ipcRenderer.send('mt::source-code-focus-changed', {
     windowId,
     focused: !!focused

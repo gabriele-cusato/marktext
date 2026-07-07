@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import { app, Menu, ipcMain } from 'electron'
+import { app, Menu, ipcMain, BrowserWindow } from 'electron'
 import log from 'electron-log'
 import { ensureDirSync, isDirectory2, isFile2 } from 'common/filesystem'
 import { isLinux, isOsx, isWindows } from '../config'
@@ -424,6 +424,38 @@ class AppMenu {
         return
       }
       updateSelectionMenus(this.getWindowMenuById(windowId), changes)
+    })
+
+    // Popup dell'application menu nella posizione richiesta dalla titlebar custom (sostituisce
+    // Menu.getApplicationMenu().popup(...) via @electron/remote)
+    ipcMain.on('mt::popup-app-menu', (e, { x, y }) => {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      const menu = Menu.getApplicationMenu()
+      if (win && menu) menu.popup({ window: win, x, y })
+    })
+
+    // Costruisce ed apre un context menu a partire da un template serializzabile inviato dal
+    // renderer (id, label, type, enabled), ritorna l'id della voce cliccata (sostituisce l'uso
+    // di @electron/remote nei context menu di sideBar e tabs).
+    ipcMain.handle('mt::popup-context-menu', (e, { items, x, y }) => {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      if (!win) return null
+      return new Promise((resolve) => {
+        let clickedId = null
+        const template = items.map((it) =>
+          it.type === 'separator'
+            ? { type: 'separator' }
+            : {
+                label: it.label,
+                enabled: it.enabled !== false,
+                click: () => {
+                  clickedId = it.id
+                }
+              }
+        )
+        const menu = Menu.buildFromTemplate(template)
+        menu.popup({ window: win, x, y, callback: () => resolve(clickedId) })
+      })
     })
 
     ipcMain.on('menu-add-recently-used', (pathname) => {
