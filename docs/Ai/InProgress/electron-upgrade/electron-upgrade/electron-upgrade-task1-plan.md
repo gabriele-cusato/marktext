@@ -12,15 +12,26 @@ build + retest manuale della superficie sensibile. Gradino isolato in un commit 
   `nvm use 22.21.1`, `$env:VCINSTALLDIR` → `...\2022\...\VC\`.
 - Working tree pulito (`git status`) prima di iniziare.
 
-## Da leggere PRIMA di eseguire (ricerca, non ancora fatta)
-- Breaking changes Electron 40: https://www.electronjs.org/docs/latest/breaking-changes
-  (filtrare le voci "Removed"/"Behavior Changed" marcate 40).
-- Rilievo specifico atteso: **Node 22 → 24**. Grep nel main process per API Node potenzialmente
-  toccate (elencare i punti sospetti prima di aggiornare):
-  ```
-  grep -rn "punycode\|url.parse\|Buffer(\|fs.rmdir\|process.binding" src/main src/common
-  ```
-  (lista indicativa da confermare col changelog Node 24 al momento dell'esecuzione.)
+## Breaking changes Electron 40 — analisi contro il codice (2026-07-07)
+
+Fonte: changelog ufficiale https://www.electronjs.org/docs/latest/breaking-changes
+
+| Voce 40 | Tipo | Impatto MarkText | Azione |
+|---------|------|------------------|--------|
+| clipboard API da renderer | Deprecated | **SÌ (futuro)**: `src/renderer/src/util/clipboard.js` usa `@electron/remote` clipboard (`NSFilenamesPboardType`, `FileNameW`). Il preload già espone `clipboard` via `contextBridge` (path corretto). Deprecato in 40, **rimosso in 44**. | Non blocca 40-43. Reinstradare su clipboard del preload PRIMA della 44 (vedi index §"Salto futuro 44"). |
+| dSYM macOS ora tar.xz | Behavior | NO: solo debug symbols macOS. | Nessuna. |
+| Node interno 22 → 24 | (Chromium/Node) | **DA VERIFICARE**: le API Node del main process girano su Node 24 a runtime. | Grep sotto + test runtime. |
+
+Grep API Node potenzialmente toccate dal salto a Node 24 (elencare i punti sospetti prima di
+aggiornare; lista indicativa da confermare col changelog Node 24 al momento dell'esecuzione):
+```
+grep -rn "punycode\|url.parse\|Buffer(\|fs.rmdir\|process.binding" src/main src/common
+```
+
+**IMPORTANTE**: il changelog copre solo le rotture note e documentate. Le **verifiche runtime del
+passo 6 restano obbligatorie** anche se l'analisi qui non segnala nulla di bloccante: possono
+emergere problemi non elencati (Chromium nuovo, regressioni di comportamento, interazioni con i
+moduli nativi). L'analisi statica NON sostituisce il test manuale.
 
 ## Passi
 1. Ambiente pronto (prerequisiti sopra). Chiudere app/dev server.

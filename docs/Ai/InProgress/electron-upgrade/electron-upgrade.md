@@ -53,6 +53,35 @@ verificare che nulla di deprecato/rimosso in Node 24 sia usato in `src/main/` e 
 Valutare il passaggio dell'ambiente dev a Node 24 (nvm) insieme, aggiornando CLAUDE.md
 (prerequisiti build) se si cambia.
 
+## Breaking changes 40→43 — sintesi impatto (analisi statica 2026-07-07)
+
+Analisi del changelog ufficiale contro il codice. Dettaglio per gradino nei plan dei task.
+**Nessun fix di codice è obbligatorio per arrivare a 43.** Punti da gestire:
+
+| Punto | Major | Impatto | Dove | Tipo |
+|-------|-------|---------|------|------|
+| clipboard da renderer (`@electron/remote`) | 40 dep → **44 removed** | non blocca 43, blocca 44 | `renderer/src/util/clipboard.js` | codice (futuro) |
+| download electron on-demand + SSL inspection | 42 | primo run può fallire su rete aziendale | ambiente (`--use-system-ca`) | ambiente |
+| dialog `defaultPath` default = Downloads | 43 | UX: dialog senza defaultPath aprono su Downloads | `dataCenter/index.js:173,192` | UX opzionale |
+| rounded corners frameless Linux | 43 | cosmetico, solo Linux | `config.js` frame:false | cosmetico |
+
+**Verificato NON impattante** (dettaglio nei plan): nativeImage toBitmap/getBitmap/
+createFromNamedImage, ia32/armv7l removed (win target = solo x64), notifiche UNNotification,
+clearStorageData quotas, PDF WebContents, WCO title bar, OSR scale factor, cookie change cause,
+chrome.scripting CSS, dSYM macOS.
+
+> **L'analisi statica NON basta.** Il changelog copre solo le rotture note e documentate. A ogni
+> gradino le verifiche runtime (sezione sotto) sono **obbligatorie** anche dove l'analisi non
+> segnala nulla: Chromium/Node nuovi e i nativi ricompilati possono dare regressioni non elencate.
+
+## Salto futuro 44 (fuori scope di questa feature, ma da pianificare)
+
+- **clipboard rimosso dal renderer**: reinstradare `renderer/src/util/clipboard.js` sul clipboard
+  esposto dal preload (`contextBridge`), esponendo gli helper mancanti (`NSFilenamesPboardType`
+  su macOS, `FileNameW` su Windows). Richiede patch di codice → Agent-Code con gate.
+- **ia32/armv7l rimossi**: nessun impatto (win target già solo x64).
+- 44 EOL ~gennaio 2027: valutare quando la 43 esce di supporto.
+
 ## Aree da RETESTARE a ogni gradino (nessun test automatico le copre)
 
 Copertura automatica reale: unit = solo utility main; e2e = solo smoke "app parte". Tutto il
