@@ -1,3 +1,21 @@
+## 2026-07-07 — Drag file in finestra + taskbar: causa = elevazione (UIPI), CONFERMATO, non è bug di codice
+
+- Sintomo: trascinare un file da Explorer dentro la finestra di MarkText per aprirlo NON
+  funzionava, e le interazioni con la taskbar erano anomale. Sospetto pregresso: l'app girava
+  **elevata** (Criteri di gruppo su questo PC corporate la eseguono solo come amministratore,
+  gli stessi che bloccano `npm run build`), mentre Explorer gira non elevato → Windows scarta
+  il drag-drop tra processi a integrità diversa (UIPI) prima che il renderer veda un evento.
+- **Verifica utente 2026-07-07**: aprendo MarkText **normalmente** (non elevato), sia il drag
+  dei file dentro la finestra sia le interazioni con la taskbar funzionano perfettamente →
+  ipotesi elevazione/UIPI **confermata**. Non è un bug di MarkText: gli handler drag
+  (`app.vue setupDragDropHandler`, muya `dragDropCtrl`, import dialog `mt::window::drop`) sono
+  corretti.
+- **Regola**: non scrivere codice per questo. Su una macchina che forza l'elevazione l'unico
+  rimedio sarebbe nativo (`ChangeWindowMessageFilterEx` per WM_DROPFILES/WM_COPYGLOBALDATA/
+  WM_COPYDATA dai processi a integrità più bassa) — cerotto d'ambiente, zona finestra delicata,
+  sconsigliato. Da non confondere col downside cosmetico di electron#42252 (cursore divieto sul
+  drag di una TAB sopra la propria tabbar: drag interno, cosa diversa).
+
 ## 2026-07-05 — Warning: mai sopprimerli, sempre fix alla radice
 
 - Decisione utente (feature warning-fix): i warning (vue-i18n, Vite, Vue, Electron, npm, ecc.)

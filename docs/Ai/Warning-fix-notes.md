@@ -11,6 +11,22 @@ con causa individuata, decisioni dell'utente e stato. Feature collegata: `InProg
 - Punto 11 (normalizeHeaderText): task dedicato di indagine; le verifiche runtime le esegue l'utente.
 - Punto 1 (.npmrc): prima verifica online (Agent-Search) del modo attuale corretto di passare le opzioni a node-gyp.
 
+## Task 10 (security) — strategia rollback e commit (decisa 2026-07-07)
+
+Task 10 è ad alto rischio (webSecurity, immagini locali, drag/copia, CSP): serve poter tornare
+indietro per incremento.
+
+- **Rollback = un commit git per incremento** (baseline pulita prima di iniziare, poi inc.1 → test
+  → commit, inc.2 → test → commit, inc.3 → test → commit). Se un incremento rompe qualcosa si
+  torna al commit precedente.
+- **I commit li fa l'UTENTE, non gli agenti.** L'orchestratore/Agent-Code NON eseguono `git
+  commit`: si limitano a **segnalare quando** è il momento di committare (checkpoint a fine
+  incremento testato). Quando l'orchestratore chiede di committare e l'utente risponde "procedi",
+  significa che il commit è **già stato fatto** dall'utente.
+- Resta valida la regola generale del progetto (DECISIONS.md 2026-07-01): nessun commit/push
+  automatico dagli agenti. Questa voce non deroga: sposta solo l'azione git interamente
+  sull'utente, con l'orchestratore che indica i punti di checkpoint.
+
 ## Elenco warning, cause e stato
 
 ### 1. npm warn "Unknown project config msvs_version / clang" (dev + build)

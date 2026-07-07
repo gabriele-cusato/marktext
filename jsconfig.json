@@ -1,10 +1,9 @@
 {
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/renderer/src/*"],
-      "common/*": ["src/common/*"],
-      "muya/*": ["src/muya/*"]
+      "@/*": ["./src/renderer/src/*"],
+      "common/*": ["./src/common/*"],
+      "muya/*": ["./src/muya/*"]
     }
   },
   "include": ["src/**/*"],

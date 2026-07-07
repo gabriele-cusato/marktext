@@ -50,3 +50,10 @@ il contenuto su disco: NON deve contenere `ag-0-...`. Esito atteso: pulito.
 - 2026-07-06 (utente): warn normalizeHeaderText non riprodotto; file salvato ispezionato con
   Notepad++: NESSUN marcatore `ag-0-...` su disco. Conferma l'analisi statica (export sporco solo
   interno). Resta valido il fix futuro (try/finally + gestione marker) come hardening, priorita' bassa.
+
+## Decisione 2026-07-06 (hardening RIMANDATO, opzionale)
+task9 di fatto CHIUSO: solo warning, nessuna corruzione. L'hardening (2 parti: try/finally attorno
+all'export interno in `getMuyaIndexCursor` per chiudere il rischio corruzione se l'export lanciasse;
++ rendere `normalizeHeaderText` DNA-aware per zittire il falso warning) è OPZIONALE, priorità bassa,
+tocca Muya. Non farlo salvo richiesta esplicita. Le 2 checkbox aperte in Avanzamento (log temporaneo
+barrato, piano fix fuori scope) non vanno eseguite.
