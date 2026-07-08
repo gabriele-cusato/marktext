@@ -1,4 +1,4 @@
-import { contextBridge, shell, clipboard, webUtils } from 'electron'
+import { contextBridge, shell, webUtils, ipcRenderer } from 'electron'
 import fs from 'fs-extra'
 import { isFile, isDirectory, ensureDirSync } from 'common/filesystem'
 import { electronAPI } from '@electron-toolkit/preload'
@@ -21,9 +21,15 @@ const i18nUtils = {
   loadTranslations
 }
 
+const clipboardAPI = {
+  writeText: (text) => ipcRenderer.invoke('mt::clipboard-write-text', text),
+  read: (format) => ipcRenderer.invoke('mt::clipboard-read', format),
+  has: (format) => ipcRenderer.invoke('mt::clipboard-has', format)
+}
+
 const customElectronAPI = {
   shell,
-  clipboard,
+  clipboard: clipboardAPI,
   webUtils
 }
 

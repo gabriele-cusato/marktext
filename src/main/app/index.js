@@ -1161,6 +1161,12 @@ class App {
       return shell.trashItem(fullPath)
     })
 
+    // Clipboard: chiamate native spostate nel main perché deprecate nel renderer
+    // (Electron 40+, rimosse in v44). Il preload invoca questi 3 canali via IPC.
+    ipcMain.handle('mt::clipboard-write-text', (_e, text) => clipboard.writeText(text))
+    ipcMain.handle('mt::clipboard-read', (_e, format) => clipboard.read(format))
+    ipcMain.handle('mt::clipboard-has', (_e, format) => clipboard.has(format))
+
     // BUG-H5-UNTITLED: assegna N per "Untitled-N" dal counter globale (unico main process visto
     // da tutte le finestre). `localMax` bump-a il counter col max locale del renderer chiamante,
     // per coprire il caso in cui il main non abbia ancora visto tab Untitled esistenti. Node è

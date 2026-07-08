@@ -292,6 +292,38 @@ per confermare che la CA è nel registro; e un test `node --use-system-ca -e "ht
 deve stampare OK **prima** di lanciare il build lungo. NON usare `NODE_TLS_REJECT_UNAUTHORIZED=0`
 (disabilita la verifica dei certificati) né committare `strict-ssl=false`.
 
+### Build:win + rebuild moduli nativi su macchina con policy — combinazione FUNZIONANTE (verificata)
+
+Su questa macchina (AppLocker/Group Policy) il `build:win` completo e la ricompilazione dei moduli
+nativi girano **da PowerShell aperto come amministratore**. Elementi che insieme hanno fatto passare
+il build (2026-07-08):
+
+- **PowerShell ELEVATO (admin)**: bypassa il blocco AppLocker. Serve perché `electron-builder`, nella
+  fase "searching for node modules", lancia internamente il wrapper `npm` (via `powershell.exe
+  -EncodedCommand npm.cmd list ...`) che fuori-admin è bloccato dalla policy → l'output non è JSON →
+  errore `No JSON content found in output` (app-builder-lib `NpmNodeModulesCollector`). In admin il
+  wrapper npm parte e il collector funziona. Nota: gli shim `npm.cmd` (o altri `.cmd`) in cartelle
+  utente sono bloccati per nome/percorso → non aggirabile con shim; l'elevazione è la via.
+- **Rebuild solo dei nativi che servono**: `@electron/rebuild --only ced,keytar` salta `native-keymap`
+  (che richiede compilazione C++). Se lo salti, a runtime appare
+  `Cannot find module './build/.../keymapping'` + fallback tastiera en-US → per un pacchetto usabile
+  `native-keymap` va compilato (passo sotto).
+- **Compilare native-keymap**: node-gyp v12 prende il VS **più recente** (qui VS2026 = toolset v145) e
+  **ignora `GYP_MSVS_VERSION`**. Per forzare VS2022 (v143, toolchain documentata) usare
+  `npm_config_msvs_version=2022`. Richiede le **MSVC Spectre-mitigated libs** installate (altrimenti
+  `MSB8040`); sono nei prereq (v143 x64/x86).
+- **`NODE_OPTIONS=--use-system-ca`**: per gli eventuali download (header Electron / zip) dietro la CA
+  aziendale.
+
+Ricetta rebuild native-keymap (admin):
+```powershell
+$env:npm_config_msvs_version = "2022"   # forza VS2022/v143 (node-gyp ignora GYP_MSVS_VERSION)
+$env:NODE_OPTIONS = "--use-system-ca"
+node node_modules/@electron/rebuild/lib/cli.js --only native-keymap
+Remove-Item Env:npm_config_msvs_version; Remove-Item Env:NODE_OPTIONS
+```
+Nel log deve comparire `using VS2022`. Poi riavviare app/`preview`.
+
 ## Entry Points
 
 - `src/main/index.js` — avvio app, eseguito una volta

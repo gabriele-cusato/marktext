@@ -20,6 +20,21 @@ Fatti verificati (fonte: breaking-changes.md Electron + `lib/renderer/api/clipbo
 Deprecation **pre-esistente** (upgrade Electron 43), NON causata dal flip nodeIntegration → **commit
 separato** dal commit del flip (task9/9b).
 
+## Prerequisiti bloccanti
+
+- File plan letto per intero. File worklog associato: `clipboard-ipc-migration-worklog.md` (stessa cartella) — segnare l'avanzamento dei 3 sottoproblemi lì.
+- File sorgente richiesti e leggibili: `src/preload/index.js`, `src/renderer/src/util/clipboard.js`,
+  `src/muya/lib/contentState/pasteCtrl.js`, e il file main scelto per gli handler (preferito
+  `src/main/app/index.js`).
+- Ri-grep OBBLIGATORIO (non fidarsi dei numeri di riga in questo plan, possono essere shiftati):
+  - `window.electron.clipboard` in `src/renderer` e `src/muya` → confermare i 7 siti (4 writeText, 1 has, 2 read) e che nessun `read`/`has` resti sincrono senza `await` dopo il fix.
+  - `mt::clipboard-write-text`, `mt::clipboard-read`, `mt::clipboard-has` in tutto `src/` → devono NON esistere già (no collisione firma; regole IPC in CLAUDE.md). Sono canali `invoke/handle` nuovi, chiamati solo dal renderer via preload → nessun `ipcMain.emit` da main.
+  - `clipboard` negli import di `src/main/**` → NON toccarli (nel main clipboard non è deprecato).
+- File/comportamenti vietati: NON toccare gli import `electron-log` in `src/main/**`; NON esporre metodi clipboard oltre ai 3 usati; NON aggiungere un secondo canale per gli stessi scopi.
+- Target verifica: build/dev electron-vite BLOCCATI su questa macchina (Group Policy) → Agent-Code NON builda, applica solo le edit. La verifica runtime (warning sparito, copie/incolla, pasteImage) la fa l'utente sul PC principale seguendo la sezione "Dopo i 3 fix".
+- Version control: Agent-Code NON usa git (git default = NO, DECISIONS 2026-07-01). Nessun commit.
+- Se un prerequisito manca o è ambiguo, fermarsi senza modificare codice e annotare il blocco nel worklog.
+
 ## Siti coinvolti (grep verificato, 7 usi renderer)
 `window.electron.clipboard.*`:
 - `writeText` (fire-and-forget, testo semplice):
