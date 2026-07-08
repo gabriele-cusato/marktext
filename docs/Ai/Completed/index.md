@@ -4,6 +4,12 @@
 
 - **[electron-upgrade](electron-upgrade/electron-upgrade.md)** — Aggiornamento Electron 39→43 (EOL), salto diretto unico, build nativi ricompilati con `--only ced,keytar` (native-keymap N-API escluso), FIX safe-file handler parsing URL Windows E43, FIX size="mini"→small Element Plus, binario scaricato manualmente. ✅ Dev OK, packaged OK, build:win OK, commit+push.
 
+- **[renderer-no-node-integration](renderer-no-node-integration/renderer-no-node-integration.md)** — Isolamento Node dal renderer (built-in, process, @electron/remote) spostandolo in main+preload/IPC, poi flip `nodeIntegration:false` + `contextIsolation:true`. Task1-8 ✅ implementati + testati (e2e 11/11 PASS con config attuale). Task9 (flip) ⏳ in attesa applicazione (edit pronti). Elimina deprecazione @electron/remote e warning crypto.fips/fs.F_OK. **Scoperte:** ricerca full-text morta (codice residuo), muya gira nel renderer (path+zlib via preload), common condiviso cross-env, sandbox:false prerequisito.
+
+- **[clipboard-ipc-migration](clipboard-ipc-migration/clipboard-ipc-migration.md)** — Spostamento clipboard (deprecato v40, rimosso v44) dal renderer al main via IPC. Handler main `mt::clipboard-{write-text,read,has}`, preload wrapper, renderer async su read/has. ✅ Implementazione completa. ⏳ Verifica runtime PC principale (warning deprecato sparisce, clipboard funziona).
+
+- **[refactor-followup-fix](refactor-followup-fix/refactor-followup-fix.md)** — Fix pre-esistenti emersi al test renderer-no-node-integration: Quick Open crash `projectTree===null` (guardia _getPath), el-radio deprecation `label`→`value`, el-button `size="medium"`→`default`, el-button `type="text"`→prop boolean `text` (avvertenza: `type="link"` fuorviante), font-display swap CSS (Chromium slow-network log). ✅ Implementati. Test runtime verificati questa sessione. ⏳ Commit in attesa OK utente.
+
 - **[warning-fix](warning-fix/warning-fix.md)** — Risoluzione alla radice di 11 warning (build/dev/console): npm config, browserslist, Vite, electron-builder, i18n (chiavi + HTML), prop validation, Element Plus dialog, security (webSecurity + CSP dinamica custom protocol `safe-file`). 10 warning risolti, 1 ignorato (DevTools non azionabile), 1 indagine conclusa (normalizeHeaderText DNA cursore). **Regola permanente:** task10 (security) — invarianti `correctImageSrc` non toccato, `getImageInfo` unico chokepoint idempotente, CSP dev/prod via plugin Vite. Bug collaterale risolto (race transformer su cancellazione immagine).
 
 ## Editor Core

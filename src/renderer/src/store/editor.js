@@ -1586,9 +1586,21 @@ export const useEditorStore = defineStore('editor', {
           // NB12: guardia contro false-dirty all'apertura file.
           // Se il contenuto corrente è identico a quello caricato da disco,
           // non marcare come "non salvato" (originalMarkdown è null per file nuovi).
+          // Untitled: la baseline può essere null (getSingleFileState/createDocumentState) o ''
+          // (getBlankFileState) → normalizzare a '' così, svuotando il doc, la tab torna "pulita".
+          const baseline =
+            this.currentFile.originalMarkdown === null && !pathname
+              ? ''
+              : this.currentFile.originalMarkdown
+          // Il doc vuoto di Muya è '' oppure '\n' a seconda di trimTrailingNewline: considerare
+          // invariato quando ENTRAMBI i lati sono vuoti (solo trailing-newline). NON tocca il
+          // confronto del contenuto reale (resta === esatto), quindi la semantica dirty non cambia.
+          const bothEmpty =
+            baseline !== null &&
+            markdown.replace(/[\r\n]+$/, '') === '' &&
+            baseline.replace(/[\r\n]+$/, '') === ''
           const isUnchangedFromDisk =
-            this.currentFile.originalMarkdown !== null &&
-            markdown === this.currentFile.originalMarkdown
+            baseline !== null && (markdown === baseline || bothEmpty)
           if (!isUnchangedFromDisk) {
             this.currentFile.isSaved = false
             if (pathname && autoSave) {
