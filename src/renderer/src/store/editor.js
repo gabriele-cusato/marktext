@@ -2052,13 +2052,17 @@ const mergeWithOriginal = (regenerated, original) => {
 
     if (origGapLines.length > 0) {
       // Original had lines in this gap
-      const newContent = regenGapLines.filter((l) => normalizeLine(l) !== '')
+      const regenHasContent = regenGapLines.some((l) => normalizeLine(l) !== '')
+      const origHasContent = origGapLines.some((l) => normalizeLine(l) !== '')
 
-      if (newContent.length > 0) {
-        // New content is being inserted - use Muya's spacing since structure changed
+      if (regenHasContent || origHasContent) {
+        // Contenuto non-vuoto in regen (inserimento) O in orig (cancellazione): la struttura
+        // è cambiata → usa il gap rigenerato di Muya. FIX bug lightTouch: se orig aveva
+        // contenuto e regen no (riga cancellata → vuota, es. immagine/paragrafo rimosso),
+        // il vecchio ramo `else` resuscitava la riga original. Ora la cancellazione è onorata.
         resultLines.push(...regenGapLines)
       } else {
-        // No new content - preserve original gap lines exactly (keeps double blanks)
+        // Entrambi i gap solo-vuoti - preserva lo spacing original (mantiene i doppi blank)
         resultLines.push(...origGapLines)
       }
     } else if (regenGapLines.length > 0) {
@@ -2082,13 +2086,15 @@ const mergeWithOriginal = (regenerated, original) => {
 
   if (origTail.length > 0) {
     // Original had lines after last match
-    const newContent = regenTail.filter((l) => normalizeLine(l) !== '')
+    const regenHasContent = regenTail.some((l) => normalizeLine(l) !== '')
+    const origHasContent = origTail.some((l) => normalizeLine(l) !== '')
 
-    if (newContent.length > 0) {
-      // New content at end - use Muya's spacing since structure changed
+    if (regenHasContent || origHasContent) {
+      // Come sopra (gap): inserimento O cancellazione in coda → usa il tail rigenerato.
+      // FIX bug lightTouch: cancellare le ultime righe non deve resuscitarle.
       resultLines.push(...regenTail)
     } else {
-      // No new content - preserve original tail exactly
+      // Entrambi i tail solo-vuoti - preserva il tail original
       resultLines.push(...origTail)
     }
   } else if (regenTail.length > 0) {
