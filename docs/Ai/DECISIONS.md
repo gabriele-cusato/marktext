@@ -1,3 +1,22 @@
+## 2026-07-08 — DEP0180 `fs.Stats` in preview: interno a Electron, NON fixabile → documentato
+
+Warning `(node) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated` visto in
+`preview` (processo main). Trace con `--trace-deprecation`:
+```
+at asarStatsToFsStats (node:electron/js2c/node_init)
+...
+at ReaddirpStream._stat (node_modules/readdirp/index.js)
+at ReaddirpStream._read (node_modules/readdirp/index.js)
+```
+**Causa radice:** è **codice interno di Electron** (`asarStatsToFsStats` nello shim asar del suo
+`node_init`) che usa il costruttore `fs.Stats` deprecato. Viene innescato da **readdirp** (dip di
+**chokidar v5**, il file-watcher) quando scandisce le cartelle. NON è nostro codice né una nostra dip
+diretta: chokidar è già v5, readdirp non costruisce Stats — lo fa Electron nel wrapping fs.
+**Decisione:** NON risolvibile a mano (va corretto upstream in Electron, già all'ultima versione).
+Benigno: un warning per processo, solo in dev/preview (nel packaged Electron sopprime i deprecation →
+non compariva). Documentato qui come noto-accettato per la regola "warning non fixabile → documentare".
+Ricontrollare a futuri upgrade di Electron: quando lo correggono, sparisce senza azioni da parte nostra.
+
 ## 2026-07-08 — Warning non bloccanti: vanno comunque risolti se notati e possibile
 
 - Precisazione (richiesta esplicita utente) della regola 2026-07-05: un warning **anche se NON
