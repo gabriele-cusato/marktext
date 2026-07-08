@@ -1,23 +1,23 @@
 # electron-upgrade — task1 — worklog: Electron 39 → 40
 
-Stato: **NON INIZIATO**. Da eseguire sul PC principale (build bloccato sul secondario).
+Stato: **SUPERATO dal salto unico 39→43** (vedi Esito). Chiuso OK sul PC principale 2026-07-07.
 
 ## Checklist
-- [ ] Ambiente VS2022 v143 attivo, `nvm use 22.21.1`, `$env:VCINSTALLDIR` = ...\2022\...\VC\
-- [ ] Breaking changes Electron 40 lette (link nel plan)
-- [ ] Grep API Node 24 nel main process (esito: ...)
-- [ ] `npm install -D electron@40`
-- [ ] `npm run rebuild-native` OK (no MSB8040)
-- [ ] `npm run build` exit 0
-- [ ] `npm run dev` app parte, console pulita
-- [ ] Retest manuale drag tab (reorder/detach/cross-window/taskbar) — DA TESTARE
-- [ ] Retest dialog — DA TESTARE
-- [ ] Retest export HTML/PDF — DA TESTARE
-- [ ] Retest source mode — DA TESTARE
-- [ ] Retest scorciatoie/keychain/ricerca file — DA TESTARE
-- [ ] electron#42252: fixato? (sì/no + comportamento drop) — annotare in DECISIONS.md
-- [ ] `npm run build:win` app pacchettizzata parte
-- [ ] Commit dedicato `update: electron 39 → 40`
+- [x] Ambiente VS2022 v143 attivo, `nvm use 22.21.1`, `$env:VCINSTALLDIR` = ...\2022\...\VC\
+- [x] Breaking changes Electron 40 lette (link nel plan)
+- [x] Grep API Node 24 nel main process
+- [x] `npm install -D electron@43` (salto unico, non 40)
+- [x] `npm run rebuild-native` OK (`--only ced,keytar`; native-keymap napi escluso)
+- [x] `npm run build` exit 0
+- [x] `npm run dev` app parte, console pulita
+- [x] Retest manuale drag tab (reorder/detach/cross-window/taskbar) — OK
+- [x] Retest dialog — OK
+- [x] Retest export HTML/PDF — OK
+- [x] Retest source mode — OK
+- [x] Retest scorciatoie/keychain/ricerca file — OK (keychain non testato: uploader non usato)
+- [x] electron#42252: comportamento drop verificato in retest
+- [x] `npm run build:win` app pacchettizzata parte — OK
+- [x] Commit dedicato dell'upgrade — fatto+push dall'utente
 
 ## Note esecuzione
 

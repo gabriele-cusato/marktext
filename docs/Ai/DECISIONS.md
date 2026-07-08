@@ -1,3 +1,12 @@
+## 2026-07-08 — Feature conclusa: Agent-Summary fa il MV in Completed, InProgress NON resta come storico
+
+Decisione utente (annulla la regola dell'output-style "la cartella `InProgress/<nome-feature>/`
+resta come storico"). Quando una feature è conclusa:
+- Agent-Summary crea il riassunto `Completed/<feature>/<feature>.md` **e sposta** (mv) lì i file di
+  dettaglio (plan/worklog/istruzioni) dentro `Completed/<feature>/<feature>/`.
+- La cartella `InProgress/<feature>/` **va rimossa**: nulla resta in InProgress a feature chiusa, per
+  non intasarla. Il dettaglio non va perso, va spostato — non cancellato né duplicato.
+
 ## 2026-07-08 — DEP0180 `fs.Stats` in preview: interno a Electron, NON fixabile → documentato
 
 Warning `(node) [DEP0180] DeprecationWarning: fs.Stats constructor is deprecated` visto in

@@ -5,7 +5,7 @@
 - [x] `editor.vue`: 2 occorrenze `size="mini"` → `size="small"`
 - [x] Verifica statica: `grep size="mini"` sui due file → zero residui
 
-## Stato: DA TESTARE
+## Stato: TESTATO OK
 Sostituzioni effettuate: exportSettings/index.vue 6 occorrenze, editor.vue 2 occorrenze (totale 8).
 Verifica statica: `size="mini"` assente in entrambi i file; `size="small"` presente 6+2 volte.
 Nessuna build/avvio eseguiti (compito dell'utente, come da plan).
