@@ -13,14 +13,17 @@ export const editorWinOptions = Object.freeze({
   minWidth: isOsx ? 780 : 820, // era 550
   minHeight: 350,
   webPreferences: {
-    contextIsolation: false,
+    contextIsolation: true,
     // WORKAROUND: We cannot enable spellcheck if it was disabled during
     // renderer startup due to a bug in Electron (Electron#32755). We'll
     // enable it always and set the HTML spelling attribute to false.
     spellcheck: true,
-    nodeIntegration: true,
+    nodeIntegration: false,
+    // sandbox:false necessario: il preload usa API Node (fs-extra/os/command-exists/zlib). Con
+    // nodeIntegration:false il default recente sarebbe sandbox:true, che romperebbe il preload.
+    sandbox: false,
     webSecurity: true,
-    preload: path.join(__dirname, '../preload/index.js')
+    preload: path.join(__dirname, '../preload/index.cjs')
   },
   useContentSize: true,
   show: true,
@@ -44,12 +47,14 @@ export const preferencesWinOptions = Object.freeze({
   width: 950,
   height: 650,
   webPreferences: {
-    contextIsolation: false,
+    contextIsolation: true,
     // Always true to access native spellchecker.
     spellcheck: true,
-    nodeIntegration: true,
+    nodeIntegration: false,
+    // sandbox:false necessario: il preload usa API Node (vedi finestra editor sopra).
+    sandbox: false,
     webSecurity: true,
-    preload: path.join(__dirname, '../preload/index.js')
+    preload: path.join(__dirname, '../preload/index.cjs')
   },
   fullscreenable: false,
   fullscreen: false,

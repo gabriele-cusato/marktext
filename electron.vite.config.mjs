@@ -1,7 +1,6 @@
 import { resolve, dirname } from 'path'
 import { defineConfig } from 'electron-vite'
 import vue from '@vitejs/plugin-vue'
-import renderer from 'vite-plugin-electron-renderer'
 import svgLoader from 'vite-svg-loader'
 import postcssPresetEnv from 'postcss-preset-env'
 import packageJson from './package.json' with { type: 'json' }
@@ -65,7 +64,10 @@ export default defineConfig({
       rollupOptions: {
         output: {
           format: 'cjs',
-          entryFileNames: '[name].js'
+          // .cjs (non .js): package.json ha "type":"module", quindi con contextIsolation:true
+          // Electron carica il preload col loader Node standard che tratterebbe un .js come ESM
+          // (require non definito). Coerente col main, anch'esso emesso come .cjs.
+          entryFileNames: '[name].cjs'
         }
       }
     },
@@ -92,16 +94,19 @@ export default defineConfig({
         '@': resolve(__dirname, 'src/renderer/src'),
         common: resolve(__dirname, 'src/common'),
         muya: resolve(__dirname, 'src/muya'),
-        main_renderer: resolve(__dirname, 'src/main')
+        main_renderer: resolve(__dirname, 'src/main'),
+        path: 'path-browserify' // solo renderer: shim browser-JS per fuzzaldrin (usa solo path.sep)
       },
       extensions: ['.mjs', '.js', '.json', '.vue']
+    },
+    // electron-localshortcut legge process.platform (solo stringa, nessun accesso al sistema):
+    // sostituito col letterale a build-time della piattaforma target.
+    define: {
+      'process.platform': JSON.stringify(process.platform)
     },
     plugins: [
       vue(),
       svgLoader(),
-      renderer({
-        nodeIntegration: true
-      }),
       cspEnvPlugin()
     ],
     css: {

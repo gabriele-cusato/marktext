@@ -84,7 +84,7 @@
 
 <script setup>
 import { ref, reactive, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import log from 'electron-log'
+import log from 'electron-log/renderer'
 // import ViewImage from 'view-image'
 import Muya from 'muya/lib'
 import TablePicker from 'muya/lib/ui/tablePicker'

@@ -94,7 +94,7 @@ import { ref, onMounted, onBeforeUnmount, nextTick, onBeforeUpdate, computed } f
 import { useCommandCenterStore } from '@/store/commandCenter'
 import { usePreferencesStore } from '@/store/preferences'
 import { storeToRefs } from 'pinia'
-import log from 'electron-log'
+import log from 'electron-log/renderer'
 import bus from '../../bus'
 import loading from '../loading'
 import { useI18n } from 'vue-i18n'

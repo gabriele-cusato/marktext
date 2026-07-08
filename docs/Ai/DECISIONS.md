@@ -1,3 +1,19 @@
+## 2026-07-08 — Warning non bloccanti: vanno comunque risolti se notati e possibile
+
+- Precisazione (richiesta esplicita utente) della regola 2026-07-05: un warning **anche se NON
+  bloccante** va risolto se possibile. Un warning indica **comunque un problema**, seppur magari di
+  poco conto; non va ignorato solo perché non rompe nulla.
+- Vale quando il warning **viene notato** (in dev, preview, packaged, console PowerShell o F12):
+  se lo si vede, si affronta — o si risolve alla radice, o, se non risolvibile, lo si **documenta**
+  esplicitamente (causa + perché non risolvibile), non lo si lascia cadere silenziosamente.
+- Non confondere con "sopprimere": la regola 2026-07-05 resta (mai silenziare col flag). Qui si
+  aggiunge che la soglia per intervenire NON è "blocca / non blocca" ma "è stato notato ed è
+  risolvibile".
+- Esempi di questa sessione (renderer-no-node test): deprecazioni Element Plus (`el-radio label`,
+  `el-button size/type`) e l'intervention font "slow network" — non bloccanti, risolti comunque
+  (feature `refactor-followup-fix`). DEP0180 `fs.Stats` in preview = da dipendenza, non risolvibile
+  a mano → **documentata** come tale, non ignorata.
+
 ## 2026-07-07 — Modus operandi soluzioni: preferire la strada SOLIDA/PULITA anche se costa più modifiche (con conferma)
 
 **Regola permanente per come proporre e scegliere le soluzioni in questo progetto** (richiesta

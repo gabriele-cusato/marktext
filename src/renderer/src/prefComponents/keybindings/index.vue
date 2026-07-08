@@ -102,7 +102,7 @@
 </template>
 
 <script setup>
-import log from 'electron-log'
+import log from 'electron-log/renderer'
 import { setKeyboardLayout } from '@hfelix/electron-localshortcut'
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import Separator from '../common/separator'
