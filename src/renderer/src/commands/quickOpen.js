@@ -161,7 +161,14 @@ class QuickOpenCommand {
   }
 
   _getPath = (pathname) => {
-    const rootPath = this._folderState.projectTree.pathname
+    const { projectTree } = this._folderState
+    // Nessuna cartella aperta (il filetree è deprecato: projectTree resta null): mostrare solo il
+    // path assoluto del tab, evitando l'accesso a projectTree.pathname che altrimenti crasherebbe.
+    if (!projectTree) {
+      return { title: pathname, description: pathname }
+    }
+
+    const rootPath = projectTree.pathname
     if (!window.fileUtils.isChildOfDirectory(rootPath, pathname)) {
       return { title: pathname, description: pathname }
     }

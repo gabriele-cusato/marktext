@@ -64,7 +64,7 @@
         >
           <template #default="scope">
             <el-button
-              type="text"
+              text
               size="small"
               :title="t('preferences.spellchecker.customDictionary.delete')"
               @click="handleDeleteClick(scope.row)"

@@ -110,7 +110,7 @@
             <el-radio class="ag-underdevelop" label="lastState">Restore last editor session</el-radio>
             -->
             <div class="startup-option">
-              <el-radio label="folder">
+              <el-radio value="folder">
                 {{ t('preferences.general.startup.openDefaultDirectory') }}
               </el-radio>
               <el-button
@@ -125,7 +125,7 @@
               >{{ defaultDirectoryToOpen }}</span>
             </div>
             <div class="startup-option">
-              <el-radio label="blank">
+              <el-radio value="blank">
                 {{ t('preferences.general.startup.openBlankPage') }}
               </el-radio>
             </div>

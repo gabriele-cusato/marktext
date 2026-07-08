@@ -28,7 +28,7 @@
         >
           <template #default="scope">
             <el-button
-              type="text"
+              text
               size="small"
               :title="t('preferences.keybindings.table.edit')"
               @click="handleEditClick(scope.$index, scope.row)"
@@ -39,7 +39,7 @@
               />
             </el-button>
             <el-button
-              type="text"
+              text
               size="small"
               :title="t('preferences.keybindings.table.reset')"
               @click="handleResetClick(scope.$index, scope.row)"
@@ -50,7 +50,7 @@
               />
             </el-button>
             <el-button
-              type="text"
+              text
               size="small"
               :title="t('preferences.keybindings.table.unbind')"
               @click="handleUnbindClick(scope.$index, scope.row)"
@@ -67,13 +67,13 @@
     <section class="footer">
       <separator />
       <el-button
-        size="medium"
+        size="default"
         @click="saveKeybindings"
       >
         {{ t('preferences.keybindings.save') }}
       </el-button>
       <el-button
-        size="medium"
+        size="default"
         @click="restoreDefaults"
       >
         {{ t('preferences.keybindings.restoreDefaults') }}
@@ -88,7 +88,7 @@
         <strong>{{ t('preferences.keybindings.debugOptions') }}:</strong>
       </div>
       <el-button
-        size="medium"
+        size="default"
         @click="dumpKeyboardInformation"
       >
         {{ t('preferences.keybindings.dumpKeyboardInfo') }}
