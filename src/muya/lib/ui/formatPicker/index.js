@@ -79,7 +79,9 @@ class FormatPicker extends BaseFloat {
         itemSelector,
         {
           attrs: {
-            title: `${i.tooltip} ${i.shortcut}`
+            // Alcuni item (es. sub/sup) non hanno una shortcut reale assegnata: omettere il
+            // suffisso invece di mostrare "undefined".
+            title: i.shortcut ? `${i.tooltip} ${i.shortcut}` : i.tooltip
           },
           on: {
             click: (event) => {

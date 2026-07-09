@@ -36,7 +36,7 @@ export default new Map([
   ['edit.copy-as-html', ''],
   ['edit.paste-as-plaintext', 'Command+Shift+V'],
   ['edit.select-all', 'Command+A'],
-  ['edit.duplicate', 'Command+Option+D'],
+  ['edit.duplicate', 'Command+Shift+P'],
   ['edit.create-paragraph', 'Shift+Command+N'],
   ['edit.delete-paragraph', 'Shift+Command+D'],
   ['edit.find', 'Command+F'],
@@ -91,7 +91,7 @@ export default new Map([
   ['window.toggle-full-screen', 'Ctrl+Command+F'],
 
   // View menu
-  ['view.command-palette', 'Command+Shift+P'],
+  ['view.command-palette', 'Command+Shift+A'],
   ['view.source-code-mode', 'Command+Option+S'],
   ['view.typewriter-mode', 'Command+Option+T'],
   ['view.focus-mode', 'Command+Shift+J'],
@@ -113,11 +113,12 @@ export default new Map([
   ['tabs.switchToFourth', 'Ctrl+4'],
   ['tabs.switchToFifth', 'Ctrl+5'],
   ['tabs.switchToSixth', 'Ctrl+6'],
-  ['tabs.switchToSeventh', 'Ctrl+7'],
-  ['tabs.switchToEighth', 'Ctrl+8'],
-  ['tabs.switchToNinth', 'Ctrl+9'],
+  ['tabs.switchToSeventh', ''],
+  ['tabs.switchToEighth', ''],
+  ['tabs.switchToNinth', ''],
   ['tabs.switchToTenth', 'Ctrl+0'],
-  ['file.quick-open', 'Command+P'],
+  // NOTE: rimossa Command+P (era in conflitto con file.print); quick-open resta via command palette.
+  ['file.quick-open', ''],
 
   // Case transform — globali in entrambe le viste
   ['edit.to-uppercase', 'Command+Shift+U'],

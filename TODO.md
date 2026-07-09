@@ -22,9 +22,19 @@
 
 ### Nuovi
 
-- [ ] **Fix grafici** (specifiche da definire).
-- [ ] **Fix warnings** (build/console).
-- [ ] **Fix aggiornamenti npm e librerie** (incluso `npm install` di pulizia post rimozione dragula).
+- [x] **Fix warnings** (build/console).
+- [x] **Fix aggiornamenti npm e librerie** (incluso `npm install` di pulizia post rimozione dragula).
+
+### Menu/UI overhaul — follow-up (2026-07-09)
+
+- [ ] **Locales** — aggiustare le stringhe di traduzione (allineare a menu/palette dopo l'overhaul).
+- [ ] **Preferences** — controllo generale e rifinitura delle preferenze.
+- [ ] **Bug combo box in Preferences** — espandendo una combo senza scrollare, le sotto-voci escono dal riquadro dal lato ALTO e restano nascoste (si vedono solo scrollando). Fix overflow/posizionamento dropdown.
+- [ ] **Tabs — aspetto alternativo** — valutare bordi squadrati stile Apple (possibile resa più gradevole).
+- [ ] **Icona File recenti** — aggiungerla tra l'icona cartella e l'icona command palette (icona nuova a scelta libera). Lega alla feature `recent-files`.
+- [ ] **Finestra — width minima + hamburger** — ridurre la width minima; sotto una soglia mostrare un'icona hamburger che raccoglie le icone command palette, cartella e file recenti.
+- [ ] **Strumenti selezione testo — toggle off** — se un format è già attivo sulla selezione, ripremendolo deve TOGLIERLO, non riapplicarlo (oggi lo riaggiunge).
+- [ ] **Test su macOS e Linux** — dell'overhaul menu/shortcut + fix sopra.
 
 ### Rimandati (non in programma, riaprire solo su richiesta)
 

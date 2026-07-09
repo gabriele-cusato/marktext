@@ -103,7 +103,9 @@ export const orderedList = (win) => {
 }
 
 export const paragraph = (win) => {
-  transformEditorElement(win, 'paragraph')
+  // reset-to-paragraph converte a testo normale QUALSIASI blocco (heading, lista, code, quote),
+  // non solo gli heading come faceva 'paragraph'.
+  transformEditorElement(win, 'reset-to-paragraph')
 }
 
 export const quoteBlock = (win) => {

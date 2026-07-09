@@ -75,8 +75,6 @@ const getCommandDescriptions = () => {
     'edit.to-lowercase': t('commands.edit.toLowerCase'),
 
     // 段落操作
-    'edit.create-paragraph': t('commands.edit.createParagraph'),
-    'edit.delete-paragraph': t('commands.edit.deleteParagraph'),
 
     // 查找替换
     'edit.find': t('commands.edit.find'),
@@ -92,63 +90,8 @@ const getCommandDescriptions = () => {
     // ============================================
     // # 段落格式命令 (Paragraph Formatting)
     // ============================================
-    // 标题级别
-    'paragraph.heading-1': t('commands.paragraph.heading1'),
-    'paragraph.heading-2': t('commands.paragraph.heading2'),
-    'paragraph.heading-3': t('commands.paragraph.heading3'),
-    'paragraph.heading-4': t('commands.paragraph.heading4'),
-    'paragraph.heading-5': t('commands.paragraph.heading5'),
-    'paragraph.heading-6': t('commands.paragraph.heading6'),
-    'paragraph.upgrade-heading': t('commands.paragraph.upgradeHeading'),
-    'paragraph.degrade-heading': t('commands.paragraph.degradeHeading'),
-
-    // 块级元素
-    'paragraph.table': t('commands.paragraph.table'),
-    'paragraph.code-fence': t('commands.paragraph.codeFence'),
-    'paragraph.quote-block': t('commands.paragraph.quoteBlock'),
-    'paragraph.math-block': t('commands.paragraph.mathBlock'),
-    'paragraph.html-block': t('commands.paragraph.htmlBlock'),
-
-    // 列表类型
-    'paragraph.order-list': t('commands.paragraph.orderList'),
-    'paragraph.bullet-list': t('commands.paragraph.bulletList'),
-    'paragraph.task-list': t('commands.paragraph.taskList'),
-    'paragraph.loose-list-item': t('commands.paragraph.looseListItem'),
-
     // 段落类型
-    'paragraph.paragraph': t('commands.paragraph.paragraph'),
     'paragraph.reset-paragraph': t('commands.paragraph.resetParagraph'),
-
-    // 分隔符和特殊元素
-    'paragraph.horizontal-rule': t('commands.paragraph.horizontalRule'),
-    'paragraph.horizontal-line': t('commands.paragraph.horizontalLine'),
-    'paragraph.math-formula': t('commands.paragraph.mathFormula'),
-    'paragraph.front-matter': t('commands.paragraph.frontMatter'),
-
-    // ============================================
-    // # 文本格式命令 (Text Formatting)
-    // ============================================
-    // 基础格式
-    'format.strong': t('commands.format.strong'),
-    'format.emphasis': t('commands.format.emphasis'),
-    'format.underline': t('commands.format.underline'),
-    'format.strike': t('commands.format.strike'),
-
-    // 高级格式
-    'format.highlight': t('commands.format.highlight'),
-    'format.superscript': t('commands.format.superscript'),
-    'format.subscript': t('commands.format.subscript'),
-
-    // 内联元素
-    'format.inline-code': t('commands.format.inlineCode'),
-    'format.inline-math': t('commands.format.inlineMath'),
-
-    // 链接和媒体
-    'format.hyperlink': t('commands.format.hyperlink'),
-    'format.image': t('commands.format.image'),
-
-    // 格式清除
-    'format.clear-format': t('commands.format.clearFormat'),
 
     // ============================================
     // # 窗口管理命令 (Window Management)

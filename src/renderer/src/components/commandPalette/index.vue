@@ -143,6 +143,11 @@ onBeforeUpdate(() => {
 })
 
 const handleShow = (command) => {
+  // Toggle: se la palette è già aperta, la stessa scorciatoia la chiude
+  if (showCommandPalette.value) {
+    close()
+    return
+  }
   currentCommand.value = command || commandCenterStore.rootCommand
   currentCommand.value
     .run()

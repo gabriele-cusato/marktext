@@ -37,7 +37,7 @@ export default new Map([
   ['edit.copy-as-html', ''],
   ['edit.paste-as-plaintext', 'Ctrl+Shift+V'],
   ['edit.select-all', 'Ctrl+A'],
-  ['edit.duplicate', 'Ctrl+Alt+D'],
+  ['edit.duplicate', 'Ctrl+Shift+P'],
   ['edit.create-paragraph', 'Ctrl+Shift+N'],
   ['edit.delete-paragraph', 'Ctrl+Shift+D'],
   ['edit.find', 'Ctrl+F'],
@@ -49,26 +49,27 @@ export default new Map([
   ['edit.screenshot', ''], // macOS only
 
   // Paragraph menu
-  // NOTE: We cannot set a default value for heading size because `Ctrl+Alt` is an alias
-  //       to `AltGr` on Windows and `Ctrl+Shift+1` is mapped to the underlying character.
-  ['paragraph.heading-1', ''],
-  ['paragraph.heading-2', ''],
-  ['paragraph.heading-3', ''],
-  ['paragraph.heading-4', ''],
-  ['paragraph.heading-5', ''],
-  ['paragraph.heading-6', ''],
-  ['paragraph.upgrade-heading', 'Ctrl+Plus'],
-  ['paragraph.degrade-heading', 'Ctrl+-'],
+  // NOTE: headings usano `Ctrl+<numero>` semplice (non `Ctrl+Shift+<numero>`, che su Windows
+  //       mappa al carattere sottostante). Ex tab-switch su Ctrl+1..6 rimosso per liberarli.
+  ['paragraph.heading-1', 'Ctrl+1'],
+  ['paragraph.heading-2', 'Ctrl+2'],
+  ['paragraph.heading-3', 'Ctrl+3'],
+  ['paragraph.heading-4', 'Ctrl+4'],
+  ['paragraph.heading-5', 'Ctrl+5'],
+  ['paragraph.heading-6', 'Ctrl+6'],
+  // NOTE: rimosse (in conflitto con window.zoomIn/zoomOut Ctrl++ / Ctrl+-); zoom mantenuto.
+  ['paragraph.upgrade-heading', ''],
+  ['paragraph.degrade-heading', ''],
   ['paragraph.table', 'Ctrl+Shift+T'],
-  ['paragraph.code-fence', 'Ctrl+Shift+K'],
-  ['paragraph.quote-block', 'Ctrl+Shift+Q'],
-  ['paragraph.math-formula', 'Ctrl+Alt+N'],
-  ['paragraph.html-block', 'Ctrl+Alt+H'],
-  ['paragraph.order-list', 'Ctrl+G'],
-  ['paragraph.bullet-list', 'Ctrl+H'],
+  ['paragraph.code-fence', 'Ctrl+Alt+C'],
+  ['paragraph.quote-block', 'Ctrl+Alt+Q'],
+  ['paragraph.math-formula', 'Ctrl+Alt+M'],
+  ['paragraph.html-block', 'Ctrl+Alt+J'],
+  ['paragraph.order-list', 'Ctrl+Alt+O'],
+  ['paragraph.bullet-list', 'Ctrl+Alt+U'],
   ['paragraph.task-list', 'Ctrl+Alt+X'],
   ['paragraph.loose-list-item', 'Ctrl+Alt+L'],
-  ['paragraph.paragraph', 'Ctrl+Shift+0'],
+  ['paragraph.paragraph', 'Ctrl+0'],
   ['paragraph.horizontal-line', ''],
   ['paragraph.front-matter', 'Ctrl+Alt+Y'],
 
@@ -94,7 +95,7 @@ export default new Map([
   ['window.toggle-full-screen', 'F11'],
 
   // View menu
-  ['view.command-palette', 'Ctrl+Shift+P'],
+  ['view.command-palette', 'Ctrl+Shift+A'],
   ['view.source-code-mode', 'Ctrl+E'],
   ['view.typewriter-mode', 'Ctrl+Shift+G'],
   ['view.focus-mode', 'Ctrl+Shift+J'],
@@ -110,17 +111,18 @@ export default new Map([
   ['tabs.cycleBackward', 'Ctrl+Shift+Tab'],
   ['tabs.switchToLeft', 'Ctrl+PageUp'],
   ['tabs.switchToRight', 'Ctrl+PageDown'],
-  ['tabs.switchToFirst', 'Ctrl+1'],
-  ['tabs.switchToSecond', 'Ctrl+2'],
-  ['tabs.switchToThird', 'Ctrl+3'],
-  ['tabs.switchToFourth', 'Ctrl+4'],
-  ['tabs.switchToFifth', 'Ctrl+5'],
-  ['tabs.switchToSixth', 'Ctrl+6'],
-  ['tabs.switchToSeventh', 'Ctrl+7'],
-  ['tabs.switchToEighth', 'Ctrl+8'],
-  ['tabs.switchToNinth', 'Ctrl+9'],
-  ['tabs.switchToTenth', 'Ctrl+0'],
-  ['file.quick-open', 'Ctrl+P'],
+  ['tabs.switchToFirst', ''],
+  ['tabs.switchToSecond', ''],
+  ['tabs.switchToThird', ''],
+  ['tabs.switchToFourth', ''],
+  ['tabs.switchToFifth', ''],
+  ['tabs.switchToSixth', ''],
+  ['tabs.switchToSeventh', ''],
+  ['tabs.switchToEighth', ''],
+  ['tabs.switchToNinth', ''],
+  ['tabs.switchToTenth', ''],
+  // NOTE: rimossa Ctrl+P (era in conflitto con file.print); quick-open resta via command palette.
+  ['file.quick-open', ''],
 
   // Case transform — globali in entrambe le viste
   ['edit.to-uppercase', 'Ctrl+Shift+U'],
