@@ -237,7 +237,7 @@
           <el-input
             v-model="githubToken"
             :placeholder="t('preferences.image.uploader.inputToken')"
-            size="mini"
+            size="small"
           />
         </div>
         <div class="form-group">
@@ -247,7 +247,7 @@
           <el-input
             v-model="github.owner"
             :placeholder="t('preferences.image.uploader.owner')"
-            size="mini"
+            size="small"
           />
         </div>
         <div class="form-group">
@@ -257,7 +257,7 @@
           <el-input
             v-model="github.repo"
             :placeholder="t('preferences.image.uploader.repo')"
-            size="mini"
+            size="small"
           />
         </div>
         <div class="form-group">
@@ -267,7 +267,7 @@
           <el-input
             v-model="github.branch"
             :placeholder="t('preferences.image.uploader.branch')"
-            size="mini"
+            size="small"
           />
         </div>
         <legal-notices-checkbox
@@ -277,7 +277,7 @@
         />
         <div class="form-group">
           <el-button
-            size="mini"
+            size="small"
             :disabled="githubDisable"
             @click="save('github')"
           >
@@ -299,12 +299,12 @@
           <el-input
             v-model="cliScript"
             :placeholder="t('preferences.image.uploader.scriptPath')"
-            size="mini"
+            size="small"
           />
         </div>
         <div class="form-group">
           <el-button
-            size="mini"
+            size="small"
             :disabled="cliScriptDisable"
             @click="save('cliScript')"
           >

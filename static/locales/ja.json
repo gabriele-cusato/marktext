@@ -55,7 +55,10 @@
       "screenshot": "スクリーンショット",
       "lineEnding": "改行コード",
       "lineEndingCrlf": "CRLF (Windows)",
-      "lineEndingLf": "LF (Linux/Mac)"
+      "lineEndingLf": "LF (Linux/Mac)",
+      "toUpperCase": "大文字に変換",
+      "toLowerCase": "小文字に変換",
+      "openInBrowser": "ブラウザで開く"
     },
     "paragraph": {
       "title": "段落",
@@ -179,7 +182,8 @@
       "graphiteLight": "グラファイトライト",
       "materialDark": "マテリアルダーク",
       "oneDark": "ワンダーク",
-      "ulyssesLight": "ユリシーズライト"
+      "ulyssesLight": "ユリシーズライト",
+      "tufte": "タフト"
     }
   },
   "contextMenu": {
@@ -212,7 +216,11 @@
       "closeAllTabs": "すべてのタブを閉じる",
       "rename": "名前を変更",
       "copyPath": "パスをコピー",
-      "showInFolder": "フォルダで表示"
+      "showInFolder": "フォルダで表示",
+      "pin": "タブを固定",
+      "unpin": "タブの固定を解除",
+      "moveToNewWindow": "新しいウィンドウに移動",
+      "reload": "再読み込み"
     }
   },
   "search": {
@@ -225,7 +233,6 @@
     "replaceSingle": "単一置換",
     "invalidRegex": "無効な正規表現 \"{pattern}\"",
     "regexMatchEmpty": "正規表現が空文字列 \"{pattern}\" にマッチ",
-    "searchResultCount": "検索結果",
     "searchResultInfo": "{fileCount} 件のファイルで {matchCount} 件一致",
     "searchLimited": "最初の {count} 件まで検索しました"
   },
@@ -496,7 +503,8 @@
           "title": "ファイルの並び順",
           "creationTime": "作成時刻",
           "modificationTime": "変更時刻"
-        }
+        },
+        "watcherUsePolling": "OSの通知の代わりに一定間隔でファイルの変更を確認します — ネットワークパス上の外部ファイルの変更が検出されない場合にのみ有効にしてください"
       },
       "misc": {
         "title": "その他",
@@ -512,6 +520,14 @@
           "korean": "한국어",
           "portuguese": "Português"
         }
+      },
+      "sessionSnapshot": {
+        "title": "セッションスナップショットと定期バックアップ",
+        "description": "セッションスナップショットと定期バックアップを有効にします。次回起動時にすべてのタブを復元し、閉じるときに保存を確認しません（Notepad++ スタイル）。",
+        "backupIntervalDescription": "定期バックアップの間隔。",
+        "backupLocation": "バックアップの保存先",
+        "selectFolder": "フォルダを選択",
+        "defaultBackupLocation": "デフォルト: userData/backup"
       }
     },
     "editor": {
@@ -535,7 +551,9 @@
         "title": "書き込み動作",
         "autoCloseBrackets": "括弧を自動で閉じる",
         "autoCompleteMarkdown": "Markdownを自動補完",
-        "autoCloseQuotes": "引用符を自動で閉じる"
+        "autoCloseQuotes": "引用符を自動で閉じる",
+        "surroundSelection": "選択範囲を囲む",
+        "surroundSelectionNotes": "テキストが選択されている状態で引用符や括弧を入力すると、選択範囲を置き換える代わりに囲みます。例えば、'hello' を選択して \" を押すと \"hello\" になります。"
       },
       "fileRepresentation": {
         "title": "ファイル表現",
@@ -631,7 +649,6 @@
         "npmInstallCommand": "npm install picgo -g",
         "yarnInstallCommand": "yarn global add picgo",
         "pnpmInstallCommand": "pnpm add -g picgo",
-        "brewInstallCommand": "brew install picgo",
         "chooseInstallMethod": "インストール方法を選択:",
         "retestPicgo": "再テスト",
         "detecting": "検出中...",
@@ -891,7 +908,7 @@
       "saveAs": "名前を付けて保存",
       "moveFile": "ファイルを移動",
       "renameFile": "ファイル名を変更",
-      "quickOpen": "クイックオープン",
+      "quickOpen": "最近使用したファイル",
       "changeEncoding": "エンコーディングを変更",
       "changeLineEnding": "改行コードを変更",
       "trailingNewline": "末尾の改行",
@@ -920,54 +937,19 @@
       "pasteAsPlaintext": "プレーンテキストとして貼り付け",
       "selectAll": "すべて選択",
       "duplicate": "複製",
-      "createParagraph": "段落を作成",
-      "deleteParagraph": "段落を削除",
       "find": "検索",
       "findNext": "次を検索",
       "findPrevious": "前を検索",
       "replace": "置換",
       "findInFolder": "フォルダ内を検索",
       "screenshot": "スクリーンショット",
-      "mathBlock": "数式ブロック"
+      "mathBlock": "数式ブロック",
+      "toUpperCase": "大文字に変換",
+      "toLowerCase": "小文字に変換",
+      "openInBrowser": "ブラウザで開く"
     },
     "paragraph": {
-      "heading1": "見出し1",
-      "heading2": "見出し2",
-      "heading3": "見出し3",
-      "heading4": "見出し4",
-      "heading5": "見出し5",
-      "heading6": "見出し6",
-      "upgradeHeading": "見出しレベルを上げる",
-      "degradeHeading": "見出しレベルを下げる",
-      "table": "表",
-      "codeFence": "コードブロック",
-      "quoteBlock": "引用ブロック",
-      "mathFormula": "数式",
-      "htmlBlock": "HTMLブロック",
-      "orderList": "番号付きリスト",
-      "bulletList": "箇条書きリスト",
-      "taskList": "タスクリスト",
-      "looseListItem": "ルーズリストアイテム",
-      "paragraph": "段落",
-      "horizontalLine": "水平線",
-      "frontMatter": "フロントマター",
-      "resetParagraph": "段落をリセット",
-      "mathBlock": "数式ブロック",
-      "horizontalRule": "水平線"
-    },
-    "format": {
-      "strong": "太字",
-      "emphasis": "斜体",
-      "underline": "下線",
-      "superscript": "上付き文字",
-      "subscript": "下付き文字",
-      "highlight": "ハイライト",
-      "inlineCode": "インラインコード",
-      "inlineMath": "インライン数式",
-      "strike": "取り消し線",
-      "hyperlink": "ハイパーリンク",
-      "image": "画像",
-      "clearFormat": "書式をクリア"
+      "resetParagraph": "段落をリセット"
     },
     "window": {
       "minimize": "最小化",
@@ -1096,7 +1078,13 @@
       "exportSuccessTitle": "エクスポートに成功",
       "exportSuccessMessage": "「{name}」を正常にエクスポートしました！",
       "fileRemovedOnDisk": "「{name}」はディスク上で削除されました。",
-      "fileChangedOnDisk": "「{name}」はディスク上で変更されました。再読み込みしますか？"
+      "fileChangedOnDisk": "「{name}」はディスク上で変更されました。再読み込みしますか？",
+      "fileChangedTitle": "ファイルがディスク上で変更されました",
+      "fileChangedReloadWarn": "「{name}」は他のプログラムによって変更されました。再読み込みすると、エディタ内の未保存の変更は破棄されます。",
+      "fileChangedReloadNoWarn": "「{name}」は他のプログラムによって変更されました。再読み込みしますか？",
+      "reloadFromDisk": "再読み込み",
+      "tooManyTabsTitle": "多くのタブが開いています",
+      "tooManyTabsMsg": "{count} 個のタブが開いています。タブの数が多いとエディタの動作が遅くなる場合があります — 不要なタブを閉じることを検討してください。"
     },
     "help": {
       "lineEndingAssertionError": "改行コードアサーションエラー"
@@ -1242,30 +1230,49 @@
     },
     "mermaidDiagram": {
       "title": "Mermaid図表"
+    },
+    "inlineFormat": "インライン書式",
+    "bold": {
+      "title": "太字",
+      "subtitle": "**太字**"
+    },
+    "italic": {
+      "title": "斜体",
+      "subtitle": "*斜体*"
+    },
+    "underline": {
+      "title": "下線",
+      "subtitle": "u tag"
+    },
+    "strikethrough": {
+      "title": "取り消し線",
+      "subtitle": "~~取り消し線~~"
+    },
+    "highlight": {
+      "title": "ハイライト",
+      "subtitle": "==ハイライト=="
+    },
+    "inlineCode": {
+      "title": "インラインコード",
+      "subtitle": "`コード`"
+    },
+    "inlineMath": {
+      "title": "インライン数式",
+      "subtitle": "$数式$"
+    },
+    "inlineLink": {
+      "title": "リンク",
+      "subtitle": "[リンク](url)"
+    },
+    "inlineImage": {
+      "title": "画像",
+      "subtitle": "![画像](url)"
     }
   },
   "frontMenu": {
     "duplicate": "複製",
-    "turnInto": "スタイル",
     "newParagraph": "新しい段落",
-    "delete": "削除",
-    "paragraph": "段落",
-    "table": "表",
-    "html": "HTML",
-    "mathblock": "数式ブロック",
-    "pre": "コードブロック",
-    "frontMatter": "フロントマター",
-    "ulTask": "タスクリスト",
-    "ulBullet": "箇条書きリスト",
-    "olOrder": "番号付きリスト",
-    "blockquote": "引用",
-    "heading1": "見出し1",
-    "heading2": "見出し2",
-    "heading3": "見出し3",
-    "heading4": "見出し4",
-    "heading5": "見出し5",
-    "heading6": "見出し6",
-    "hr": "水平線"
+    "delete": "削除"
   },
   "editor": {
     "image": {
@@ -1386,5 +1393,36 @@
     "copy": "コピー",
     "paste": "貼り付け",
     "selectAll": "すべて選択"
+  },
+  "statusBar": {
+    "toggleWrap": "折り返しを切り替え",
+    "resetZoom": "ズームをリセット (Ctrl+0)",
+    "toggleSource": "ソース / Markdown 切り替え (Ctrl+E)",
+    "nonMarkdown": "ソースのみ: Markdown以外のファイル",
+    "wrapUnavailable": "Markdownモードでは折り返しは利用できません",
+    "otherCharsets": "その他の文字セット",
+    "encodingGroup": {
+      "arabic": "アラビア語",
+      "baltic": "バルト語",
+      "cyrillic": "キリル文字",
+      "centralEuropean": "中央ヨーロッパ語",
+      "chinese": "中国語",
+      "easternEuropean": "東ヨーロッパ語",
+      "greek": "ギリシャ語",
+      "hebrew": "ヘブライ語",
+      "japanese": "日本語",
+      "korean": "韓国語",
+      "northernEuropean": "北ヨーロッパ語",
+      "turkish": "トルコ語",
+      "westernEuropean": "西ヨーロッパ語"
+    }
+  },
+  "theme": {
+    "cadmiumLight": "カドミウムライト",
+    "dark": "ダーク",
+    "graphiteLight": "グラファイトライト",
+    "materialDark": "マテリアルダーク",
+    "oneDark": "ワンダーク",
+    "ulyssesLight": "ユリシーズライト"
   }
 }

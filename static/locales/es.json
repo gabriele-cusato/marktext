@@ -55,7 +55,10 @@
       "screenshot": "Captura de Pantalla",
       "lineEnding": "Final de Línea",
       "lineEndingCrlf": "CRLF(Windows)",
-      "lineEndingLf": "LF(Linux/Mac)"
+      "lineEndingLf": "LF(Linux/Mac)",
+      "toUpperCase": "A MAYÚSCULAS",
+      "toLowerCase": "A minúsculas",
+      "openInBrowser": "Abrir en el navegador"
     },
     "paragraph": {
       "title": "Párrafo",
@@ -179,7 +182,8 @@
       "graphiteLight": "Grafito Claro",
       "materialDark": "Material Oscuro",
       "oneDark": "One Dark",
-      "ulyssesLight": "Ulises Claro"
+      "ulyssesLight": "Ulises Claro",
+      "tufte": "Tufte"
     }
   },
   "contextMenu": {
@@ -212,7 +216,11 @@
       "closeAllTabs": "Cerrar todas las pestañas",
       "rename": "Renombrar",
       "copyPath": "Copiar ruta",
-      "showInFolder": "Mostrar en carpeta"
+      "showInFolder": "Mostrar en carpeta",
+      "pin": "Fijar pestaña",
+      "unpin": "Desfijar pestaña",
+      "moveToNewWindow": "Mover a nueva ventana",
+      "reload": "Recargar"
     }
   },
   "search": {
@@ -495,7 +503,8 @@
           "title": "Ordenar Archivos Por",
           "creationTime": "Tiempo de Creación",
           "modificationTime": "Tiempo de Modificación"
-        }
+        },
+        "watcherUsePolling": "Consultar cambios en los archivos a intervalos en lugar de usar notificaciones del sistema operativo — activar solo si los cambios externos en rutas de red no se detectan"
       },
       "misc": {
         "title": "Misceláneos",
@@ -511,6 +520,14 @@
           "korean": "한국어",
           "portuguese": "Português"
         }
+      },
+      "sessionSnapshot": {
+        "title": "Instantánea de sesión y copia de seguridad periódica",
+        "description": "Activar la instantánea de sesión y la copia de seguridad periódica: restaurar todas las pestañas en el próximo inicio y no preguntar si guardar al cerrar (estilo Notepad++).",
+        "backupIntervalDescription": "Intervalo de la copia de seguridad periódica.",
+        "backupLocation": "Ubicación de la copia de seguridad",
+        "selectFolder": "Seleccionar carpeta",
+        "defaultBackupLocation": "Predeterminado: userData/backup"
       }
     },
     "editor": {
@@ -534,7 +551,9 @@
         "title": "Comportamiento de Escritura",
         "autoCloseBrackets": "Cerrar corchetes automáticamente",
         "autoCompleteMarkdown": "Autocompletar markdown",
-        "autoCloseQuotes": "Cerrar comillas automáticamente"
+        "autoCloseQuotes": "Cerrar comillas automáticamente",
+        "surroundSelection": "Envolver selección",
+        "surroundSelectionNotes": "Cuando hay texto seleccionado, escribir comillas o corchetes envolverá la selección en lugar de reemplazarla. Por ejemplo, al seleccionar 'hello' y pulsar \" se obtiene \"hello\"."
       },
       "fileRepresentation": {
         "title": "Representación de Archivo",
@@ -889,7 +908,7 @@
       "saveAs": "Guardar Como",
       "moveFile": "Mover Archivo",
       "renameFile": "Renombrar Archivo",
-      "quickOpen": "Apertura Rápida",
+      "quickOpen": "Archivos Recientes",
       "changeEncoding": "Cambiar Codificación",
       "changeLineEnding": "Cambiar Final de Línea",
       "trailingNewline": "Nueva Línea Final",
@@ -918,54 +937,19 @@
       "pasteAsPlaintext": "Pegar como Texto Plano",
       "selectAll": "Seleccionar",
       "duplicate": "Duplicar",
-      "createParagraph": "Crear Párrafo",
-      "deleteParagraph": "Eliminar Párrafo",
       "find": "Buscar",
       "findNext": "Buscar Siguiente",
       "findPrevious": "Buscar Anterior",
       "replace": "Reemplazar",
       "findInFolder": "Buscar en Carpeta",
       "screenshot": "Captura de Pantalla",
-      "mathBlock": "Bloque matemático"
+      "mathBlock": "Bloque matemático",
+      "toUpperCase": "A MAYÚSCULAS",
+      "toLowerCase": "A minúsculas",
+      "openInBrowser": "Abrir en el navegador"
     },
     "paragraph": {
-      "heading1": "Encabezado 1",
-      "heading2": "Encabezado 2",
-      "heading3": "Encabezado 3",
-      "heading4": "Encabezado 4",
-      "heading5": "Encabezado 5",
-      "heading6": "Encabezado 6",
-      "upgradeHeading": "Promover Encabezado",
-      "degradeHeading": "Degradar Encabezado",
-      "table": "Tabla",
-      "codeFence": "Bloque de Código",
-      "quoteBlock": "Bloque de Cita",
-      "mathFormula": "Fórmula Matemática",
-      "htmlBlock": "Bloque HTML",
-      "orderList": "Lista Ordenada",
-      "bulletList": "Lista con Viñetas",
-      "taskList": "Lista de Tareas",
-      "looseListItem": "Elemento de Lista Suelto",
-      "paragraph": "Párrafo",
-      "horizontalLine": "Línea Horizontal",
-      "frontMatter": "Metadatos",
-      "resetParagraph": "Restablecer Párrafo",
-      "mathBlock": "Bloque matemático",
-      "horizontalRule": "Línea horizontal"
-    },
-    "format": {
-      "strong": "Negrita",
-      "emphasis": "Cursiva",
-      "underline": "Subrayado",
-      "superscript": "Superíndice",
-      "subscript": "Subíndice",
-      "highlight": "Resaltar",
-      "inlineCode": "Código en Línea",
-      "inlineMath": "Matemáticas en Línea",
-      "strike": "Tachado",
-      "hyperlink": "Hipervínculo",
-      "image": "Imagen",
-      "clearFormat": "Limpiar Formato"
+      "resetParagraph": "Restablecer Párrafo"
     },
     "window": {
       "minimize": "Minimizar",
@@ -1094,7 +1078,13 @@
       "exportSuccessTitle": "Exportado correctamente",
       "exportSuccessMessage": "¡Se exportó «{name}» correctamente!",
       "fileRemovedOnDisk": "«{name}» ha sido eliminado del disco.",
-      "fileChangedOnDisk": "«{name}» ha cambiado en el disco. ¿Deseas recargarlo?"
+      "fileChangedOnDisk": "«{name}» ha cambiado en el disco. ¿Deseas recargarlo?",
+      "fileChangedTitle": "Archivo modificado en el disco",
+      "fileChangedReloadWarn": "«{name}» ha sido modificado por otro programa. Al recargarlo se descartarán los cambios no guardados en el editor.",
+      "fileChangedReloadNoWarn": "«{name}» ha sido modificado por otro programa. ¿Desea recargarlo?",
+      "reloadFromDisk": "Recargar",
+      "tooManyTabsTitle": "Muchas pestañas abiertas",
+      "tooManyTabsMsg": "Tiene {count} pestañas abiertas. Un número elevado de pestañas puede ralentizar el editor — considere cerrar las que ya no necesite."
     },
     "help": {
       "lineEndingAssertionError": "Error de aserción de final de línea"
@@ -1240,30 +1230,49 @@
     "plantUMLChart": {
       "title": "Gráfico PlantUML",
       "subtitle": "Gráfico UML"
+    },
+    "inlineFormat": "Formato en línea",
+    "bold": {
+      "title": "Negrita",
+      "subtitle": "**Negrita**"
+    },
+    "italic": {
+      "title": "Cursiva",
+      "subtitle": "*Cursiva*"
+    },
+    "underline": {
+      "title": "Subrayado",
+      "subtitle": "u tag"
+    },
+    "strikethrough": {
+      "title": "Tachado",
+      "subtitle": "~~Tachado~~"
+    },
+    "highlight": {
+      "title": "Resaltado",
+      "subtitle": "==Resaltado=="
+    },
+    "inlineCode": {
+      "title": "Código en línea",
+      "subtitle": "`Código`"
+    },
+    "inlineMath": {
+      "title": "Fórmula en línea",
+      "subtitle": "$Fórmula$"
+    },
+    "inlineLink": {
+      "title": "Enlace",
+      "subtitle": "[Enlace](url)"
+    },
+    "inlineImage": {
+      "title": "Imagen",
+      "subtitle": "![Imagen](url)"
     }
   },
   "frontMenu": {
     "duplicate": "Duplicar",
-    "turnInto": "Estilo",
     "newParagraph": "Nuevo párrafo",
-    "delete": "Eliminar",
-    "paragraph": "Párrafo",
-    "table": "Tabla",
-    "html": "HTML",
-    "mathblock": "Bloque matemático",
-    "pre": "Bloque de código",
-    "frontMatter": "Metadatos",
-    "ulTask": "Lista de tareas",
-    "ulBullet": "Lista con viñetas",
-    "olOrder": "Lista ordenada",
-    "blockquote": "Cita en bloque",
-    "heading1": "Encabezado 1",
-    "heading2": "Encabezado 2",
-    "heading3": "Encabezado 3",
-    "heading4": "Encabezado 4",
-    "heading5": "Encabezado 5",
-    "heading6": "Encabezado 6",
-    "hr": "Línea horizontal"
+    "delete": "Eliminar"
   },
   "editor": {
     "image": {
@@ -1384,5 +1393,36 @@
     "copy": "Copiar",
     "paste": "Pegar",
     "selectAll": "Seleccionar"
+  },
+  "statusBar": {
+    "toggleWrap": "Alternar ajuste de línea",
+    "resetZoom": "Restablecer zoom (Ctrl+0)",
+    "toggleSource": "Alternar Fuente / Markdown (Ctrl+E)",
+    "nonMarkdown": "Solo fuente: archivo no markdown",
+    "wrapUnavailable": "Ajuste no disponible en modo markdown",
+    "otherCharsets": "Otros conjuntos de caracteres",
+    "encodingGroup": {
+      "arabic": "Árabe",
+      "baltic": "Báltico",
+      "cyrillic": "Cirílico",
+      "centralEuropean": "Europeo central",
+      "chinese": "Chino",
+      "easternEuropean": "Europeo del este",
+      "greek": "Griego",
+      "hebrew": "Hebreo",
+      "japanese": "Japonés",
+      "korean": "Coreano",
+      "northernEuropean": "Europeo del norte",
+      "turkish": "Turco",
+      "westernEuropean": "Europeo occidental"
+    }
+  },
+  "theme": {
+    "cadmiumLight": "Cadmio Claro",
+    "dark": "Oscuro",
+    "graphiteLight": "Grafito Claro",
+    "materialDark": "Material Oscuro",
+    "oneDark": "One Dark",
+    "ulyssesLight": "Ulises Claro"
   }
 }

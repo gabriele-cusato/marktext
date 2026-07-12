@@ -75,13 +75,15 @@ class FormatPicker extends BaseFloat {
       if (formats.some((f) => f.type === i.type || (f.type === 'html_tag' && f.tag === i.type))) {
         itemSelector += '.active'
       }
+      // Label shortcut derivata dal binding reale (vuota se il comando non ne ha uno assegnato).
+      const shortcut = i.commandId ? this.muya.options.getShortcut(i.commandId) : ''
       return h(
         itemSelector,
         {
           attrs: {
             // Alcuni item (es. sub/sup) non hanno una shortcut reale assegnata: omettere il
             // suffisso invece di mostrare "undefined".
-            title: i.shortcut ? `${i.tooltip} ${i.shortcut}` : i.tooltip
+            title: shortcut ? `${i.tooltip} ${shortcut}` : i.tooltip
           },
           on: {
             click: (event) => {
@@ -108,6 +110,8 @@ class FormatPicker extends BaseFloat {
     event.stopPropagation()
     const { contentState } = this.muya
     contentState.render()
+    // eslint-disable-next-line no-console
+    console.log(`[FMT-TOGGLE-DEBUG] formatPicker.selectItem requestedType=${item.type}`)
     contentState.format(item.type)
     if (/link|image/.test(item.type)) {
       this.hide()

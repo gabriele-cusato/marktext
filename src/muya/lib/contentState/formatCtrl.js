@@ -153,6 +153,28 @@ const checkTokenIsInlineFormat = (token) => {
   return false
 }
 
+// Calcola se la porzione di selezione ricadente in `block` è già interamente coperta dal
+// format richiesto: usato dal ramo multi-blocco di `format` per decidere se spegnere il
+// format su tutta la selezione (comportamento toggle "come Word") invece di normalizzarla.
+const blockRangeHasFormat = (contentState, type, block, { start, end }) => {
+  const { key } = block
+  let range
+  if (start.key === end.key && start.key === key) {
+    range = { start, end }
+  } else if (start.key !== end.key && start.key === key) {
+    range = { start, end: { key: start.key, offset: block.text.length } }
+  } else if (start.key !== end.key && end.key === key) {
+    range = { start: { key: end.key, offset: 0 }, end }
+  } else {
+    range = { start: { key, offset: 0 }, end: { key, offset: block.text.length } }
+  }
+  // blocco senza testo nella porzione selezionata (es. riga vuota): non deve far fallire il
+  // check sull'intera selezione.
+  if (range.start.offset === range.end.offset) return true
+  const { formats } = contentState.selectionFormats(range)
+  return formats.some((format) => format.type === type || (format.type === 'html_tag' && format.tag === type))
+}
+
 const formatCtrl = (ContentState) => {
   ContentState.prototype.selectionFormats = function ({ start, end } = selection.getCursorRange()) {
     if (!start || !end) {
@@ -265,6 +287,13 @@ const formatCtrl = (ContentState) => {
           return format.type === type || (format.type === 'html_tag' && format.tag === type)
         })
         .reverse()
+      const activeFormatRange = currentFormats.length
+        ? `${currentFormats[0].range.start}-${currentFormats[0].range.end}`
+        : 'none'
+      // eslint-disable-next-line no-console
+      console.log(
+        `[FMT-TOGGLE-DEBUG] formatCtrl.format single-block type=${type} startOffset=${start.offset} endOffset=${end.offset} currentFormatsLength=${currentFormats.length} currentFormatsTypes=${currentFormats.map((f) => (f.type === 'html_tag' ? f.tag : f.type)).join(',')} activeFormatRange=${activeFormatRange}`
+      )
       const currentNeightbors = neighbors
         .filter((format) => {
           return format.type === type || (format.type === 'html_tag' && format.tag === type)
@@ -316,15 +345,37 @@ const formatCtrl = (ContentState) => {
       this.cursor = { start, end }
       this.partialRender()
     } else {
-      let nextBlock = startBlock
       const formatType = type !== 'clear' ? type : undefined
+
+      // Toggle "come Word": se l'INTERA selezione multi-blocco ha già il format richiesto,
+      // il secondo click deve spegnerlo invece di normalizzare e riapplicare. Il check
+      // percorre gli stessi blocchi del ciclo di pulizia sottostante.
+      let wholeSelectionHasFormat = false
+      if (formatType) {
+        wholeSelectionHasFormat = true
+        let checkBlock = startBlock
+        while (checkBlock && checkBlock !== endBlock) {
+          if (!blockRangeHasFormat(this, formatType, checkBlock, { start, end })) {
+            wholeSelectionHasFormat = false
+          }
+          checkBlock = this.findNextBlockInLocation(checkBlock)
+        }
+        if (wholeSelectionHasFormat && !blockRangeHasFormat(this, formatType, endBlock, { start, end })) {
+          wholeSelectionHasFormat = false
+        }
+      }
+
+      let nextBlock = startBlock
       while (nextBlock && nextBlock !== endBlock) {
         this.clearBlockFormat(nextBlock, { start, end }, formatType)
         nextBlock = this.findNextBlockInLocation(nextBlock)
       }
       this.clearBlockFormat(endBlock, { start, end }, formatType)
 
-      if (type !== 'clear') {
+      // Se il format non copriva tutta la selezione si normalizza e si riavvolge (comportamento
+      // esistente, invariato); se la copriva interamente il format resta rimosso (toggle-off) e
+      // NON viene riapplicato.
+      if (type !== 'clear' && !wholeSelectionHasFormat) {
         addFormat(type, startBlock, {
           start,
           end: { offset: startBlock.text.length }

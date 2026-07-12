@@ -30,6 +30,11 @@ import { WindowType, WindowLifecycle } from '../windows/base'
 import EditorWindow from '../windows/editor'
 import SettingWindow from '../windows/setting'
 import { setLanguage } from '../i18n'
+import { searchInFolder, readSearchPreferences } from '../dataCenter'
+
+// folder-search (task2): numero massimo di file aperti come tab nella finestra dei risultati.
+// Gli altri risultati restano visibili solo nella sidebar (apertura on-demand, task3).
+const FOLDER_SEARCH_MAX_OPEN_TABS = 20
 
 class App {
   /**
@@ -649,6 +654,31 @@ class App {
   }
 
   /**
+   * folder-search (task2): crea una NUOVA finestra dedicata ai risultati di una ricerca full-text
+   * in cartella (`mt::open-folder-search-window`). Stesso pattern di `_createDetachWindow`:
+   * bypassa il gate single-window (azione esplicita), nessuna blank tab (le prime
+   * `FOLDER_SEARCH_MAX_OPEN_TABS` tab arrivano via `openTabsFromPaths`), stato di ricerca
+   * completo stashato sull'istanza e consegnato al renderer nel handler
+   * `mt::request-session-restore` (canale dedicato `mt::folder-search-state`).
+   * @param {string} directory Cartella radice della ricerca.
+   * @param {string} query Testo/pattern cercato.
+   * @param {Object} options Opzioni della query (isCaseSensitive, isWholeWord, isRegexp, exclusions).
+   * @param {Array<{filePath: string, matches: Array}>} results Risultati strutturati di `searchInFolder`.
+   * @param {boolean} truncated Se la ricerca ha raggiunto un tetto ed è stata troncata.
+   * @returns {EditorWindow}
+   */
+  _createFolderSearchWindow(directory, query, options, results, truncated) {
+    const editor = new EditorWindow(this._accessor)
+    editor._isSessionOwner = this._getExistingEditorWindow() === null
+    editor._sessionOrder = this._sessionOrderSeq++
+    editor._isRestoreSession = true // niente blank tab; le tab arrivano da openTabsFromPaths
+    editor._folderSearchState = { directory, query, options, results, truncated }
+    editor.createWindow()
+    this._windowManager.add(editor)
+    return editor
+  }
+
+  /**
    * Create a new setting window.
    */
   _createSettingWindow(category) {
@@ -1016,6 +1046,23 @@ class App {
         return
       }
 
+      // folder-search (task2): finestra dedicata ai risultati di ricerca in cartella. Niente
+      // restore da sessione salvata (sarebbe la sessione di un'altra finestra): apre solo le
+      // prime FOLDER_SEARCH_MAX_OPEN_TABS tab dei risultati trovati con `openTabsFromPaths`
+      // (canale `mt::open-new-tab`, indipendente da `mt::restore-session` — niente blank tab di
+      // fallback), poi consegna lo stato completo della ricerca al renderer per la sidebar
+      // (task3) sul canale dedicato `mt::folder-search-state`.
+      if (editorWin && editorWin._folderSearchState) {
+        const state = editorWin._folderSearchState
+        editorWin._folderSearchState = null
+        const firstFiles = state.results
+          .slice(0, FOLDER_SEARCH_MAX_OPEN_TABS)
+          .map((r) => r.filePath)
+        editorWin.openTabsFromPaths(firstFiles)
+        win.webContents.send('mt::folder-search-state', state)
+        return
+      }
+
       try {
         const result = await loadSessionTabs(preferences)
         if (result && result.tabs.length) {
@@ -1174,6 +1221,49 @@ class App {
     ipcMain.handle('mt::next-untitled-index', (event, localMax) => {
       this._untitledIdSeq = Math.max(this._untitledIdSeq, Number(localMax) || 0)
       return ++this._untitledIdSeq
+    })
+
+    // Recent Files: espone al renderer la lista persistita dei file aperti di recente
+    // (già filtrata dai percorsi non più esistenti dentro getRecentlyUsedDocuments).
+    ipcMain.handle('mt::get-recently-used-documents', () => {
+      return this._accessor.menu.getRecentlyUsedDocuments()
+    })
+
+    // folder-search (task2): innesca la ricerca full-text in cartella riusando direttamente
+    // `searchInFolder`/`readSearchPreferences` del task1 (nessuna duplicazione della logica rg,
+    // nessun passaggio dall'handler IPC `mt::search-in-folder`). Errore o zero risultati →
+    // nessuna finestra aperta, solo l'esito per il riquadro dell'overlay lato renderer.
+    ipcMain.handle(
+      'mt::open-folder-search-window',
+      async (e, { directory, query, options = {} } = {}) => {
+        const preferences = readSearchPreferences()
+        const { results, truncated, error } = await searchInFolder(
+          directory,
+          query,
+          options,
+          preferences
+        )
+        if (error) {
+          return { ok: false, error }
+        }
+        if (!results.length) {
+          return { ok: true, empty: true }
+        }
+        this._createFolderSearchWindow(directory, query, options, results, truncated)
+        return { ok: true }
+      }
+    )
+
+    // folder-search (task4, fix runtime): bottone "Sfoglia" nell'overlay — apre il dialog di
+    // sistema di selezione cartella e ritorna il percorso scelto al chiamante (a differenza dei
+    // dialog `.on` esistenti sopra, che scrivono direttamente in una preferenza, qui il percorso
+    // va nel campo testo dell'overlay, quindi serve un canale `invoke` generico).
+    ipcMain.handle('mt::folder-search-select-directory', async (e) => {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      const { filePaths } = await dialog.showOpenDialog(win, {
+        properties: ['openDirectory']
+      })
+      return filePaths && filePaths[0] ? filePaths[0] : null
     })
   }
 }

@@ -1,7 +1,7 @@
 <template>
   <div class="side-bar-search">
     <div class="search-header">
-      <span class="search-title">{{ t('sideBar.search.searchInTabsTitle', 'Cerca in tutte le tab') }}</span>
+      <span class="search-title">{{ searchTitle }}</span>
       <span
         class="search-close"
         :title="t('common.close', 'Chiudi')"
@@ -37,7 +37,7 @@
         v-model="keyword"
         type="text"
         class="search-input"
-        :placeholder="t('sideBar.search.searchInTabsPlaceholder', 'Search in all tabs...')"
+        :placeholder="searchPlaceholder"
         @input="onInput"
         @keydown.enter.prevent="onEnter"
       >
@@ -82,24 +82,26 @@
       {{ searchErrorString }}
     </div>
     <div
-      v-if="searchTruncated"
+      v-if="displayTruncated"
       class="search-message-section search-truncated-warning"
     >
-      {{ t('search.tooManyResults', 'Too many results — refine your search') }}
+      {{ isExternalMode
+        ? t('sideBar.search.folderResultsTruncated', 'Risultati troncati — restringi la ricerca')
+        : t('search.tooManyResults', 'Too many results — refine your search') }}
     </div>
 
     <div
-      v-if="searchResult.length"
+      v-if="displayResult.length"
       class="search-result-info"
     >
       {{ searchResultInfo }}
     </div>
     <div
-      v-if="searchResult.length"
+      v-if="displayResult.length"
       class="search-result"
     >
       <search-result-item
-        v-for="(item, index) of searchResult"
+        v-for="(item, index) of displayResult"
         :key="index"
         :search-result="item"
       />
@@ -140,18 +142,59 @@ const isRegexp = ref(false)
 const searchEl = ref(null)
 
 const { rightColumn, showSideBar } = storeToRefs(layoutStore)
-const { tabs, currentFile } = storeToRefs(editorStore)
+const { tabs, currentFile, folderSearchState } = storeToRefs(editorStore)
 
 const searchMatches = computed(() => currentFile.value?.searchMatches)
 
+// Task3: presenza dello stato folder-search → la sidebar mostra il ramo "risultati esterni"
+// invece della ricerca in-memory sulle tab aperte (non-regressione: se assente, tutto il resto
+// del file resta identico al comportamento Ctrl+Shift+F attuale).
+const isExternalMode = computed(() => !!folderSearchState.value)
+
+// Mappa il contratto task1 (`{filePath, matches:[{line, start, end, lineText}]}`, line 1-based,
+// start/end offset in caratteri) nella shape attesa da searchResultItem/handleSearchResultClick
+// (range 0-based [[line, ch], [line, ch]], stesso formato usato dagli eventi highlight esistenti).
+// tabId volutamente assente: se il file è già aperto, handleSearchResultClick lo trova comunque
+// per pathname (fallback isSamePathSync già presente).
+const externalSearchResult = computed(() => {
+  const state = folderSearchState.value
+  if (!state || !Array.isArray(state.results)) return []
+  return state.results.map((item) => ({
+    filePath: item.filePath,
+    matches: item.matches.map((m) => ({
+      lineText: m.lineText,
+      range: [
+        [m.line - 1, m.start],
+        [m.line - 1, m.end]
+      ]
+    }))
+  }))
+})
+
+// Lista/troncamento effettivamente mostrati: esterni se attivi, altrimenti quelli calcolati da search().
+const displayResult = computed(() => (isExternalMode.value ? externalSearchResult.value : searchResult.value))
+const displayTruncated = computed(() => (isExternalMode.value ? !!folderSearchState.value?.truncated : searchTruncated.value))
+
+// Titolo/placeholder condizionali (stile hardcoded esistente, i18n non in scope qui).
+const searchTitle = computed(() =>
+  isExternalMode.value
+    ? t('sideBar.search.folderSearchTitle', 'Risultati ricerca nella cartella')
+    : t('sideBar.search.searchInTabsTitle', 'Cerca in tutte le tab')
+)
+const searchPlaceholder = computed(() =>
+  isExternalMode.value
+    ? t('sideBar.search.folderSearchPlaceholder', 'Search in folder...')
+    : t('sideBar.search.searchInTabsPlaceholder', 'Search in all tabs...')
+)
+
 const searchResultInfo = computed(() => {
-  const fileCount = searchResult.value.length
-  const matchCount = searchResult.value.reduce((acc, item) => acc + item.matches.length, 0)
+  const fileCount = displayResult.value.length
+  const matchCount = displayResult.value.reduce((acc, item) => acc + item.matches.length, 0)
   return t('search.searchResultInfo', { matchCount, fileCount })
 })
 
 const showNoResultFoundMessage = computed(() => {
-  return searchResult.value.length === 0 && keyword.value.length > 0
+  return displayResult.value.length === 0 && keyword.value.length > 0
 })
 
 // Evidenzia il termine cercato anche nell'editor attivo (source: mark giallo; Muya: blu).
@@ -248,8 +291,31 @@ const search = (emitHighlight = true, preserveCursor = false) => {
   if (emitHighlight) emitEditorHighlight(preserveCursor)
 }
 
-// Realtime: ogni cambio della keyword rilancia la ricerca.
-watch(keyword, () => search())
+// Realtime: ogni cambio della keyword rilancia la ricerca. In modalità esterna la lista mostrata
+// viene dallo stato folder-search (non ricalcolabile lato renderer sui soli file aperti): niente
+// ricerca interna, la keyword resta solo un campo precompilato/editabile senza effetto sulla lista.
+watch(keyword, () => {
+  if (isExternalMode.value) return
+  search()
+})
+
+// Task3: alla ricezione dello stato folder-search precompila query/opzioni con quelle usate dal
+// main e porta in primo piano (visibile) la sidebar di ricerca, che deve mostrare i risultati
+// esterni appena arrivati senza richiedere un ulteriore Ctrl+Shift+F da parte dell'utente.
+watch(
+  folderSearchState,
+  (state) => {
+    if (!state) return
+    keyword.value = state.query || ''
+    if (state.options) {
+      isCaseSensitive.value = !!state.options.isCaseSensitive
+      isWholeWord.value = !!state.options.isWholeWord
+      isRegexp.value = !!state.options.isRegexp
+    }
+    layoutStore.SET_LAYOUT({ rightColumn: 'search', showSideBar: true })
+  },
+  { immediate: true }
+)
 
 // Fallback diretto dall'evento DOM: garantisce la live search anche se il watch non scattasse
 // (es. v-model/reattività non aggiornano keyword). onInput legge il valore reale dell'input.

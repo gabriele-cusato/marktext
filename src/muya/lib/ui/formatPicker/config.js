@@ -1,4 +1,3 @@
-import { isOsx } from '../../config'
 import strongIcon from '../../assets/pngicon/format_strong/2.png'
 import emphasisIcon from '../../assets/pngicon/format_emphasis/2.png'
 import underlineIcon from '../../assets/pngicon/format_underline/2.png'
@@ -10,67 +9,68 @@ import mathIcon from '../../assets/pngicon/format_math/2.png'
 import highlightIcon from '../../assets/pngicon/highlight/2.png'
 import clearIcon from '../../assets/pngicon/format_clear/2.png'
 
-const COMMAND_KEY = isOsx ? '⌘' : 'Ctrl'
-
+// `commandId` associa esplicitamente ogni voce al comando reale (vedi keybindings*.js in
+// src/main/keyboard): la label shortcut nel tooltip viene calcolata a runtime dal chiamante
+// tramite `muya.options.getShortcut(commandId)`, non più hardcoded qui.
 const icons = [
   {
     type: 'strong',
     tooltip: 'Bold',
-    shortcut: `${COMMAND_KEY}+B`,
+    commandId: 'format.strong',
     icon: strongIcon
   },
   {
     type: 'em',
     tooltip: 'Italic',
-    shortcut: `${COMMAND_KEY}+I`,
+    commandId: 'format.emphasis',
     icon: emphasisIcon
   },
   {
     type: 'u',
     tooltip: 'Underline',
-    shortcut: `${COMMAND_KEY}+U`,
+    commandId: 'format.underline',
     icon: underlineIcon
   },
   {
     type: 'del',
     tooltip: 'Strikethrough',
-    shortcut: `${COMMAND_KEY}+D`,
+    commandId: 'format.strike',
     icon: strikeIcon
   },
   {
     type: 'mark',
     tooltip: 'Highlight',
-    shortcut: `⇧+${COMMAND_KEY}+H`,
+    commandId: 'format.highlight',
     icon: highlightIcon
   },
   {
     type: 'inline_code',
     tooltip: 'Inline Code',
-    shortcut: `${COMMAND_KEY}+\``,
+    commandId: 'format.inline-code',
     icon: codeIcon
   },
   {
     type: 'inline_math',
     tooltip: 'Inline Math',
-    shortcut: `⇧+${COMMAND_KEY}+M`,
+    commandId: 'format.inline-math',
     icon: mathIcon
   },
   {
     type: 'link',
     tooltip: 'Link',
-    shortcut: `${COMMAND_KEY}+L`,
+    commandId: 'format.hyperlink',
     icon: linkIcon
   },
   {
     type: 'image',
     tooltip: 'Image',
-    shortcut: `⇧+${COMMAND_KEY}+I`,
+    commandId: 'format.image',
     icon: imageIcon
   },
   {
     type: 'clear',
     tooltip: 'Clear Formatting',
-    shortcut: `⇧+${COMMAND_KEY}+R`,
+    commandId: 'format.clear-format',
     icon: clearIcon
   }
 ]

@@ -444,7 +444,12 @@ export const MUYA_DEFAULT_OPTION = Object.freeze({
   isGitlabCompatibilityEnabled: false,
 
   // Whether HTML rendering is disabled or not.
-  disableHtml: true
+  disableHtml: true,
+
+  // Restituisce la scorciatoia leggibile (es. "Ctrl+Shift+P") di un commandId, o stringa vuota
+  // se il comando non ha un binding reale. Iniettata dal renderer (vedi editor.vue), che la
+  // ricava dai binding reali ricevuti via IPC. Fallback no-op se non fornita (es. in test).
+  getShortcut: () => ''
 })
 
 // export const DIAGRAM_TEMPLATE = Object.freeze({

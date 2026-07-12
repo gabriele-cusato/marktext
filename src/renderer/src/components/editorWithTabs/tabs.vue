@@ -176,33 +176,160 @@
         <div class="v2-tr-sep" />
       </div>
 
-      <button
-        class="v2-tr-btn"
-        title="Command Palette (Ctrl+K)"
-        @click="openCommandPalette"
-      >
-        ⌘
-      </button>
-      <button
-        class="v2-tr-btn v2-tr-btn-open"
-        title="Apri file (Ctrl+O)"
-        @click="openFileDialog"
-      >
-        <!-- NB4: SVG cartella aperta minimal, monocromatica -->
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.3"
+      <!-- window-minwidth-hamburger: sopra soglia, le 3 icone singole (palette, recenti,
+           cartella) restano come oggi. Sotto soglia le sostituisce un unico bottone
+           hamburger (v-else sotto), stato aggiornato in updateTabRowsLayout(). -->
+      <template v-if="!isToprightCollapsed">
+        <button
+          class="v2-tr-btn"
+          title="Command Palette (Ctrl+K)"
+          @click="openCommandPalette"
         >
-          <path
-            d="M1.5 4.5h4.5l1.5 1.5H14.5v7.5H1.5V4.5z"
+          ⌘
+        </button>
+        <button
+          class="v2-tr-btn"
+          title="Recent Files"
+          @click="openRecentFiles"
+        >
+          <!-- T-RFI: SVG "orologio con freccia antioraria" (stile history), monocromatico,
+               coerente con l'icona cartella qui sotto. -->
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
             stroke-linejoin="round"
-          />
-        </svg>
-      </button>
+          >
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+            <path d="M3 3v5h5" />
+            <path d="M12 7v5l4 2" />
+          </svg>
+        </button>
+        <button
+          class="v2-tr-btn v2-tr-btn-open"
+          title="Apri file (Ctrl+O)"
+          @click="openFileDialog"
+        >
+          <!-- NB4: SVG cartella aperta minimal, monocromatica -->
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.3"
+          >
+            <path
+              d="M1.5 4.5h4.5l1.5 1.5H14.5v7.5H1.5V4.5z"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
+        <button
+          class="v2-tr-btn"
+          title="Search in Folder"
+          @click="openFolderSearch"
+        >
+          <!-- folder-search-task4: SVG cartella + lente, monocromatica, stesso stile
+               dell'icona "Apri file" qui sopra (viewBox/stroke coerenti). -->
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.3"
+          >
+            <path
+              d="M1.5 4.5h4.5l1.5 1.5H14.5v6.2H1.5V4.5z"
+              stroke-linejoin="round"
+            />
+            <circle
+              cx="10.8"
+              cy="10.6"
+              r="2.3"
+            />
+            <line
+              x1="12.5"
+              y1="12.3"
+              x2="14"
+              y2="13.8"
+              stroke-linecap="round"
+            />
+          </svg>
+        </button>
+      </template>
+      <!-- window-minwidth-hamburger: bottone unico + popover con le 3 voci, ancorato
+           al bottone. Chiusura su click fuori / Esc gestita da watch(hamburgerMenuOpen). -->
+      <div
+        v-else
+        ref="hamburgerWrapEl"
+        class="v2-tr-hamburger-wrap"
+      >
+        <button
+          ref="hamburgerBtnEl"
+          class="v2-tr-btn"
+          title="Menu"
+          @click.stop="hamburgerMenuOpen = !hamburgerMenuOpen"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.3"
+            stroke-linecap="round"
+          >
+            <line x1="1.5" y1="4" x2="14.5" y2="4" />
+            <line x1="1.5" y1="8" x2="14.5" y2="8" />
+            <line x1="1.5" y1="12" x2="14.5" y2="12" />
+          </svg>
+        </button>
+        <!-- BUGFIX popover-clip: teleportato su body (fuori da .v2-tabbar, che ha
+             overflow:hidden e taglierebbe il popover) e ancorato in position:fixed
+             col rect del bottone (positionPopover). Stesso pattern di BaseContextMenu.vue
+             e folderSearchOverlay/index.vue. -->
+        <Teleport to="body">
+          <div
+            v-if="hamburgerMenuOpen"
+            ref="popoverEl"
+            class="v2-tr-popover"
+            :style="popoverStyle"
+            @mousedown.stop
+            @click.stop
+          >
+            <div
+              class="v2-tr-popover-item"
+              @click="hamburgerCommandPalette"
+            >
+              Command Palette
+            </div>
+            <div
+              class="v2-tr-popover-item"
+              @click="hamburgerOpenFile"
+            >
+              Apri file
+            </div>
+            <div
+              class="v2-tr-popover-item"
+              @click="hamburgerRecentFiles"
+            >
+              File recenti
+            </div>
+            <div
+              class="v2-tr-popover-item"
+              @click="hamburgerFolderSearch"
+            >
+              Search in Folder
+            </div>
+          </div>
+        </Teleport>
+      </div>
       <!-- T-ME: su macOS i 3 controlli finestra custom + il loro separatore spariscono
            (li sostituisce il semaforo nativo top-left). Su Windows/Linux invariato. -->
       <template v-if="!isOsx">
@@ -322,6 +449,9 @@
 import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useEditorStore } from '@/store/editor'
 import { useLayoutStore } from '@/store/layout'
+// T-RFI: store command center, serve solo a leggere se file.quick-open è già registrato
+// (vedi openRecentFiles) prima di emettere cmd::execute.
+import { useCommandCenterStore } from '@/store/commandCenter'
 import { storeToRefs } from 'pinia'
 import bus from '../../bus'
 import TabContextMenu from '../contextMenu/TabContextMenu.vue'
@@ -331,6 +461,7 @@ import { isOsx } from '@/util'
 
 const editorStore = useEditorStore()
 const layoutStore = useLayoutStore()
+const commandCenterStore = useCommandCenterStore()
 
 const { currentFile, tabs } = storeToRefs(editorStore)
 
@@ -343,6 +474,13 @@ let tabbarResizeObs = null // ResizeObserver su tabbar root → trigger recalc s
 
 // hasMultiRow: true se tabs occupano > 1 riga (controlla anche posizione di "+" e clone)
 const hasMultiRow = ref(false)
+
+// window-minwidth-hamburger: true sotto la soglia HAMBURGER_THRESHOLD → la sezione destra
+// (⌘/📂/recenti) collassa in un unico bottone hamburger con popover. Aggiornato dentro
+// updateTabRowsLayout (stesso ResizeObserver esistente, nessun listener window nuovo).
+const isToprightCollapsed = ref(false)
+// stato apertura popover hamburger (chiuso su click fuori / Esc, vedi watch sotto)
+const hamburgerMenuOpen = ref(false)
 
 // P-DF8-3: lock per evitare flicker durante transizione CSS padding-right (0.3-0.5s).
 // Quando hasMultiRow flippa, ResizeObserver fires multipli durante l'animazione →
@@ -760,10 +898,110 @@ const openCommandPalette = () => {
   bus.emit('show-command-palette')
 }
 
+// T-RFI: apertura command palette scoped sui file recenti (comando file.quick-open, la cui
+// sorgente è ora la lista dei file aperti di recente persistita dal main, vedi quickOpen.js).
+// Il comando viene registrato a runtime ~400ms dopo il bootstrap (store/editor.js, setTimeout);
+// se il click arriva prima che sia registrato, cmd::execute lancerebbe un errore in console
+// (commandCenter.js executeCommand non trova il comando) → si verifica la presenza prima di
+// emettere e, se non ancora disponibile, si esegue un no-op silenzioso.
+const openRecentFiles = () => {
+  const isRegistered = commandCenterStore.rootCommand.subcommands.some(
+    (c) => c.id === 'file.quick-open'
+  )
+  if (!isRegistered) {
+    return
+  }
+  bus.emit('cmd::execute', 'file.quick-open')
+}
+
 // F6: apertura file via dialog Electron (canale già esistente in main)
 const openFileDialog = () => {
   window.electron.ipcRenderer.send('mt::cmd-open-file')
 }
+
+// folder-search-task4: apre l'overlay di ricerca in cartella. Stato locale
+// dell'overlay vive nel componente dedicato (folderSearchOverlay), qui si emette
+// solo il segnale di apertura via bus (stesso pattern di openCommandPalette).
+const openFolderSearch = () => {
+  bus.emit('show-folder-search')
+}
+
+// window-minwidth-hamburger: wrapper delle 3 voci del popover — richiamano gli stessi
+// handler dei bottoni singoli e chiudono il popover dopo il click.
+const hamburgerCommandPalette = () => {
+  openCommandPalette()
+  hamburgerMenuOpen.value = false
+}
+const hamburgerOpenFile = () => {
+  openFileDialog()
+  hamburgerMenuOpen.value = false
+}
+const hamburgerRecentFiles = () => {
+  openRecentFiles()
+  hamburgerMenuOpen.value = false
+}
+const hamburgerFolderSearch = () => {
+  openFolderSearch()
+  hamburgerMenuOpen.value = false
+}
+
+// window-minwidth-hamburger: chiusura popover su click fuori / Esc. Listener aggiunti
+// solo mentre il popover è aperto (stesso pattern di BaseContextMenu.vue), rimossi
+// anche in onBeforeUnmount per evitare listener orfani.
+// BUGFIX popover-clip: il popover è teleportato su body (v. template), quindi non è più
+// discendente DOM di hamburgerWrapEl — il check di contenimento non può più affidarsi
+// alla sola gerarchia del wrapper. Si verifica ANCHE popoverEl (ref sul nodo teleportato).
+const hamburgerWrapEl = ref(null)
+const hamburgerBtnEl = ref(null) // bottone hamburger — rect di riferimento per l'ancoraggio
+const popoverEl = ref(null) // nodo teleportato su body
+const popoverStyle = ref({ top: '0px', left: '0px' })
+const handleHamburgerOutside = (e) => {
+  const insideWrap = hamburgerWrapEl.value && hamburgerWrapEl.value.contains(e.target)
+  const insidePopover = popoverEl.value && popoverEl.value.contains(e.target)
+  if (!insideWrap && !insidePopover) {
+    hamburgerMenuOpen.value = false
+  }
+}
+const handleHamburgerEsc = (e) => {
+  if (e.key === 'Escape') hamburgerMenuOpen.value = false
+}
+// BUGFIX popover-clip: ancoraggio in position:fixed calcolato dal rect del bottone
+// (stesso pattern di BaseContextMenu.vue adjustPosition) — sotto il bottone, allineato
+// a destra, clampato dentro il viewport se sborda. Ricalcolato ad ogni apertura (dopo
+// nextTick, quando il nodo teleportato è montato e offsetWidth/Height sono misurabili).
+const positionPopover = () => {
+  const btn = hamburgerBtnEl.value
+  const pop = popoverEl.value
+  if (!btn || !pop) return
+  const rect = btn.getBoundingClientRect()
+  const GAP = 4
+  const margin = 8
+  const popW = pop.offsetWidth
+  const popH = pop.offsetHeight
+  let left = rect.right - popW // allineato a destra col bottone
+  let top = rect.bottom + GAP // ancorato sotto il bottone
+  left = Math.min(Math.max(left, margin), window.innerWidth - popW - margin)
+  top = Math.min(Math.max(top, margin), window.innerHeight - popH - margin)
+  popoverStyle.value = { top: `${top}px`, left: `${left}px` }
+}
+// Ridimensionamento finestra a popover aperto: si chiude invece di ricalcolare la
+// posizione (via più semplice, accettata dal plan) — l'ancoraggio si rifà alla
+// riapertura successiva sul bottone nella posizione aggiornata.
+const closeHamburgerOnResize = () => {
+  hamburgerMenuOpen.value = false
+}
+watch(hamburgerMenuOpen, (open) => {
+  if (open) {
+    nextTick(() => positionPopover())
+    window.addEventListener('mousedown', handleHamburgerOutside)
+    window.addEventListener('keydown', handleHamburgerEsc)
+    window.addEventListener('resize', closeHamburgerOnResize)
+  } else {
+    window.removeEventListener('mousedown', handleHamburgerOutside)
+    window.removeEventListener('keydown', handleHamburgerEsc)
+    window.removeEventListener('resize', closeHamburgerOnResize)
+  }
+})
 
 // F7: gestione finestra (minimize / maximize / close)
 const isMaximized = ref(false)
@@ -863,6 +1101,18 @@ const updateTabRowsLayout = () => {
   // (pavimento = nostro stesso output) → la detection non demoterebbe mai (loop).
   // Col clamp la detection vede la finestra vera e si sblocca da sola.
   const tabbarClientW = Math.min(tabbarEl.clientWidth, document.documentElement.clientWidth)
+
+  // window-minwidth-hamburger: soglia collasso sezione destra (⌘/📂/recenti → hamburger).
+  // Decisione pura funzione di tabbarClientW (soglia UNICA nei due versi, no isteresi,
+  // stesso principio del PASS 1 sotto — invariante 3 tab-bar-layout.md). Volutamente NON
+  // dipende da baseTopRight/tre.offsetWidth (misurato più sotto): eviterebbe un loop
+  // auto-referenziale (la larghezza del topright dipenderebbe dallo stato che sta decidendo).
+  // Se il toggle rende stale la misura di tre.offsetWidth in QUESTO run, il ResizeObserver
+  // su topRightEl (già attivo, vedi onMounted) rifira al prossimo render e ricalcola.
+  const HAMBURGER_THRESHOLD = 700
+  isToprightCollapsed.value = tabbarClientW < HAMBURGER_THRESHOLD
+  if (!isToprightCollapsed.value) hamburgerMenuOpen.value = false
+
   // Helper first-fit: quante tab entrano in riga 1 dato lo spazio disponibile.
   const fitRow1 = (available) => {
     let width = 0
@@ -1053,6 +1303,11 @@ onBeforeUnmount(() => {
   const el = tabContainer.value
   if (el) el.removeEventListener('wheel', handleTabScroll)
   window.removeEventListener('dragover', blockForeignTabDropOutsideTabbar, true)
+
+  // window-minwidth-hamburger: cleanup listener popover (attivi solo se rimasto aperto)
+  window.removeEventListener('mousedown', handleHamburgerOutside)
+  window.removeEventListener('keydown', handleHamburgerEsc)
+  window.removeEventListener('resize', closeHamburgerOnResize)
 
   // Fix round 2 (BUG-GHOST): rimozione di sicurezza del ghost se il componente viene
   // smontato a metà di un drag (caso limite, es. chiusura finestra durante il gesto).
@@ -1761,6 +2016,49 @@ watch(hasMultiRow, (newVal) => {
 .v2-tr-btn-close:hover {
   background: #e81123 !important;
   color: white !important;
+}
+
+/* window-minwidth-hamburger: wrapper relative per ancorare il popover al bottone. */
+.v2-tr-hamburger-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* window-minwidth-hamburger: popover ancorato sotto il bottone hamburger, coerente
+   coi token --v2-* già usati da BaseContextMenu.vue (v2-ctx).
+   BUGFIX popover-clip: teleportato su body (v. template) — .v2-tabbar ha
+   overflow:hidden (riga ~1385) e lo tagliava. position:fixed + top/left calcolati in
+   JS (positionPopover) invece di absolute ancorato al wrapper relative; z-index 4000
+   allineato a BaseContextMenu.vue (.v2-ctx), che vive nello stesso layer "popover su
+   body" sopra tab bar/editor. */
+.v2-tr-popover {
+  position: fixed;
+  min-width: 168px;
+  background: var(--v2-surface);
+  border: 1px solid var(--v2-border);
+  border-radius: 10px;
+  box-shadow: var(--v2-shadow-lg);
+  padding: 4px;
+  z-index: 4000;
+  font-family: var(--v2-sans);
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.v2-tr-popover-item {
+  padding: 7px 11px;
+  border-radius: 6px;
+  cursor: default;
+  font-size: 12.5px;
+  color: var(--v2-text);
+  white-space: nowrap;
+  transition: background var(--v2-t-fast) ease-in-out, color var(--v2-t-fast) ease-in-out;
+}
+
+.v2-tr-popover-item:hover {
+  background: var(--v2-accent-dim, var(--v2-surface2));
+  color: var(--v2-accent);
 }
 
 /* B12: separatore verticale tra gruppo app e gruppo finestra */

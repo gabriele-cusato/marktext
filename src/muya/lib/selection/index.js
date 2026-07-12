@@ -19,6 +19,21 @@ const filterOnlyParentElements = (node) => {
   return isBlockContainer(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP
 }
 
+// Clampa un offset alla lunghezza effettiva del nodo prima di passarlo alle API
+// Range/Selection (setStart/setEnd/extend): un offset stale o calcolato su un
+// albero DOM diverso da quello corrente farebbe lanciare IndexSizeError. Per i
+// nodi di testo il massimo valido è la lunghezza del testo (node.length), per i
+// nodi elemento è il numero di figli (node.childNodes.length). Con un offset già
+// valido il risultato è identico all'offset originale (nessun cambio di
+// comportamento).
+const clampOffset = (node, offset) => {
+  if (!node || typeof offset !== 'number' || Number.isNaN(offset)) {
+    return 0
+  }
+  const maxOffset = node.nodeType === 3 ? node.length : node.childNodes.length
+  return Math.min(Math.max(offset, 0), maxOffset)
+}
+
 class Selection {
   constructor(doc) {
     this.doc = doc // document
@@ -218,7 +233,13 @@ class Selection {
             currentNodeIndex = i
           }
         }
-        range.setStart(currentNode.parentNode, currentNodeIndex + 1)
+        // Clamp difensivo: currentNodeIndex + 1 è normalmente un offset valido
+        // (indice del nodo successivo tra i figli del genitore), ma si clampa
+        // comunque per coerenza con gli altri punti a rischio di questo file.
+        range.setStart(
+          currentNode.parentNode,
+          clampOffset(currentNode.parentNode, currentNodeIndex + 1)
+        )
         range.collapse(true)
       }
     }
@@ -368,10 +389,13 @@ class Selection {
 
   select(startNode, startOffset, endNode, endOffset) {
     const range = this.doc.createRange()
-    range.setStart(startNode, startOffset)
+    // Clamp difensivo: startOffset arriva da chiamanti esterni (moveCursor,
+    // setCursorRange, ecc.) e può essere stale rispetto al nodo corrente.
+    range.setStart(startNode, clampOffset(startNode, startOffset))
 
     if (endNode) {
-      range.setEnd(endNode, endOffset)
+      // Stesso rischio di offset stale per il nodo di fine selezione.
+      range.setEnd(endNode, clampOffset(endNode, endOffset))
     } else {
       range.collapse(true)
     }
@@ -381,7 +405,9 @@ class Selection {
 
   setFocus(focusNode, focusOffset) {
     const selection = this.doc.getSelection()
-    selection.extend(focusNode, focusOffset)
+    // Clamp difensivo: selection.extend può lanciare IndexSizeError con lo
+    // stesso tipo di offset stale gestito in select().
+    selection.extend(focusNode, clampOffset(focusNode, focusOffset))
   }
 
   /**

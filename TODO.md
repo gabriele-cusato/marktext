@@ -15,9 +15,9 @@
 
 ### Residui HARD-TASK (minori)
 
-- [ ] **BUILD-1** — setup `patch-package` (serve un giro npm).
-- [ ] **B-REV11** — accelerator duplicati: test runtime per capire chi vince, poi azzerare il perdente.
-- [ ] **M-REV10** — resync DOM↔store post-drag ridondante: probabilmente codice morto dopo la rimozione di dragula → verificare e in caso eliminare.
+- [x] ~~**BUILD-1** — setup `patch-package`~~ — chiuso 2026-07-12 senza implementare: zero patch manuali in `node_modules` (verificato), setup senza scopo oggi. Strada annotata per il futuro in `docs/Ai/Notes/patch-package-strada-futura.md`.
+- [x] **B-REV11** — accelerator duplicati: dissolto 2026-07-12 — ri-censimento sui keybindings attuali post menu-shortcut-overhaul: zero duplicati su tutte le piattaforme.
+- [x] **M-REV10** — resync DOM↔store post-drag: già risolto — `resyncDomToStore` rimossa interamente dalla migrazione drag-html5-dnd (2026-07-02/03), nulla da eliminare. I riferimenti in HARD-TASK.md a righe di tabs.vue sono pre-migrazione, obsoleti.
 - [ ] **Smoke-test sessione su Linux** (macOS e Windows già ok).
 
 ### Nuovi
@@ -30,7 +30,7 @@
 - [ ] **Locales** — aggiustare le stringhe di traduzione (allineare a menu/palette dopo l'overhaul).
 - [ ] **Preferences** — controllo generale e rifinitura delle preferenze.
 - [ ] **Bug combo box in Preferences** — espandendo una combo senza scrollare, le sotto-voci escono dal riquadro dal lato ALTO e restano nascoste (si vedono solo scrollando). Fix overflow/posizionamento dropdown.
-- [ ] **Tabs — aspetto alternativo** — valutare bordi squadrati stile Apple (possibile resa più gradevole).
+- [x] **Tabs — aspetto alternativo** — CHIUSO SENZA IMPLEMENTARE (decisione utente 2026-07-12: non da fare; plan conservato in `docs/Ai/InProgress/tabs-squared/` come riferimento futuro).
 - [ ] **Icona File recenti** — aggiungerla tra l'icona cartella e l'icona command palette (icona nuova a scelta libera). Lega alla feature `recent-files`.
 - [ ] **Finestra — width minima + hamburger** — ridurre la width minima; sotto una soglia mostrare un'icona hamburger che raccoglie le icone command palette, cartella e file recenti.
 - [ ] **Strumenti selezione testo — toggle off** — se un format è già attivo sulla selezione, ripremendolo deve TOGLIERLO, non riapplicarlo (oggi lo riaggiunge).

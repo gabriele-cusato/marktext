@@ -19,6 +19,8 @@
     <el-select
       v-model="selectValue"
       :disabled="disable"
+      :fallback-placements="fallbackPlacements"
+      :popper-options="popperOptions"
       @change="select"
     >
       <el-option
@@ -73,6 +75,36 @@ const props = defineProps({
 })
 
 const selectValue = ref(props.value)
+
+// Il pannello Preferences vive dentro `.pref-container` (position: fixed): il modifier flip di
+// popper.js in questo contesto calcola male lo spazio disponibile e ribalta il dropdown a
+// `top`/`top-start`, facendolo finire sopra il bordo alto della finestra (verificato a runtime:
+// i popper "buggati" restano con data-popper-placement=top-start). Limitare i fallback o il
+// rootBoundary non basta: qui si DISABILITA il flip — il dropdown si apre sempre verso il basso
+// e preventOverflow (vincolato alla viewport) lo tiene comunque dentro la finestra.
+const fallbackPlacements = ['bottom-start']
+const popperOptions = {
+  placement: 'bottom-start',
+  modifiers: [
+    {
+      name: 'flip',
+      enabled: false
+    },
+    {
+      name: 'preventOverflow',
+      options: {
+        rootBoundary: 'viewport',
+        // altAxis: per un popper piazzato in basso l'asse verticale è quello "alternativo" —
+        // senza questo flag il dropdown può sforare il bordo basso della finestra Preferences
+        // (misurato a runtime: popper 618→692 in una finestra alta 650) e restare tagliato
+        altAxis: true,
+        // consentire lo scorrimento oltre il trigger pur di restare visibile (liste lunghe
+        // con trigger vicino al fondo della finestra)
+        tether: false
+      }
+    }
+  ]
+}
 
 watch(
   () => props.value,

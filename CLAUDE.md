@@ -440,4 +440,4 @@ Qualsiasi cosa "visibile dall'esterno" include: funzioni esportate, proprietà P
 
 ## TODO
 
-Vedi e modifica `TODO.md` nella root del progetto (`C:\Projects\MarkText\TODO.md`).
+Vedi e modifica `TODO.md` nella root del progetto (`C:\Projects\MarkText\marktext\TODO.md`).

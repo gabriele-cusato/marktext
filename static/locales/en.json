@@ -503,7 +503,16 @@
           "title": "File Sort By",
           "creationTime": "Creation Time",
           "modificationTime": "Modification Time"
-        }
+        },
+        "watcherUsePolling": "Poll files for changes at intervals instead of OS notifications — enable only if external file changes on network paths are not detected"
+      },
+      "sessionSnapshot": {
+        "title": "Session snapshot & periodic backup",
+        "description": "Enable session snapshot and periodic backup: restore all tabs on next launch and do not ask to save on close (Notepad++ style).",
+        "backupIntervalDescription": "Periodic backup interval.",
+        "backupLocation": "Backup location",
+        "selectFolder": "Select folder",
+        "defaultBackupLocation": "Default: userData/backup"
       },
       "misc": {
         "title": "Miscellaneous",
@@ -907,7 +916,7 @@
       "saveAs": "Save As",
       "moveFile": "Move File",
       "renameFile": "Rename File",
-      "quickOpen": "Quick Open",
+      "quickOpen": "Recent Files",
       "changeEncoding": "Change Encoding",
       "changeLineEnding": "Change Line Ending",
       "trailingNewline": "Trailing Newline",
@@ -938,8 +947,6 @@
       "toUpperCase": "To UPPERCASE",
       "toLowerCase": "To lowercase",
       "duplicate": "Duplicate",
-      "createParagraph": "Create Paragraph",
-      "deleteParagraph": "Delete Paragraph",
       "find": "Find",
       "findNext": "Find Next",
       "findPrevious": "Find Previous",
@@ -950,43 +957,7 @@
       "mathBlock": "Math Block"
     },
     "paragraph": {
-      "heading1": "Heading 1",
-      "heading2": "Heading 2",
-      "heading3": "Heading 3",
-      "heading4": "Heading 4",
-      "heading5": "Heading 5",
-      "heading6": "Heading 6",
-      "upgradeHeading": "Upgrade Heading",
-      "degradeHeading": "Degrade Heading",
-      "table": "Table",
-      "codeFence": "Code Fence",
-      "quoteBlock": "Quote Block",
-      "mathFormula": "Math Formula",
-      "htmlBlock": "HTML Block",
-      "orderList": "Ordered List",
-      "bulletList": "Bullet List",
-      "taskList": "Task List",
-      "looseListItem": "Loose List Item",
-      "paragraph": "Paragraph",
-      "horizontalLine": "Horizontal Line",
-      "frontMatter": "Front Matter",
-      "resetParagraph": "Reset Paragraph",
-      "mathBlock": "Math Block",
-      "horizontalRule": "Horizontal Rule"
-    },
-    "format": {
-      "strong": "Bold",
-      "emphasis": "Italic",
-      "underline": "Underline",
-      "superscript": "Superscript",
-      "subscript": "Subscript",
-      "highlight": "Highlight",
-      "inlineCode": "Inline Code",
-      "inlineMath": "Inline Math",
-      "strike": "Strikethrough",
-      "hyperlink": "Hyperlink",
-      "image": "Image",
-      "clearFormat": "Clear Format"
+      "resetParagraph": "Reset Paragraph"
     },
     "window": {
       "minimize": "Minimize",
@@ -1267,38 +1238,67 @@
     },
     "mermaidDiagram": {
       "title": "Mermaid Diagram"
+    },
+    "inlineFormat": "Inline Format",
+    "bold": {
+      "title": "Bold",
+      "subtitle": "**Bold**"
+    },
+    "italic": {
+      "title": "Italic",
+      "subtitle": "*Italic*"
+    },
+    "underline": {
+      "title": "Underline",
+      "subtitle": "u tag"
+    },
+    "strikethrough": {
+      "title": "Strikethrough",
+      "subtitle": "~~Strikethrough~~"
+    },
+    "highlight": {
+      "title": "Highlight",
+      "subtitle": "==Highlight=="
+    },
+    "inlineCode": {
+      "title": "Inline Code",
+      "subtitle": "`Code`"
+    },
+    "inlineMath": {
+      "title": "Inline Math",
+      "subtitle": "$Formula$"
+    },
+    "inlineLink": {
+      "title": "Link",
+      "subtitle": "[Link](url)"
+    },
+    "inlineImage": {
+      "title": "Image",
+      "subtitle": "![Image](url)"
     }
   },
   "frontMenu": {
     "duplicate": "Duplicate",
-    "turnInto": "Style",
     "newParagraph": "New Paragraph",
-    "delete": "Delete",
-    "paragraph": "Paragraph",
-    "table": "Table",
-    "html": "HTML",
-    "mathblock": "Math Block",
-    "pre": "Code Block",
-    "frontMatter": "Front Matter",
-    "ulTask": "Task List",
-    "ulBullet": "Bullet List",
-    "olOrder": "Ordered List",
-    "blockquote": "Blockquote",
-    "heading1": "Heading 1",
-    "heading2": "Heading 2",
-    "heading3": "Heading 3",
-    "heading4": "Heading 4",
-    "heading5": "Heading 5",
-    "heading6": "Heading 6",
-    "hr": "Horizontal Rule"
+    "delete": "Delete"
   },
   "editor": {
     "words": {},
     "image": {
       "selector": {
-        "tab": { "select": "Select", "embedLink": "Embed link" },
-        "select": { "chooseButton": "Choose Image", "tip": "Choose image from your computer." },
-        "inputs": { "alt": "Alt text", "src": "Image link or local path", "title": "Image title" },
+        "tab": {
+          "select": "Select",
+          "embedLink": "Embed link"
+        },
+        "select": {
+          "chooseButton": "Choose Image",
+          "tip": "Choose image from your computer."
+        },
+        "inputs": {
+          "alt": "Alt text",
+          "src": "Image link or local path",
+          "title": "Image title"
+        },
         "embedButton": "Embed Image",
         "hint": {
           "prefix": "Paste web image or local image path. Use",

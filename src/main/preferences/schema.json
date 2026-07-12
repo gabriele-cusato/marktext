@@ -397,5 +397,13 @@
     "description": "Watcher--Whether to use polling. Polling may leads to high CPU utilization but is necessary to watch files over a network.",
     "type": "boolean",
     "default": false
+  },
+  "treePathExcludePatterns": {
+    "description": "General--List of minimatch patterns to exclude paths from the file tree and watcher.",
+    "type": "array",
+    "items": {
+      "type": "string"
+    },
+    "default": []
   }
 }

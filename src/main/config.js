@@ -4,13 +4,16 @@ export const isWindows = process.platform === 'win32'
 export const isLinux = process.platform === 'linux'
 
 export const editorWinOptions = Object.freeze({
-  // BUG-1: larghezza minima = garanzia che i controlli a destra (⌘/📂 + bottoni finestra su
-  // Win) e ~5 tab non vengano MAI tagliati. Sotto questa soglia la finestra non si ridimensiona
-  // (Electron blocca, useContentSize:true → vale sul content = tab bar a piena larghezza); sopra,
-  // le tab in eccesso vanno a capo (wrap multi-row esistente). Formula: 5×tab(min 88) + 4×gap(3) +
-  // ul-pad(6) + sezione-destra + offset/buffer [+ padding-left:78 semaforo su mac]. ⚠️ STIMATO:
-  // se al minimo i controlli risultano ancora tagliati, alzare la costante (single source).
-  minWidth: isOsx ? 780 : 820, // era 550
+  // window-minwidth-hamburger (2026-07-12): 550px su TUTTE le piattaforme. La vecchia formula
+  // 5×tab(min 88) + 4×gap(3) + ul-pad(6) + sezione-destra + offset/buffer non vincola più la
+  // minima: sotto ~700px di larghezza la sezione destra della tab bar (command palette, cartella,
+  // recent files) collassa in un unico bottone hamburger (tabs.vue, `.v2-topright`), quindi non
+  // serve più riservare spazio per le tre icone singole. 550 resta il pavimento perché sotto
+  // quella soglia le tab (min-width:88px) e il bottone hamburger non ci starebbero comunque.
+  // Sotto questa soglia la finestra non si ridimensiona (Electron blocca, useContentSize:true →
+  // vale sul content = tab bar a piena larghezza); sopra, le tab in eccesso vanno a capo (wrap
+  // multi-row esistente).
+  minWidth: 550,
   minHeight: 350,
   webPreferences: {
     contextIsolation: true,

@@ -52,7 +52,12 @@ export const useEditorStore = defineStore('editor', {
     isSaving: false, // Tracks when a manual save is in progress
     // Testo attualmente selezionato nell'editor attivo (Muya o CodeMirror). Aggiornato dai
     // due editor; usato dai trigger Ctrl+F / Ctrl+Shift+F per cercare sulla selezione.
-    currentSelection: ''
+    currentSelection: '',
+    // Task3 folder-search: stato ricerca-cartella consegnato dal main (finestra dedicata,
+    // vedi mt::folder-search-state) — { directory, query, options, results, truncated } oppure
+    // null quando non c'è nessuna ricerca-cartella in corso per questa finestra. Usato dalla
+    // sidebar di ricerca per mostrare il ramo "risultati esterni".
+    folderSearchState: null
   }),
 
   actions: {
@@ -930,12 +935,25 @@ export const useEditorStore = defineStore('editor', {
       bus.emit('file-loaded', { id: active.id, markdown: active.markdown, cursor: active.cursor })
     },
 
+    // Task3 folder-search: salva lo stato ricerca-cartella ricevuto dal main, consumato dalla
+    // sidebar di ricerca (ramo "risultati esterni").
+    SET_FOLDER_SEARCH_STATE(state) {
+      this.folderSearchState = state
+    },
+
     // H2: registra il restore + arma il backup periodico (solo finestra owner). Da app.vue onMounted.
     LISTEN_FOR_SESSION() {
       const preferencesStore = usePreferencesStore()
 
       window.electron.ipcRenderer.on('mt::restore-session', (_, result) => {
         this.RESTORE_SESSION(result)
+      })
+
+      // Task3 folder-search: inviato dal main SUBITO dopo il bootstrap della finestra
+      // folder-search (stesso branch di mt::request-session-restore lato main, vedi
+      // folder-search-task2-worklog.md). Nessuna mt::restore-session in questo caso.
+      window.electron.ipcRenderer.on('mt::folder-search-state', (_, state) => {
+        this.SET_FOLDER_SEARCH_STATE(state)
       })
 
       // H5-1: la nuova finestra ha ricostruito la tab detachata → ora chiudi la tab nella finestra sorgente.

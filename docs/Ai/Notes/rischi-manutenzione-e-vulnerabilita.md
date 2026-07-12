@@ -23,24 +23,22 @@ d'attacco tipico di un editor markdown.
 **Contenimento:** feature B2 — I/O spostato in main via IPC scoped, preload senza Node,
 `sandbox:true`. Costo alto, feature dedicata.
 
-### 1.2 `npm audit` mai eseguito
+### 1.2 `npm audit` — RISOLTO 2026-07-05, mantenere il rituale
 
-Nessun worklog lo cita; su macchina secondaria npm è bloccato da policy. Dep tree grande
-(mermaid, katex, axios, octokit) → advisory si accumulano non visti.
+Eseguito il 2026-07-05 (vedi `packages-update-fix.md`): da 30 vulnerabilità a **0** (rimozione
+`languine`, `audit fix`, `npm update`). Ricontrollato 2026-07-12: ancora 0.
 
-**Azione:** eseguire `npm audit` sul PC principale, triage dei risultati. Costo quasi zero.
+**Azione residua:** rieseguire `npm audit` periodicamente (a ogni giro npm) — vedi "Come rifare
+questi controlli in futuro" in `packages-update-fix.md`; valutare Dependabot/Renovate sul fork.
 
 ---
 
 ## 2. Bombe a orologeria — dipendenze
 
-### 2.1 `iconv-lite` FANTASMA (scoperta 2026-07-08) — fix banale, priorità alta
+### 2.1 `iconv-lite` FANTASMA — RISOLTO 2026-07-12
 
-`src/main/filesystem/markdown.js` importa `iconv-lite` (encode/decode di TUTTI i file
-aperti/salvati) ma la dep **NON è dichiarata in package.json**: arriva transitiva da un'altra
-dipendenza. Un update/dedupe qualunque può rimuoverla in silenzio → app rotta al primo open/save.
-
-**Azione:** `npm install iconv-lite` (dichiararla esplicita). Costo zero.
+Era importata da `src/main/filesystem/markdown.js` senza essere dichiarata in package.json
+(transitiva). Dichiarata esplicitamente il 2026-07-12 (`iconv-lite ^0.7.3` in dependencies).
 
 ### 2.2 CodeMirror 5 = EOL di fatto
 
@@ -85,12 +83,10 @@ il costo di ogni ciclo di upgrade.
 Nessuna urgente; superficie di rischio a ogni major Electron/Vite. Valutare sostituzioni
 opportunistiche quando si tocca l'area.
 
-### 2.6 Residuo: `vite-plugin-electron-renderer`
+### 2.6 Residuo: `vite-plugin-electron-renderer` — RISOLTO 2026-07-12
 
-Ancora in devDependencies ma non più referenziato in `electron.vite.config.mjs`
-(verificato 2026-07-08; rimosso durante renderer-no-node-integration task9).
-
-**Azione:** rimuovere da package.json. Costo zero.
+Rimosso da devDependencies (`npm uninstall`) dopo grep di conferma: zero riferimenti in
+src/config/scripts.
 
 ### 2.7 Element Plus v3 in arrivo
 
@@ -177,9 +173,9 @@ Attrito piccolo ma costante; nessuna azione proposta, solo consapevolezza.
 
 ## 5. Azioni rapide consigliate (costo quasi zero)
 
-1. **`npm install iconv-lite`** — dichiarare la dep fantasma (§2.1).
-2. **Rimuovere `vite-plugin-electron-renderer`** da devDependencies (§2.6).
-3. **`npm audit` sul PC principale** + triage (§1.2).
+1. ~~`npm install iconv-lite`~~ — FATTO 2026-07-12 (§2.1).
+2. ~~Rimuovere `vite-plugin-electron-renderer`~~ — FATTO 2026-07-12 (§2.6).
+3. ~~`npm audit`~~ — FATTO 2026-07-05, 0 vulnerabilità; rieseguire a ogni giro npm (§1.2).
 4. **Checklist upgrade Electron**: rileggere §3.4 (workaround pinnati) a ogni bump di major.
 
 Le azioni strutturali convergono su voci già in `idee-features-e-miglioramenti.md`:

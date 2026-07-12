@@ -12,7 +12,7 @@ import configureMenu, { configSettingMenu } from '../menu/templates'
 import { setLanguage } from '../i18n.js'
 
 const RECENTLY_USED_DOCUMENTS_FILE_NAME = 'recently-used-documents.json'
-const MAX_RECENTLY_USED_DOCUMENTS = 12
+const MAX_RECENTLY_USED_DOCUMENTS = 10
 export const MenuType = {
   DEFAULT: 0,
   EDITOR: 1,
@@ -50,8 +50,9 @@ class AppMenu {
     const { isOsxOrWindows, RECENTS_PATH } = this
 
     if (isOsxOrWindows) app.addRecentDocument(filePath)
-    if (isOsx) return
 
+    // Cross-platform: il JSON viene mantenuto anche su macOS (oltre alla jump-list OS)
+    // così la lista è leggibile dal renderer per la command palette "Recent Files".
     const recentDocuments = this.getRecentlyUsedDocuments()
     const index = recentDocuments.indexOf(filePath)
     let needSave = index !== 0

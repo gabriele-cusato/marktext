@@ -42,6 +42,10 @@
       <tweet />
       <import-modal />
 
+      <!-- folder-search-task4: overlay di ricerca in cartella, apertura via bus
+           'show-folder-search' (icona tab bar / voce hamburger in tabs.vue). -->
+      <folder-search-overlay />
+
       <!-- v2: Settings modal (wrapping prefComponents esistenti) -->
       <settings-modal />
 
@@ -70,6 +74,8 @@ import ExportSettingDialog from '@/components/exportSettings'
 import Rename from '@/components/rename'
 import Tweet from '@/components/tweet'
 import ImportModal from '@/components/import'
+// folder-search-task4: overlay ricerca in cartella
+import FolderSearchOverlay from '@/components/folderSearchOverlay'
 // v2: nuovi componenti
 import StatusBar from '@/components/statusBar/index.vue'
 import SettingsModal from '@/components/settingsModal/index.vue'

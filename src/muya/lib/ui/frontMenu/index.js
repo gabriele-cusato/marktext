@@ -65,7 +65,9 @@ class FrontMenu extends BaseFloat {
   render() {
     const { oldVnode, frontMenuContainer, outmostBlock } = this
     const { type, functionType } = outmostBlock
-    const children = this.menu.map(({ icon, label, text, shortCut }) => {
+    const children = this.menu.map(({ icon, label, text, commandId }) => {
+      // Label shortcut derivata dal binding reale (vuota se il comando non ne ha uno assegnato).
+      const shortCut = commandId ? this.muya.options.getShortcut(commandId) : ''
       const iconWrapperSelector = 'div.icon-wrapper'
       const iconWrapper = h(
         iconWrapperSelector,

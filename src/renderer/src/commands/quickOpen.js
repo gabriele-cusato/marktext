@@ -46,20 +46,21 @@ class QuickOpenCommand {
   }
 
   run = async () => {
-    const { _editorState, _folderState } = this
-    if (!_folderState.projectTree && _editorState.tabs.length === 0) {
+    // Recent Files: la sorgente non sono più i tab aperti ma la lista persistita dei file
+    // aperti di recente (main/menu/index.js), già filtrata dai percorsi non più esistenti
+    // su disco (vedi getRecentlyUsedDocuments, che scarta le voci non isFile2/isDirectory2).
+    const recentDocuments = await window.electron.ipcRenderer.invoke(
+      'mt::get-recently-used-documents'
+    )
+    if (recentDocuments.length === 0) {
       throw new Error(null)
     }
 
-    this.subcommands = _editorState.tabs
-      .map((t) => t.pathname)
-      // Filter untitled tabs
-      .filter((t) => !!t)
-      .map((pathname) => {
-        const item = { id: pathname }
-        Object.assign(item, this._getPath(pathname))
-        return item
-      })
+    this.subcommands = recentDocuments.map((pathname) => {
+      const item = { id: pathname }
+      Object.assign(item, this._getPath(pathname))
+      return item
+    })
   }
 
   execute = async () => {

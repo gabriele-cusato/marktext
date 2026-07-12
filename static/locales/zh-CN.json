@@ -55,7 +55,10 @@
       "screenshot": "截图",
       "lineEnding": "行结束符",
       "lineEndingCrlf": "CRLF (Windows)",
-      "lineEndingLf": "LF (Unix/macOS)"
+      "lineEndingLf": "LF (Unix/macOS)",
+      "toUpperCase": "转为大写",
+      "toLowerCase": "转为小写",
+      "openInBrowser": "在浏览器中打开"
     },
     "paragraph": {
       "title": "段落",
@@ -179,7 +182,8 @@
       "graphiteLight": "Graphite Light",
       "materialDark": "Material Dark",
       "oneDark": "One Dark",
-      "ulyssesLight": "Ulysses Light"
+      "ulyssesLight": "Ulysses Light",
+      "tufte": "Tufte"
     }
   },
   "contextMenu": {
@@ -212,7 +216,11 @@
       "closeAllTabs": "关闭所有标签页",
       "rename": "重命名",
       "copyPath": "复制路径",
-      "showInFolder": "在文件夹中显示"
+      "showInFolder": "在文件夹中显示",
+      "pin": "固定标签页",
+      "unpin": "取消固定标签页",
+      "moveToNewWindow": "移动到新窗口",
+      "reload": "重新加载"
     }
   },
   "search": {
@@ -225,7 +233,6 @@
     "replaceSingle": "单个替换",
     "invalidRegex": "无效的正则表达式 \"{pattern}\"",
     "regexMatchEmpty": "正则表达式 \"{pattern}\" 匹配到了空字符串",
-    "searchResultCount": "搜索结果",
     "searchResultInfo": "在 {fileCount} 个文件中找到 {matchCount} 个匹配项",
     "searchLimited": "仅搜索前 {count} 个结果"
   },
@@ -496,7 +503,8 @@
           "title": "文件排序方式",
           "creationTime": "创建时间",
           "modificationTime": "修改时间"
-        }
+        },
+        "watcherUsePolling": "按固定间隔轮询文件变化，而不是依赖操作系统通知 — 仅当网络路径上的外部文件更改无法被检测到时才启用"
       },
       "misc": {
         "title": "杂项",
@@ -512,6 +520,14 @@
           "korean": "한국어",
           "portuguese": "Português"
         }
+      },
+      "sessionSnapshot": {
+        "title": "会话快照与定期备份",
+        "description": "启用会话快照与定期备份：下次启动时恢复所有标签页，关闭时不询问是否保存（Notepad++ 风格）。",
+        "backupIntervalDescription": "定期备份的时间间隔。",
+        "backupLocation": "备份位置",
+        "selectFolder": "选择文件夹",
+        "defaultBackupLocation": "默认：userData/backup"
       }
     },
     "editor": {
@@ -535,7 +551,9 @@
         "title": "写作行为",
         "autoCloseBrackets": "自动关闭括号",
         "autoCompleteMarkdown": "自动完成 Markdown",
-        "autoCloseQuotes": "自动关闭引号"
+        "autoCloseQuotes": "自动关闭引号",
+        "surroundSelection": "包裹所选内容",
+        "surroundSelectionNotes": "选中文本时，输入引号或括号会包裹所选内容而不是替换它。例如，选中 'hello' 后按下 \" 会得到 \"hello\"。"
       },
       "fileRepresentation": {
         "title": "文件表示",
@@ -898,7 +916,7 @@
       "saveAs": "另存为",
       "moveFile": "移动文件",
       "renameFile": "重命名文件",
-      "quickOpen": "快速打开",
+      "quickOpen": "最近文件",
       "changeEncoding": "更改编码",
       "lineEnding": "行结束符",
       "trailingNewline": "尾随换行",
@@ -927,54 +945,19 @@
       "pasteAsPlaintext": "粘贴为纯文本",
       "selectAll": "全选",
       "duplicate": "创建副本",
-      "createParagraph": "创建段落",
-      "deleteParagraph": "删除段落",
       "find": "查找",
       "findNext": "查找下一个",
       "findPrevious": "查找上一个",
       "replace": "替换",
       "findInFolder": "在文件夹中查找",
       "mathBlock": "数学块",
-      "screenshot": "截图"
+      "screenshot": "截图",
+      "toUpperCase": "转为大写",
+      "toLowerCase": "转为小写",
+      "openInBrowser": "在浏览器中打开"
     },
     "paragraph": {
-      "heading1": "标题 1",
-      "heading2": "标题 2",
-      "heading3": "标题 3",
-      "heading4": "标题 4",
-      "heading5": "标题 5",
-      "heading6": "标题 6",
-      "upgradeHeading": "提升标题级别",
-      "degradeHeading": "降低标题级别",
-      "table": "表格",
-      "codeFence": "代码围栏",
-      "quoteBlock": "引用块",
-      "mathBlock": "数学块",
-      "mathFormula": "数学公式",
-      "htmlBlock": "HTML 块",
-      "orderList": "有序列表",
-      "bulletList": "无序列表",
-      "taskList": "任务列表",
-      "looseListItem": "宽松列表项",
-      "paragraph": "段落",
-      "horizontalRule": "水平分割线",
-      "horizontalLine": "水平分割线",
-      "frontMatter": "前置元数据",
       "resetParagraph": "重置段落"
-    },
-    "format": {
-      "strong": "粗体",
-      "emphasis": "斜体",
-      "underline": "下划线",
-      "superscript": "上标",
-      "subscript": "下标",
-      "highlight": "高亮",
-      "inlineCode": "行内代码",
-      "inlineMath": "行内数学",
-      "strike": "删除线",
-      "hyperlink": "超链接",
-      "image": "图片",
-      "clearFormat": "清除格式"
     },
     "window": {
       "minimize": "最小化",
@@ -1103,7 +1086,13 @@
       "exportSuccessTitle": "导出成功",
       "exportSuccessMessage": "已成功导出“{name}”！",
       "fileRemovedOnDisk": "“{name}” 已在磁盘上被删除。",
-      "fileChangedOnDisk": "“{name}” 已在磁盘上发生变更。是否重新加载？"
+      "fileChangedOnDisk": "“{name}” 已在磁盘上发生变更。是否重新加载？",
+      "fileChangedTitle": "文件已在磁盘上更改",
+      "fileChangedReloadWarn": "\"{name}\" 已被其他程序修改。重新加载将丢弃编辑器中未保存的更改。",
+      "fileChangedReloadNoWarn": "\"{name}\" 已被其他程序修改。是否要重新加载？",
+      "reloadFromDisk": "重新加载",
+      "tooManyTabsTitle": "打开的标签页过多",
+      "tooManyTabsMsg": "您已打开 {count} 个标签页。标签页过多可能会拖慢编辑器速度 — 建议关闭不再需要的标签页。"
     },
     "help": {
       "lineEndingAssertionError": "行结束符断言错误"
@@ -1249,30 +1238,49 @@
     },
     "mermaidDiagram": {
       "title": "Mermaid图表"
+    },
+    "inlineFormat": "行内格式",
+    "bold": {
+      "title": "粗体",
+      "subtitle": "**粗体**"
+    },
+    "italic": {
+      "title": "斜体",
+      "subtitle": "*斜体*"
+    },
+    "underline": {
+      "title": "下划线",
+      "subtitle": "u tag"
+    },
+    "strikethrough": {
+      "title": "删除线",
+      "subtitle": "~~删除线~~"
+    },
+    "highlight": {
+      "title": "高亮",
+      "subtitle": "==高亮=="
+    },
+    "inlineCode": {
+      "title": "行内代码",
+      "subtitle": "`代码`"
+    },
+    "inlineMath": {
+      "title": "行内公式",
+      "subtitle": "$公式$"
+    },
+    "inlineLink": {
+      "title": "链接",
+      "subtitle": "[链接](url)"
+    },
+    "inlineImage": {
+      "title": "图片",
+      "subtitle": "![图片](url)"
     }
   },
   "frontMenu": {
     "duplicate": "创建副本",
-    "turnInto": "样式",
     "newParagraph": "新段落",
-    "delete": "删除",
-    "paragraph": "段落",
-    "table": "表格",
-    "html": "HTML",
-    "mathblock": "数学公式块",
-    "pre": "代码块",
-    "frontMatter": "前置信息",
-    "ulTask": "任务列表",
-    "ulBullet": "无序列表",
-    "olOrder": "有序列表",
-    "blockquote": "引用块",
-    "heading1": "一级标题",
-    "heading2": "二级标题",
-    "heading3": "三级标题",
-    "heading4": "四级标题",
-    "heading5": "五级标题",
-    "heading6": "六级标题",
-    "hr": "分隔线"
+    "delete": "删除"
   },
   "editor": {
     "image": {
@@ -1385,5 +1393,36 @@
     "vega-lite-start": "vega-lite 开始",
     "click-to-add-image": "点击添加图片",
     "load-image-failed": "图片加载失败"
+  },
+  "statusBar": {
+    "toggleWrap": "切换自动换行",
+    "resetZoom": "重置缩放 (Ctrl+0)",
+    "toggleSource": "切换源码 / Markdown (Ctrl+E)",
+    "nonMarkdown": "仅源码：非 Markdown 文件",
+    "wrapUnavailable": "Markdown 模式下不支持自动换行",
+    "otherCharsets": "其他字符集",
+    "encodingGroup": {
+      "arabic": "阿拉伯语",
+      "baltic": "波罗的语",
+      "cyrillic": "西里尔语",
+      "centralEuropean": "中欧语言",
+      "chinese": "中文",
+      "easternEuropean": "东欧语言",
+      "greek": "希腊语",
+      "hebrew": "希伯来语",
+      "japanese": "日语",
+      "korean": "韩语",
+      "northernEuropean": "北欧语言",
+      "turkish": "土耳其语",
+      "westernEuropean": "西欧语言"
+    }
+  },
+  "theme": {
+    "cadmiumLight": "Cadmium Light",
+    "dark": "深色",
+    "graphiteLight": "Graphite Light",
+    "materialDark": "Material Dark",
+    "oneDark": "One Dark",
+    "ulyssesLight": "Ulysses Light"
   }
 }

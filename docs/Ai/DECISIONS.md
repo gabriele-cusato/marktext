@@ -1,3 +1,12 @@
+## 2026-07-12 — Sessione sul PC principale: vincolo "niente build" DECADUTO (con criterio)
+
+- La sessione Claude gira sul PC principale: `npm run dev`/`build`/`preview` eseguibili
+  direttamente. Il vincolo "build bloccati" valeva solo per il PC secondario con Group Policy.
+- Criterio d'uso (richiesta utente): buildare/avviare **solo per modifiche grandi**; per le
+  modifiche piccole non serve, la verifica statica basta e il runtime lo conferma l'utente.
+- Se una sessione futura torna sul PC secondario, il vincolo torna valido (riconoscibile da:
+  wrapper npm bloccato dalla policy, PowerShell ConstrainedLanguage).
+
 ## 2026-07-08 — Feature conclusa: Agent-Summary fa il MV in Completed, InProgress NON resta come storico
 
 Decisione utente (annulla la regola dell'output-style "la cartella `InProgress/<nome-feature>/`

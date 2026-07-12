@@ -55,7 +55,10 @@
       "screenshot": "螢幕截圖",
       "lineEnding": "行結束符",
       "lineEndingCrlf": "CRLF(Windows)",
-      "lineEndingLf": "LF(Linux/Mac)"
+      "lineEndingLf": "LF(Linux/Mac)",
+      "toUpperCase": "轉為大寫",
+      "toLowerCase": "轉為小寫",
+      "openInBrowser": "在瀏覽器中開啟"
     },
     "paragraph": {
       "title": "段落",
@@ -179,7 +182,8 @@
       "graphiteLight": "石墨淺色",
       "materialDark": "Material 深色",
       "oneDark": "One Dark",
-      "ulyssesLight": "Ulysses 淺色"
+      "ulyssesLight": "Ulysses 淺色",
+      "tufte": "Tufte"
     }
   },
   "contextMenu": {
@@ -212,7 +216,11 @@
       "closeAllTabs": "關閉所有標籤頁",
       "rename": "重新命名",
       "copyPath": "複製路徑",
-      "showInFolder": "在資料夾中顯示"
+      "showInFolder": "在資料夾中顯示",
+      "pin": "釘選標籤頁",
+      "unpin": "取消釘選標籤頁",
+      "moveToNewWindow": "移動到新視窗",
+      "reload": "重新載入"
     }
   },
   "search": {
@@ -225,7 +233,6 @@
     "replaceSingle": "單一取代",
     "invalidRegex": "無效的正規表示式 \"{pattern}\"",
     "regexMatchEmpty": "正規表示式 \"{pattern}\" 符合空字串",
-    "searchResultCount": "搜尋結果",
     "searchResultInfo": "在 {fileCount} 個檔案中找到 {matchCount} 個符合項目",
     "searchLimited": "搜尋僅限前 {count} 個結果"
   },
@@ -496,7 +503,8 @@
           "title": "檔案排序方式",
           "creationTime": "建立時間",
           "modificationTime": "修改時間"
-        }
+        },
+        "watcherUsePolling": "以固定間隔輪詢檔案變化，而非依賴作業系統通知 — 僅在網路路徑上的外部檔案變更無法被偵測到時才啟用"
       },
       "misc": {
         "title": "其他",
@@ -512,6 +520,14 @@
           "korean": "한국어",
           "portuguese": "Português"
         }
+      },
+      "sessionSnapshot": {
+        "title": "工作階段快照與定期備份",
+        "description": "啟用工作階段快照與定期備份：下次啟動時還原所有標籤頁，關閉時不詢問是否儲存（Notepad++ 風格）。",
+        "backupIntervalDescription": "定期備份的時間間隔。",
+        "backupLocation": "備份位置",
+        "selectFolder": "選擇資料夾",
+        "defaultBackupLocation": "預設：userData/backup"
       }
     },
     "editor": {
@@ -535,7 +551,9 @@
         "title": "寫作行為",
         "autoCloseBrackets": "自動關閉括號",
         "autoCompleteMarkdown": "自動完成 Markdown",
-        "autoCloseQuotes": "自動關閉引號"
+        "autoCloseQuotes": "自動關閉引號",
+        "surroundSelection": "包覆所選內容",
+        "surroundSelectionNotes": "選取文字時，輸入引號或括號會包覆所選內容而非取代它。例如，選取 'hello' 後按下 \" 會得到 \"hello\"。"
       },
       "fileRepresentation": {
         "title": "檔案表示",
@@ -631,7 +649,6 @@
         "npmInstallCommand": "npm install picgo",
         "yarnInstallCommand": "yarn add picgo",
         "pnpmInstallCommand": "pnpm add picgo",
-        "brewInstallCommand": "brew install picgo",
         "chooseInstallMethod": "選擇安裝方法：",
         "retestPicgo": "重新檢測",
         "detecting": "檢測中…",
@@ -891,7 +908,7 @@
       "saveAs": "另存為",
       "moveFile": "移動檔案",
       "renameFile": "重新命名檔案",
-      "quickOpen": "快速開啟",
+      "quickOpen": "最近檔案",
       "changeEncoding": "變更編碼",
       "changeLineEnding": "變更行結束符",
       "trailingNewline": "結尾換行",
@@ -920,54 +937,19 @@
       "pasteAsPlaintext": "貼上為純文字",
       "selectAll": "全選",
       "duplicate": "複製",
-      "createParagraph": "建立段落",
-      "deleteParagraph": "刪除段落",
       "find": "尋找",
       "findNext": "尋找下一個",
       "findPrevious": "尋找上一個",
       "replace": "取代",
       "findInFolder": "在資料夾中尋找",
       "screenshot": "螢幕截圖",
-      "mathBlock": "數學區塊"
+      "mathBlock": "數學區塊",
+      "toUpperCase": "轉為大寫",
+      "toLowerCase": "轉為小寫",
+      "openInBrowser": "在瀏覽器中開啟"
     },
     "paragraph": {
-      "heading1": "標題 1",
-      "heading2": "標題 2",
-      "heading3": "標題 3",
-      "heading4": "標題 4",
-      "heading5": "標題 5",
-      "heading6": "標題 6",
-      "upgradeHeading": "提升標題",
-      "degradeHeading": "降低標題",
-      "table": "表格",
-      "codeFence": "程式碼圍欄",
-      "quoteBlock": "引用區塊",
-      "mathFormula": "數學公式",
-      "htmlBlock": "HTML 區塊",
-      "orderList": "有序清單",
-      "bulletList": "項目符號清單",
-      "taskList": "任務清單",
-      "looseListItem": "鬆散清單項目",
-      "paragraph": "段落",
-      "horizontalLine": "水平線",
-      "frontMatter": "前置資料",
-      "resetParagraph": "重設段落",
-      "mathBlock": "數學區塊",
-      "horizontalRule": "水平線"
-    },
-    "format": {
-      "strong": "粗體",
-      "emphasis": "斜體",
-      "underline": "底線",
-      "superscript": "上標",
-      "subscript": "下標",
-      "highlight": "螢光標記",
-      "inlineCode": "行內程式碼",
-      "inlineMath": "行內數學",
-      "strike": "刪除線",
-      "hyperlink": "超連結",
-      "image": "圖片",
-      "clearFormat": "清除格式"
+      "resetParagraph": "重設段落"
     },
     "window": {
       "minimize": "最小化",
@@ -1096,7 +1078,13 @@
       "exportSuccessTitle": "匯出成功",
       "exportSuccessMessage": "已成功匯出「{name}」！",
       "fileRemovedOnDisk": "「{name}」已在磁碟上被刪除。",
-      "fileChangedOnDisk": "「{name}」已在磁碟上發生變更。是否重新載入？"
+      "fileChangedOnDisk": "「{name}」已在磁碟上發生變更。是否重新載入？",
+      "fileChangedTitle": "檔案已在磁碟上變更",
+      "fileChangedReloadWarn": "「{name}」已被其他程式修改。重新載入將捨棄編輯器中未儲存的變更。",
+      "fileChangedReloadNoWarn": "「{name}」已被其他程式修改。是否要重新載入？",
+      "reloadFromDisk": "重新載入",
+      "tooManyTabsTitle": "開啟的標籤頁過多",
+      "tooManyTabsMsg": "您已開啟 {count} 個標籤頁。標籤頁過多可能會拖慢編輯器速度 — 建議關閉不再需要的標籤頁。"
     },
     "help": {
       "lineEndingAssertionError": "行結束符斷言錯誤"
@@ -1184,14 +1172,6 @@
       "title": "流程圖",
       "subtitle": "流程圖表"
     },
-    "sequenceDiagram": {
-      "title": "序列圖",
-      "subtitle": "使用 js-sequence 渲染序列圖。"
-    },
-    "plantumlDiagram": {
-      "title": "PlantUML 圖表",
-      "subtitle": "渲染 PlantUML 圖表"
-    },
     "mermaid": {
       "title": "Mermaid",
       "subtitle": "使用 mermaid 渲染圖表。",
@@ -1250,30 +1230,49 @@
     "basicBlock": "基礎塊",
     "advancedBlock": "高級塊",
     "listBlock": "列表塊",
-    "diagram": "圖表"
+    "diagram": "圖表",
+    "inlineFormat": "行內格式",
+    "bold": {
+      "title": "粗體",
+      "subtitle": "**粗體**"
+    },
+    "italic": {
+      "title": "斜體",
+      "subtitle": "*斜體*"
+    },
+    "underline": {
+      "title": "底線",
+      "subtitle": "u tag"
+    },
+    "strikethrough": {
+      "title": "刪除線",
+      "subtitle": "~~刪除線~~"
+    },
+    "highlight": {
+      "title": "高亮",
+      "subtitle": "==高亮=="
+    },
+    "inlineCode": {
+      "title": "行內程式碼",
+      "subtitle": "`程式碼`"
+    },
+    "inlineMath": {
+      "title": "行內公式",
+      "subtitle": "$公式$"
+    },
+    "inlineLink": {
+      "title": "連結",
+      "subtitle": "[連結](url)"
+    },
+    "inlineImage": {
+      "title": "圖片",
+      "subtitle": "![圖片](url)"
+    }
   },
   "frontMenu": {
     "duplicate": "複製",
-    "turnInto": "樣式",
     "newParagraph": "新段落",
-    "delete": "刪除",
-    "paragraph": "段落",
-    "table": "表格",
-    "html": "HTML",
-    "mathblock": "數學區塊",
-    "pre": "程式碼區塊",
-    "frontMatter": "前置資料",
-    "ulTask": "任務清單",
-    "ulBullet": "項目符號清單",
-    "olOrder": "有序清單",
-    "blockquote": "引用區塊",
-    "heading1": "標題 1",
-    "heading2": "標題 2",
-    "heading3": "標題 3",
-    "heading4": "標題 4",
-    "heading5": "標題 5",
-    "heading6": "標題 6",
-    "hr": "水平線"
+    "delete": "刪除"
   },
   "editor": {
     "image": {
@@ -1394,5 +1393,36 @@
     "copy": "複製",
     "paste": "貼上",
     "selectAll": "全選"
+  },
+  "statusBar": {
+    "toggleWrap": "切換自動換行",
+    "resetZoom": "重設縮放 (Ctrl+0)",
+    "toggleSource": "切換原始碼 / Markdown (Ctrl+E)",
+    "nonMarkdown": "僅原始碼：非 Markdown 檔案",
+    "wrapUnavailable": "Markdown 模式下不支援自動換行",
+    "otherCharsets": "其他字元集",
+    "encodingGroup": {
+      "arabic": "阿拉伯語",
+      "baltic": "波羅的語",
+      "cyrillic": "西里爾語",
+      "centralEuropean": "中歐語言",
+      "chinese": "中文",
+      "easternEuropean": "東歐語言",
+      "greek": "希臘語",
+      "hebrew": "希伯來語",
+      "japanese": "日語",
+      "korean": "韓語",
+      "northernEuropean": "北歐語言",
+      "turkish": "土耳其語",
+      "westernEuropean": "西歐語言"
+    }
+  },
+  "theme": {
+    "cadmiumLight": "鎘淺色",
+    "dark": "深色",
+    "graphiteLight": "石墨淺色",
+    "materialDark": "Material 深色",
+    "oneDark": "One Dark",
+    "ulyssesLight": "Ulysses 淺色"
   }
 }

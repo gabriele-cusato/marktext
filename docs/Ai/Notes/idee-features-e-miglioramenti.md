@@ -40,13 +40,21 @@ resta ma è N-API, carica senza rebuild).
 
 ### D — Minori / bloccati
 
-- **B-REV11** accelerator duplicati: fermo, serve test runtime (vedi performance-robustness.md).
+- ~~**B-REV11** accelerator duplicati~~: DISSOLTO 2026-07-12 — ri-censimento post
+  menu-shortcut-overhaul: zero duplicati su tutte le piattaforme.
 - **Muya `render(true)` lag su documenti grandi**: intervenire solo se lag notato davvero
   (follow-up in ricerca-e-utility.md).
-- **Lint giro 2**: risolto a 0 il 2026-07-06; `lint-da-correggere.md` segna ancora da fare
-  "verifica dev + commit" — chiudere se non già fatto.
+- ~~**Lint giro 2**~~: risolto a 0 il 2026-07-06; nota `lint-da-correggere.md` eliminata
+  (esiti registrati in `packages-update-fix.md` §B giro 2).
 - **NON proposto**: split di `store/editor.js` (~2270 righe) o `tabs.vue` (~1800). File grandi ma
   pieni di invarianti documentate; split = rischio senza problema reale (contro la regola no-forzature).
+
+### B4 — Watcher: polling automatico per percorsi a rischio (idea futura, 2026-07-12)
+Oggi `watcherUsePolling` sta diventando una preferenza manuale (feature `preferences-refinement`).
+Evoluzione possibile: individuare dal path del file aperto se è a rischio di notifiche OS mancanti
+(percorso di rete UNC `\\server\...`, drive mappato, cartelle sync note) e attivare il polling
+SOLO per quei file, automaticamente, lasciando le notifiche native per i path locali. Elimina la
+scelta manuale; costo: euristica di rilevazione + watcher misto per-path in `filesystem/watcher.js`.
 
 ---
 
@@ -55,7 +63,7 @@ resta ma è N-API, carica senza rebuild).
 | # | Voce | Costo | Note |
 |---|------|-------|------|
 | U1 | **Riapri tab chiusa (`Ctrl+Shift+T`)** | 🟢 | Stack "tab chiuse di recente" + voce context menu. La sessione serializza già tutto lo stato tab (pathname, cursore, encoding): trattenere gli ultimi N stati chiusi in memoria. Gap reale vs Notepad++/browser |
-| U2 | **File recenti nella command palette** | 🟢 | MRU esiste GIÀ nel main (`menu/index.js`, `recently-used-documents.json`, max 12) ma è solo nel menu File. Esporlo nella palette/quickOpen (oggi quickOpen cerca solo le tab aperte) |
+| U2 | **File recenti nella command palette** | 🟢 | IN CORSO 2026-07-12: feature `recent-files` (`InProgress/recent-files/`, plan pronto + task icona tab bar) |
 | U3 | **Cronologia locale dei file (mini-timeline)** | 🟡 | Ogni save conserva le ultime N versioni in `userData/history/` (riusa il pattern snapshot atomico tmp+rename della sessione). Context menu tab → "Restore previous version". Copre l'errore irreversibile (salvato per sbaglio, Ctrl+Z esaurito). Coerente con la filosofia crash-safe di session-persistence |
 | U4 | **Diff tab vs disco / tra due tab** | 🟡 | CodeMirror 5 ha addon `merge` ufficiale. Caso killer: nel dialog "file changed on disk" mostrare il diff prima di scegliere Reload/Keep (oggi si sceglie alla cieca). Secondo uso: confronto tra due tab aperte (staple Notepad++) |
 | U5 | **Outline/TOC documento in sidebar** | 🟡 | Sidebar già esistente (oggi solo ricerca, `sideBarIcons`). Aggiungere icona "outline": heading del doc corrente, click → jump. Non viola la decisione No-IDE (è document-level, non project-level). NB: esisteva un `view.toggle-toc` (accelerator `Ctrl+K`, da liberare per H3 commenti — vedi editor-advanced.md): verificare cosa resta di quel percorso prima di costruire |

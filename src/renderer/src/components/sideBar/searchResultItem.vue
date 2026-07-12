@@ -68,6 +68,7 @@ import { storeToRefs } from 'pinia'
 import bus from '../../bus'
 import { isMarkdownPath } from '../../util'
 import { useI18n } from 'vue-i18n'
+import notice from '../../services/notification'
 
 const { t } = useI18n()
 
@@ -147,9 +148,24 @@ const handleSearchResultClick = (searchMatch) => {
     }
   }
 
-  // Tab non aperto → apri da disco passando il cursore (jump gestito lato apertura).
+  // Tab non aperto → apri da disco passando il cursore (jump gestito lato apertura). Task3:
+  // i risultati esterni (folder-search) possono referenziare file spostati/cancellati dopo la
+  // scansione: verifica l'esistenza (window.fileUtils.isFile, sync, già esposta dal preload)
+  // prima di chiedere al main di aprirlo; se manca, riquadro di errore invece di un tentativo
+  // silenzioso (il canale mt::open-file non ha risposta/ack per segnalare il fallimento).
   if (!openedTab) {
-    window.electron.ipcRenderer.send('mt::open-file', filePath, { cursor })
+    if (window.fileUtils.isFile(filePath)) {
+      window.electron.ipcRenderer.send('mt::open-file', filePath, { cursor })
+    } else {
+      notice.notify({
+        title: t('sideBar.search.fileNotFoundTitle', 'File non trovato'),
+        type: 'error',
+        message: t(
+          'sideBar.search.fileNotFoundMessage',
+          `Impossibile aprire "${filePath}": il file non esiste più.`
+        )
+      })
+    }
     return
   }
 

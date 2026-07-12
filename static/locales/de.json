@@ -55,7 +55,10 @@
       "screenshot": "Screenshot",
       "lineEnding": "Zeilenendezeichen",
       "lineEndingCrlf": "CRLF (Windows)",
-      "lineEndingLf": "LF (Linux/Mac)"
+      "lineEndingLf": "LF (Linux/Mac)",
+      "toUpperCase": "In GROSSBUCHSTABEN",
+      "toLowerCase": "In Kleinbuchstaben",
+      "openInBrowser": "Im Browser öffnen"
     },
     "paragraph": {
       "title": "Absatz",
@@ -179,7 +182,8 @@
       "graphiteLight": "Graphit Hell",
       "materialDark": "Material Dunkel",
       "oneDark": "One Dark",
-      "ulyssesLight": "Ulysses Hell"
+      "ulyssesLight": "Ulysses Hell",
+      "tufte": "Tufte"
     }
   },
   "contextMenu": {
@@ -212,7 +216,11 @@
       "closeAllTabs": "Alle Tabs schließen",
       "rename": "Umbenennen",
       "copyPath": "Pfad kopieren",
-      "showInFolder": "Im Ordner anzeigen"
+      "showInFolder": "Im Ordner anzeigen",
+      "pin": "Tab anheften",
+      "unpin": "Tab lösen",
+      "moveToNewWindow": "In neues Fenster verschieben",
+      "reload": "Neu laden"
     }
   },
   "search": {
@@ -495,7 +503,8 @@
           "title": "Dateien sortieren nach",
           "creationTime": "Erstellungszeit",
           "modificationTime": "Änderungszeit"
-        }
+        },
+        "watcherUsePolling": "Dateien in Intervallen auf Änderungen prüfen statt auf Betriebssystem-Benachrichtigungen zu warten — nur aktivieren, wenn externe Dateiänderungen auf Netzwerkpfaden nicht erkannt werden"
       },
       "misc": {
         "title": "Verschiedenes",
@@ -511,6 +520,14 @@
           "korean": "한국어",
           "portuguese": "Português"
         }
+      },
+      "sessionSnapshot": {
+        "title": "Sitzungsschnappschuss & regelmäßige Sicherung",
+        "description": "Sitzungsschnappschuss und regelmäßige Sicherung aktivieren: Alle Tabs beim nächsten Start wiederherstellen und beim Schließen nicht nach dem Speichern fragen (im Stil von Notepad++).",
+        "backupIntervalDescription": "Intervall für die regelmäßige Sicherung.",
+        "backupLocation": "Sicherungsort",
+        "selectFolder": "Ordner auswählen",
+        "defaultBackupLocation": "Standard: userData/backup"
       }
     },
     "editor": {
@@ -534,7 +551,9 @@
         "title": "Schreibverhalten",
         "autoCloseBrackets": "Klammern automatisch schließen",
         "autoCompleteMarkdown": "Markdown automatisch vervollständigen",
-        "autoCloseQuotes": "Anführungszeichen automatisch schließen"
+        "autoCloseQuotes": "Anführungszeichen automatisch schließen",
+        "surroundSelection": "Auswahl umschließen",
+        "surroundSelectionNotes": "Wenn Text ausgewählt ist, umschließt die Eingabe von Anführungszeichen oder Klammern die Auswahl, statt sie zu ersetzen. Beispiel: Bei ausgewähltem 'hello' erzeugt das Drücken von \" den Text \"hello\"."
       },
       "fileRepresentation": {
         "title": "Dateidarstellung",
@@ -889,7 +908,7 @@
       "saveAs": "Speichern unter",
       "moveFile": "Datei verschieben",
       "renameFile": "Datei umbenennen",
-      "quickOpen": "Schnell öffnen",
+      "quickOpen": "Zuletzt verwendete Dateien",
       "changeEncoding": "Kodierung ändern",
       "changeLineEnding": "Zeilenendezeichen ändern",
       "trailingNewline": "Abschließende neue Zeile",
@@ -918,54 +937,19 @@
       "pasteAsPlaintext": "Als reinen Text einfügen",
       "selectAll": "Alles auswählen",
       "duplicate": "Duplizieren",
-      "createParagraph": "Absatz erstellen",
-      "deleteParagraph": "Absatz löschen",
       "find": "Suchen",
       "findNext": "Weitersuchen",
       "findPrevious": "Rückwärts suchen",
       "replace": "Ersetzen",
       "findInFolder": "Im Ordner suchen",
       "screenshot": "Screenshot",
-      "mathBlock": "Mathe-Block"
+      "mathBlock": "Mathe-Block",
+      "toUpperCase": "In GROSSBUCHSTABEN",
+      "toLowerCase": "In Kleinbuchstaben",
+      "openInBrowser": "Im Browser öffnen"
     },
     "paragraph": {
-      "heading1": "Überschrift 1",
-      "heading2": "Überschrift 2",
-      "heading3": "Überschrift 3",
-      "heading4": "Überschrift 4",
-      "heading5": "Überschrift 5",
-      "heading6": "Überschrift 6",
-      "upgradeHeading": "Überschrift heraufstufen",
-      "degradeHeading": "Überschrift herabstufen",
-      "table": "Tabelle",
-      "codeFence": "Code-Block",
-      "quoteBlock": "Zitat-Block",
-      "mathFormula": "Mathematische Formel",
-      "htmlBlock": "HTML-Block",
-      "orderList": "Nummerierte Liste",
-      "bulletList": "Aufzählungsliste",
-      "taskList": "Aufgabenliste",
-      "looseListItem": "Lockeres Listenelement",
-      "paragraph": "Absatz",
-      "horizontalLine": "Horizontale Linie",
-      "frontMatter": "Front Matter",
-      "resetParagraph": "Absatz zurücksetzen",
-      "mathBlock": "Mathe-Block",
-      "horizontalRule": "Horizontale Linie"
-    },
-    "format": {
-      "strong": "Fett",
-      "emphasis": "Kursiv",
-      "underline": "Unterstrichen",
-      "superscript": "Hochgestellt",
-      "subscript": "Tiefgestellt",
-      "highlight": "Hervorhebung",
-      "inlineCode": "Inline-Code",
-      "inlineMath": "Inline-Mathematik",
-      "strike": "Durchgestrichen",
-      "hyperlink": "Hyperlink",
-      "image": "Bild",
-      "clearFormat": "Format löschen"
+      "resetParagraph": "Absatz zurücksetzen"
     },
     "window": {
       "minimize": "Minimieren",
@@ -1094,7 +1078,13 @@
       "exportSuccessTitle": "Erfolgreich exportiert",
       "exportSuccessMessage": "„{name}“ wurde erfolgreich exportiert!",
       "fileRemovedOnDisk": "„{name}“ wurde auf dem Datenträger gelöscht.",
-      "fileChangedOnDisk": "„{name}“ wurde auf dem Datenträger geändert. Möchten Sie neu laden?"
+      "fileChangedOnDisk": "„{name}“ wurde auf dem Datenträger geändert. Möchten Sie neu laden?",
+      "fileChangedTitle": "Datei auf dem Datenträger geändert",
+      "fileChangedReloadWarn": "„{name}\" wurde von einem anderen Programm geändert. Beim Neuladen gehen die nicht gespeicherten Änderungen im Editor verloren.",
+      "fileChangedReloadNoWarn": "„{name}\" wurde von einem anderen Programm geändert. Möchten Sie sie neu laden?",
+      "reloadFromDisk": "Neu laden",
+      "tooManyTabsTitle": "Viele Tabs geöffnet",
+      "tooManyTabsMsg": "Sie haben {count} Tabs geöffnet. Eine große Anzahl an Tabs kann den Editor verlangsamen — schließen Sie gegebenenfalls nicht mehr benötigte Tabs."
     },
     "help": {
       "lineEndingAssertionError": "Zeilenendezeichen-Assertion-Fehler"
@@ -1240,30 +1230,49 @@
     },
     "mermaidDiagram": {
       "title": "Mermaid-Diagramm"
+    },
+    "inlineFormat": "Inline-Format",
+    "bold": {
+      "title": "Fett",
+      "subtitle": "**Fett**"
+    },
+    "italic": {
+      "title": "Kursiv",
+      "subtitle": "*Kursiv*"
+    },
+    "underline": {
+      "title": "Unterstrichen",
+      "subtitle": "u tag"
+    },
+    "strikethrough": {
+      "title": "Durchgestrichen",
+      "subtitle": "~~Durchgestrichen~~"
+    },
+    "highlight": {
+      "title": "Hervorhebung",
+      "subtitle": "==Hervorhebung=="
+    },
+    "inlineCode": {
+      "title": "Inline-Code",
+      "subtitle": "`Code`"
+    },
+    "inlineMath": {
+      "title": "Inline-Formel",
+      "subtitle": "$Formel$"
+    },
+    "inlineLink": {
+      "title": "Link",
+      "subtitle": "[Link](url)"
+    },
+    "inlineImage": {
+      "title": "Bild",
+      "subtitle": "![Bild](url)"
     }
   },
   "frontMenu": {
     "duplicate": "Duplizieren",
-    "turnInto": "Stil",
     "newParagraph": "Neuer Absatz",
-    "delete": "Löschen",
-    "paragraph": "Absatz",
-    "table": "Tabelle",
-    "html": "HTML",
-    "mathblock": "Mathe-Block",
-    "pre": "Code-Block",
-    "frontMatter": "Front Matter",
-    "ulTask": "Aufgabenliste",
-    "ulBullet": "Aufzählungsliste",
-    "olOrder": "Nummerierte Liste",
-    "blockquote": "Blockzitat",
-    "heading1": "Überschrift 1",
-    "heading2": "Überschrift 2",
-    "heading3": "Überschrift 3",
-    "heading4": "Überschrift 4",
-    "heading5": "Überschrift 5",
-    "heading6": "Überschrift 6",
-    "hr": "Horizontale Linie"
+    "delete": "Löschen"
   },
   "editor": {
     "image": {
@@ -1384,5 +1393,36 @@
     "copy": "Kopieren",
     "paste": "Einfügen",
     "selectAll": "Alles auswählen"
+  },
+  "statusBar": {
+    "toggleWrap": "Zeilenumbruch umschalten",
+    "resetZoom": "Zoom zurücksetzen (Strg+0)",
+    "toggleSource": "Quelltext/Markdown umschalten (Strg+E)",
+    "nonMarkdown": "Nur Quelltext: keine Markdown-Datei",
+    "wrapUnavailable": "Umbruch im Markdown-Modus nicht verfügbar",
+    "otherCharsets": "Andere Zeichensätze",
+    "encodingGroup": {
+      "arabic": "Arabisch",
+      "baltic": "Baltisch",
+      "cyrillic": "Kyrillisch",
+      "centralEuropean": "Mitteleuropäisch",
+      "chinese": "Chinesisch",
+      "easternEuropean": "Osteuropäisch",
+      "greek": "Griechisch",
+      "hebrew": "Hebräisch",
+      "japanese": "Japanisch",
+      "korean": "Koreanisch",
+      "northernEuropean": "Nordeuropäisch",
+      "turkish": "Türkisch",
+      "westernEuropean": "Westeuropäisch"
+    }
+  },
+  "theme": {
+    "cadmiumLight": "Cadmium Hell",
+    "dark": "Dunkel",
+    "graphiteLight": "Graphit Hell",
+    "materialDark": "Material Dunkel",
+    "oneDark": "One Dark",
+    "ulyssesLight": "Ulysses Hell"
   }
 }

@@ -93,6 +93,12 @@
           :on-change="(value) => onSelectChange('fileSortBy', value)"
           :disable="true"
         />
+
+        <bool
+          :description="t('preferences.general.sidebar.watcherUsePolling')"
+          :bool="watcherUsePolling"
+          :on-change="(value) => onSelectChange('watcherUsePolling', value)"
+        />
       </template>
     </compound>
 
@@ -105,10 +111,6 @@
       <template #children>
         <section class="startup-action-ctrl">
           <el-radio-group v-model="startUpAction">
-            <!--
-              Hide "lastState" for now (#2064).
-            <el-radio class="ag-underdevelop" label="lastState">Restore last editor session</el-radio>
-            -->
             <div class="startup-option">
               <el-radio value="folder">
                 {{ t('preferences.general.startup.openDefaultDirectory') }}
@@ -137,17 +139,17 @@
     <compound>
       <template #head>
         <h6 class="title">
-          Session snapshot &amp; periodic backup
+          {{ t('preferences.general.sessionSnapshot.title') }}
         </h6>
       </template>
       <template #children>
         <bool
-          description="Enable session snapshot and periodic backup: restore all tabs on next launch and do not ask to save on close (Notepad++ style)."
+          :description="t('preferences.general.sessionSnapshot.description')"
           :bool="sessionSnapshotEnabled"
           :on-change="(value) => onSelectChange('sessionSnapshotEnabled', value)"
         />
         <range
-          description="Periodic backup interval."
+          :description="t('preferences.general.sessionSnapshot.backupIntervalDescription')"
           :value="sessionBackupInterval"
           :min="1"
           :max="600"
@@ -157,12 +159,12 @@
         />
         <section class="startup-action-ctrl">
           <div class="startup-option">
-            <span>Backup location</span>
+            <span>{{ t('preferences.general.sessionSnapshot.backupLocation') }}</span>
             <el-button
               size="small"
               @click="selectSessionBackupPath"
             >
-              Select folder
+              {{ t('preferences.general.sessionSnapshot.selectFolder') }}
             </el-button>
             <span
               v-if="sessionBackupPath"
@@ -171,7 +173,7 @@
             <span
               v-else
               class="directory-path"
-            >Default: &lt;userData&gt;/backup</span>
+            >{{ t('preferences.general.sessionSnapshot.defaultBackupLocation') }}</span>
           </div>
         </section>
       </template>
@@ -232,7 +234,8 @@ const {
   language,
   sessionSnapshotEnabled,
   sessionBackupPath,
-  sessionBackupInterval
+  sessionBackupInterval,
+  watcherUsePolling
 } = storeToRefs(preferenceStore)
 
 const startUpAction = computed({

@@ -175,12 +175,34 @@ class Keyboard {
         return
       }
       switch (event.key) {
-        case EVENT_KEYS.Backspace:
+        case EVENT_KEYS.Backspace: {
+          // [PARTE-F-DEBUG] log temporaneo: diagnosi Ctrl+Backspace non funzionante nei code block.
+          const debugNode = selection.getSelectionStart()
+          const debugParagraph = debugNode && findNearestParagraph(debugNode)
+          const debugBlock = debugParagraph && contentState.getBlock(debugParagraph.id)
+          console.log(
+            `[PARTE-F-DEBUG] keyboard.js Backspace keydown ctrlKey=${event.ctrlKey} metaKey=${event.metaKey} altKey=${event.altKey} blockType=${debugBlock && debugBlock.type} blockFunctionType=${debugBlock && debugBlock.functionType}`
+          )
           contentState.backspaceHandler(event)
+          console.log(
+            `[PARTE-F-DEBUG] keyboard.js Backspace keydown defaultPrevented=${event.defaultPrevented}`
+          )
           break
-        case EVENT_KEYS.Delete:
+        }
+        case EVENT_KEYS.Delete: {
+          // [PARTE-F-DEBUG] log temporaneo: percorso Delete (funzionante) per confronto con Backspace.
+          const debugNodeDel = selection.getSelectionStart()
+          const debugParagraphDel = debugNodeDel && findNearestParagraph(debugNodeDel)
+          const debugBlockDel = debugParagraphDel && contentState.getBlock(debugParagraphDel.id)
+          console.log(
+            `[PARTE-F-DEBUG] keyboard.js Delete keydown ctrlKey=${event.ctrlKey} metaKey=${event.metaKey} altKey=${event.altKey} blockType=${debugBlockDel && debugBlockDel.type} blockFunctionType=${debugBlockDel && debugBlockDel.functionType}`
+          )
           contentState.deleteHandler(event)
+          console.log(
+            `[PARTE-F-DEBUG] keyboard.js Delete keydown defaultPrevented=${event.defaultPrevented}`
+          )
           break
+        }
         case EVENT_KEYS.Enter:
           if (!this.isComposed) {
             contentState.enterHandler(event)

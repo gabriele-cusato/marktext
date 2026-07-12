@@ -15,6 +15,329 @@ import { getFonts } from 'font-list'
 
 const DATA_CENTER_NAME = 'dataCenter'
 
+// Chiavi di registro Windows contenenti i font installati (a livello macchina e per utente).
+const WINDOWS_FONT_REGISTRY_KEYS = [
+  'HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts',
+  'HKCU\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts'
+]
+
+/**
+ * Legge i font installati da registro Windows tramite `reg query`.
+ * Fallback usato quando `font-list` fallisce (es. PowerShell/WSH bloccati da policy aziendale):
+ * `reg.exe` non dipende da Add-Type/cscript quindi non è soggetto agli stessi blocchi.
+ * Ritorna un array di nomi famiglia, stessa shape di `getFonts()` di `font-list`.
+ */
+function queryFontRegistryKey(key) {
+  return new Promise((resolve) => {
+    execFile('reg', ['query', key], (err, stdout) => {
+      // Una chiave assente (es. HKCU senza font per-utente) non deve far fallire il totale.
+      if (err) return resolve([])
+      resolve(String(stdout || '').split(/\r?\n/))
+    })
+  })
+}
+
+async function getFontsFromRegistry() {
+  const linesPerKey = await Promise.all(WINDOWS_FONT_REGISTRY_KEYS.map(queryFontRegistryKey))
+  const families = new Set()
+  for (const lines of linesPerKey) {
+    for (const line of lines) {
+      // Righe dati hanno formato: "    NomeValore    REG_SZ    file.ttf"
+      const match = line.match(/^\s{4}(.+?)\s{4}REG_(?:SZ|MULTI_SZ|EXPAND_SZ)\s{4}/)
+      if (!match) continue
+      // Il nome valore è tipo "Arial (TrueType)": togliere il suffisso finale tra parentesi.
+      const family = match[1].replace(/\s*\([^()]*\)\s*$/, '').trim()
+      if (family) families.add(family)
+    }
+  }
+  return Array.from(families).sort((a, b) => a.localeCompare(b))
+}
+
+// --- Ricerca contenuto in cartella (mt::search-in-folder) ---------------------------------
+
+// Tetti coerenti con quelli della sidebar di ricerca esistente (search.vue: MAX_MATCHES_PER_TAB/
+// MAX_MATCHES_TOTAL), riusati qui per il motore di ricerca su cartella.
+const SEARCH_MAX_MATCHES_PER_FILE = 500
+const SEARCH_MAX_MATCHES_TOTAL = 2000
+// Lunghezza massima (in caratteri) della riga restituita al chiamante: oltre questa soglia si
+// tronca centrando la finestra sul match, per non spedire righe enormi (es. minified) al renderer.
+const SEARCH_MAX_LINE_TEXT_LENGTH = 250
+// Timeout di sicurezza per cartelle enormi: oltre questa soglia si termina rg e si ritorna
+// quanto raccolto finora con `truncated: true`.
+const SEARCH_TIMEOUT_MS = 30000
+
+// Estensioni di file non testuali da escludere sempre dalla ricerca contenuto (oltre a
+// IMAGE_EXTENSIONS): evitano sia falsi match binari sia I/O inutile su file che rg scarterebbe
+// comunque per contenuto. Elenco non esaustivo ma copre i formati più comuni.
+const SEARCH_BASE_EXCLUDED_EXTENSIONS = Object.freeze([
+  ...IMAGE_EXTENSIONS,
+  // video
+  'mp4',
+  'mkv',
+  'mov',
+  'avi',
+  'webm',
+  // audio
+  'mp3',
+  'wav',
+  'flac',
+  'ogg',
+  'm4a',
+  // archivi
+  'zip',
+  'rar',
+  '7z',
+  'tar',
+  'gz',
+  // binari/eseguibili noti
+  'exe',
+  'dll',
+  'so',
+  'dylib',
+  'bin',
+  'pdf',
+  'ico',
+  'woff',
+  'woff2',
+  'ttf',
+  'eot'
+])
+
+// Default delle preferenze `search*` (schema.json): usati quando la preferenza non è ancora
+// stata scritta su disco o in caso di errore di lettura.
+const SEARCH_PREFERENCE_DEFAULTS = Object.freeze({
+  searchExclusions: [],
+  searchMaxFileSize: '',
+  searchIncludeHidden: false,
+  searchNoIgnore: false,
+  searchFollowSymlinks: true
+})
+
+/**
+ * Legge i valori correnti delle preferenze `search*` dal file preferenze utente.
+ * DataCenter non riceve un riferimento all'istanza `Preference` (costruita separatamente in
+ * `app/accessor.js`), quindi qui si apre in sola lettura lo stesso store electron-store
+ * (`name: 'preferences'`) usato da `Preference`, senza passare schema (nessuna scrittura prevista).
+ */
+function readSearchPreferences() {
+  try {
+    const preferencesStore = new Store({ name: 'preferences' })
+    return {
+      searchExclusions: preferencesStore.get(
+        'searchExclusions',
+        SEARCH_PREFERENCE_DEFAULTS.searchExclusions
+      ),
+      searchMaxFileSize: preferencesStore.get(
+        'searchMaxFileSize',
+        SEARCH_PREFERENCE_DEFAULTS.searchMaxFileSize
+      ),
+      searchIncludeHidden: preferencesStore.get(
+        'searchIncludeHidden',
+        SEARCH_PREFERENCE_DEFAULTS.searchIncludeHidden
+      ),
+      searchNoIgnore: preferencesStore.get(
+        'searchNoIgnore',
+        SEARCH_PREFERENCE_DEFAULTS.searchNoIgnore
+      ),
+      searchFollowSymlinks: preferencesStore.get(
+        'searchFollowSymlinks',
+        SEARCH_PREFERENCE_DEFAULTS.searchFollowSymlinks
+      )
+    }
+  } catch (err) {
+    log.error('Impossibile leggere le preferenze di ricerca, uso i default:', err)
+    return { ...SEARCH_PREFERENCE_DEFAULTS }
+  }
+}
+
+/**
+ * Ritorna il buffer di byte grezzo di un campo testo di rg (`--json`): rg usa la chiave `text`
+ * quando il contenuto è UTF-8 valido, altrimenti `bytes` (base64) per dati binari/non-UTF8.
+ * Serve il buffer (non la stringa) per convertire correttamente gli offset byte→carattere.
+ */
+function rgFieldToBuffer(field) {
+  if (!field) return Buffer.alloc(0)
+  if (typeof field.text === 'string') return Buffer.from(field.text, 'utf8')
+  if (typeof field.bytes === 'string') return Buffer.from(field.bytes, 'base64')
+  return Buffer.alloc(0)
+}
+
+/**
+ * Converte un offset in byte (come riportato da rg nei submatch) nel corrispondente offset in
+ * caratteri JS dentro il buffer di riga: necessario perché rg conta in byte UTF-8 mentre
+ * `lineText` è una stringa JS (indicizzata per unità UTF-16).
+ */
+function rgByteOffsetToCharOffset(lineBuffer, byteOffset) {
+  return lineBuffer.slice(0, byteOffset).toString('utf8').length
+}
+
+/**
+ * Tronca `lineText` a `SEARCH_MAX_LINE_TEXT_LENGTH` caratteri centrando la finestra sul match
+ * (start/end), così il match resta visibile anche su righe molto lunghe (es. minified). Ricalcola
+ * start/end relativi al testo troncato, tenendo conto dei marcatori di troncamento (`…`).
+ */
+function truncateLineText(lineText, start, end) {
+  if (lineText.length <= SEARCH_MAX_LINE_TEXT_LENGTH) {
+    return { text: lineText, start, end }
+  }
+  const matchLength = Math.max(end - start, 0)
+  const contextBudget = Math.max(SEARCH_MAX_LINE_TEXT_LENGTH - matchLength, 0)
+  const before = Math.floor(contextBudget / 2)
+  let windowStart = Math.max(0, start - before)
+  let windowEnd = Math.min(lineText.length, windowStart + SEARCH_MAX_LINE_TEXT_LENGTH)
+  windowStart = Math.max(0, windowEnd - SEARCH_MAX_LINE_TEXT_LENGTH)
+  const prefix = windowStart > 0 ? '…' : ''
+  const suffix = windowEnd < lineText.length ? '…' : ''
+  const text = prefix + lineText.slice(windowStart, windowEnd) + suffix
+  const shift = windowStart - prefix.length
+  return { text, start: start - shift, end: end - shift }
+}
+
+/**
+ * Cerca `query` nel contenuto dei file sotto `directory` tramite ripgrep e ritorna i match
+ * strutturati. Funzione pura (nessuna dipendenza da `this`/IPC) riusabile sia dall'handler
+ * `mt::search-in-folder` sia, in futuro, da codice main che non passa da IPC (es. task2:
+ * `_createFolderSearchWindow` potrà richiamarla direttamente).
+ *
+ * @param {string} directory Cartella radice da cercare.
+ * @param {string} query Testo o pattern regex da cercare.
+ * @param {{isCaseSensitive?: boolean, isWholeWord?: boolean, isRegexp?: boolean,
+ *   exclusions?: string[]}} options Opzioni della query, dall'overlay di ricerca.
+ * @param {{searchExclusions: string[], searchMaxFileSize: string, searchIncludeHidden: boolean,
+ *   searchNoIgnore: boolean, searchFollowSymlinks: boolean}} preferences Default persistenti
+ *   delle preferenze `search*` (vedi `readSearchPreferences`).
+ * @returns {Promise<{results: Array<{filePath: string, matches: Array<{line: number, start:
+ *   number, end: number, lineText: string}>>}>, truncated: boolean, error?: string}>}
+ */
+function searchInFolder(directory, query, options = {}, preferences = SEARCH_PREFERENCE_DEFAULTS) {
+  if (!query) {
+    return Promise.resolve({ results: [], truncated: false })
+  }
+  if (!directory || !fs.existsSync(directory)) {
+    return Promise.resolve({
+      results: [],
+      truncated: false,
+      error: `Cartella non trovata: ${directory}`
+    })
+  }
+
+  const rg =
+    process.env.MARKTEXT_RIPGREP_PATH || vscodeRgPath.replace(/\bapp\.asar\b/, 'app.asar.unpacked')
+
+  const args = ['--json']
+  if (options.isRegexp) {
+    // pattern regex: nessun flag aggiuntivo, la query è passata così com'è a rg
+  } else {
+    args.push('--fixed-strings')
+  }
+  if (!options.isCaseSensitive) args.push('--ignore-case')
+  if (options.isWholeWord) args.push('--word-regexp')
+  if (preferences.searchMaxFileSize) args.push('--max-filesize', preferences.searchMaxFileSize)
+  if (preferences.searchIncludeHidden) args.push('--hidden')
+  if (preferences.searchNoIgnore) args.push('--no-ignore')
+  if (preferences.searchFollowSymlinks) args.push('--follow')
+  for (const ext of SEARCH_BASE_EXCLUDED_EXTENSIONS) args.push('-g', `!*.${ext}`)
+  const userExclusions = Array.isArray(options.exclusions)
+    ? options.exclusions
+    : preferences.searchExclusions || []
+  for (const pattern of userExclusions) {
+    if (pattern) args.push('-g', `!${pattern}`)
+  }
+  args.push('--', query, directory)
+
+  return new Promise((resolve) => {
+    let child
+    try {
+      child = spawn(rg, args, { cwd: directory, stdio: ['ignore', 'pipe', 'pipe'] })
+    } catch (err) {
+      resolve({ results: [], truncated: false, error: err.message })
+      return
+    }
+
+    const resultsByFile = new Map()
+    let totalMatches = 0
+    let truncated = false
+    let stopped = false
+    let done = false
+    let stdoutBuffer = ''
+    let stderrBuffer = ''
+
+    const timeoutHandle = setTimeout(() => {
+      truncated = true
+      stopped = true
+      child.kill()
+    }, SEARCH_TIMEOUT_MS)
+
+    const finish = (extra = {}) => {
+      if (done) return
+      done = true
+      clearTimeout(timeoutHandle)
+      const results = Array.from(resultsByFile.entries()).map(([filePath, matches]) => ({
+        filePath,
+        matches
+      }))
+      resolve({ results, truncated, ...extra })
+    }
+
+    child.stdout.on('data', (chunk) => {
+      if (done || stopped) return
+      stdoutBuffer += chunk
+      const lines = stdoutBuffer.split('\n')
+      stdoutBuffer = lines.pop()
+      for (const line of lines) {
+        if (!line) continue
+        let event
+        try {
+          event = JSON.parse(line)
+        } catch {
+          continue
+        }
+        if (!event || event.type !== 'match') continue
+        const data = event.data
+        const filePath = rgFieldToBuffer(data.path).toString('utf8')
+        const lineNumber = data.line_number
+        const lineBuffer = rgFieldToBuffer(data.lines)
+        const lineTextFull = lineBuffer.toString('utf8').replace(/\r?\n$/, '')
+        let fileMatches = resultsByFile.get(filePath)
+        if (!fileMatches) {
+          fileMatches = []
+          resultsByFile.set(filePath, fileMatches)
+        }
+        for (const submatch of data.submatches || []) {
+          if (fileMatches.length >= SEARCH_MAX_MATCHES_PER_FILE || totalMatches >= SEARCH_MAX_MATCHES_TOTAL) {
+            truncated = true
+            stopped = true
+            child.kill()
+            break
+          }
+          const startChar = rgByteOffsetToCharOffset(lineBuffer, submatch.start)
+          const endChar = rgByteOffsetToCharOffset(lineBuffer, submatch.end)
+          const { text: lineText, start, end } = truncateLineText(lineTextFull, startChar, endChar)
+          fileMatches.push({ line: lineNumber, start, end, lineText })
+          totalMatches++
+        }
+        if (stopped) break
+      }
+    })
+
+    child.stderr.on('data', (chunk) => {
+      stderrBuffer += chunk
+    })
+
+    child.on('error', (err) => finish({ error: err.message }))
+
+    child.on('close', (code) => {
+      // Codice 0 = match trovati, 1 = nessun match (non è un errore), >1 = errore rg (es. regex
+      // non valida, path inaccessibile): lo si segnala solo se non erano già stati raccolti match.
+      if (code !== null && code > 1 && totalMatches === 0) {
+        finish({ error: stderrBuffer.trim() || `ripgrep è uscito con codice ${code}` })
+      } else {
+        finish()
+      }
+    })
+  })
+}
+
 class DataCenter extends EventEmitter {
   constructor(paths) {
     super()
@@ -310,10 +633,19 @@ class DataCenter extends EventEmitter {
 
     ipcMain.handle('mt::get-system-fonts', async () => {
       try {
-        return await getFonts()
+        const fonts = await getFonts()
+        if (fonts && fonts.length) return fonts
       } catch {
-        return []
+        // fallthrough al fallback da registro (solo Windows)
       }
+      if (process.platform === 'win32') {
+        try {
+          return await getFontsFromRegistry()
+        } catch {
+          return []
+        }
+      }
+      return []
     })
 
     ipcMain.handle('mt::search-files', async (e, { directories, inclusions, options = {} }) => {
@@ -391,7 +723,16 @@ class DataCenter extends EventEmitter {
       }
       return results
     })
+
+    // Ricerca full-text nel contenuto di una cartella (thin wrapper IPC su `searchInFolder`):
+    // legge i default persistenti dalle preferenze `search*` e li passa alla funzione riusabile,
+    // che il task2 potrà richiamare direttamente dal main senza passare da IPC.
+    ipcMain.handle('mt::search-in-folder', async (e, { directory, query, options = {} } = {}) => {
+      const preferences = readSearchPreferences()
+      return searchInFolder(directory, query, options, preferences)
+    })
   }
 }
 
 export default DataCenter
+export { searchInFolder, readSearchPreferences }

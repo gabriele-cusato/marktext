@@ -121,6 +121,7 @@ import { addCommonStyle, setEditorWidth, setWrapCodeBlocks } from '@/util/theme'
 import { usePreferencesStore } from '@/store/preferences'
 import { useEditorStore } from '@/store/editor'
 import { useProjectStore } from '@/store/project'
+import { useCommandCenterStore } from '@/store/commandCenter'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 
@@ -155,6 +156,7 @@ const props = defineProps({
 const preferencesStore = usePreferencesStore()
 const editorStore = useEditorStore()
 const projectStore = useProjectStore()
+const commandCenterStore = useCommandCenterStore()
 
 // Use storeToRefs to extract reactive properties from the stores
 const {
@@ -1153,7 +1155,11 @@ onMounted(() => {
     imagePathPicker,
     clipboardFilePath: guessClipboardFilePath,
     imagePathAutoComplete,
-    t // 添加翻译函数
+    t, // 添加翻译函数
+    // Label shortcut nei menu Muya (front menu / quick insert / format picker) derivati dai
+    // binding reali. Chiusura sullo store: legge `keybindingMap` al momento della chiamata, quindi
+    // resta corretta anche se i binding arrivano via IPC dopo la creazione di questa istanza Muya.
+    getShortcut: (commandId) => commandCenterStore.getShortcut(commandId)
   }
 
   if (/dark/i.test(theme.value)) {

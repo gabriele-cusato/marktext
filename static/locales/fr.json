@@ -55,7 +55,10 @@
       "screenshot": "Capture d'écran",
       "lineEnding": "Fin de ligne",
       "lineEndingCrlf": "CRLF (Windows)",
-      "lineEndingLf": "LF (Linux/Mac)"
+      "lineEndingLf": "LF (Linux/Mac)",
+      "toUpperCase": "En MAJUSCULES",
+      "toLowerCase": "En minuscules",
+      "openInBrowser": "Ouvrir dans le navigateur"
     },
     "paragraph": {
       "title": "Paragraphe",
@@ -179,7 +182,8 @@
       "graphiteLight": "Graphite clair",
       "materialDark": "Material sombre",
       "oneDark": "One Dark",
-      "ulyssesLight": "Ulysses clair"
+      "ulyssesLight": "Ulysses clair",
+      "tufte": "Tufte"
     }
   },
   "contextMenu": {
@@ -212,7 +216,11 @@
       "closeAllTabs": "Fermer tous les onglets",
       "rename": "Renommer",
       "copyPath": "Copier le chemin",
-      "showInFolder": "Afficher dans le dossier"
+      "showInFolder": "Afficher dans le dossier",
+      "pin": "Épingler l'onglet",
+      "unpin": "Détacher l'onglet",
+      "moveToNewWindow": "Déplacer vers une nouvelle fenêtre",
+      "reload": "Recharger"
     }
   },
   "search": {
@@ -225,7 +233,6 @@
     "replaceSingle": "Remplacer un",
     "invalidRegex": "Expression régulière invalide \"{pattern}\"",
     "regexMatchEmpty": "L'expression régulière correspond à une chaîne vide \"{pattern}\"",
-    "searchResultCount": "Résultats de recherche",
     "searchResultInfo": "{matchCount} correspondances dans {fileCount} fichiers",
     "searchLimited": "Recherche limitée aux {count} premiers résultats"
   },
@@ -496,7 +503,8 @@
           "title": "Trier les fichiers par",
           "creationTime": "Heure de création",
           "modificationTime": "Heure de modification"
-        }
+        },
+        "watcherUsePolling": "Vérifier périodiquement les modifications des fichiers au lieu des notifications du système d'exploitation — activer uniquement si les modifications externes sur des chemins réseau ne sont pas détectées"
       },
       "misc": {
         "title": "Divers",
@@ -512,6 +520,14 @@
           "korean": "한국어",
           "portuguese": "Português"
         }
+      },
+      "sessionSnapshot": {
+        "title": "Instantané de session et sauvegarde périodique",
+        "description": "Activer l'instantané de session et la sauvegarde périodique : restaurer tous les onglets au prochain démarrage et ne pas demander d'enregistrer à la fermeture (style Notepad++).",
+        "backupIntervalDescription": "Intervalle de la sauvegarde périodique.",
+        "backupLocation": "Emplacement de sauvegarde",
+        "selectFolder": "Sélectionner un dossier",
+        "defaultBackupLocation": "Par défaut : userData/backup"
       }
     },
     "editor": {
@@ -535,7 +551,9 @@
         "title": "Comportement d'écriture",
         "autoCloseBrackets": "Fermeture automatique des crochets",
         "autoCompleteMarkdown": "Autocomplétion Markdown",
-        "autoCloseQuotes": "Fermeture automatique des guillemets"
+        "autoCloseQuotes": "Fermeture automatique des guillemets",
+        "surroundSelection": "Entourer la sélection",
+        "surroundSelectionNotes": "Lorsqu'un texte est sélectionné, taper des guillemets ou des crochets entoure la sélection au lieu de la remplacer. Par exemple, en sélectionnant 'hello' et en appuyant sur \", on obtient \"hello\"."
       },
       "fileRepresentation": {
         "title": "Représentation de fichier",
@@ -631,7 +649,6 @@
         "npmInstallCommand": "npm install picgo -g",
         "yarnInstallCommand": "yarn global add picgo",
         "pnpmInstallCommand": "pnpm add -g picgo",
-        "brewInstallCommand": "brew install picgo",
         "chooseInstallMethod": "Choisir la méthode d'installation :",
         "retestPicgo": "Retester",
         "detecting": "Détection en cours...",
@@ -891,7 +908,7 @@
       "saveAs": "Enregistrer sous",
       "moveFile": "Déplacer le fichier",
       "renameFile": "Renommer le fichier",
-      "quickOpen": "Ouverture rapide",
+      "quickOpen": "Fichiers récents",
       "changeEncoding": "Changer l'encodage",
       "changeLineEnding": "Changer la fin de ligne",
       "trailingNewline": "Nouvelle ligne de fin",
@@ -920,54 +937,19 @@
       "pasteAsPlaintext": "Coller en texte brut",
       "selectAll": "Sélectionner tout",
       "duplicate": "Dupliquer",
-      "createParagraph": "Créer un paragraphe",
-      "deleteParagraph": "Supprimer le paragraphe",
       "find": "Rechercher",
       "findNext": "Rechercher suivant",
       "findPrevious": "Rechercher précédent",
       "replace": "Remplacer",
       "findInFolder": "Rechercher dans le dossier",
       "screenshot": "Capture d'écran",
-      "mathBlock": "Bloc mathématique"
+      "mathBlock": "Bloc mathématique",
+      "toUpperCase": "En MAJUSCULES",
+      "toLowerCase": "En minuscules",
+      "openInBrowser": "Ouvrir dans le navigateur"
     },
     "paragraph": {
-      "heading1": "Titre 1",
-      "heading2": "Titre 2",
-      "heading3": "Titre 3",
-      "heading4": "Titre 4",
-      "heading5": "Titre 5",
-      "heading6": "Titre 6",
-      "upgradeHeading": "Promouvoir le titre",
-      "degradeHeading": "Rétrograder le titre",
-      "table": "Tableau",
-      "codeFence": "Clôture de code",
-      "quoteBlock": "Bloc de citation",
-      "mathFormula": "Formule mathématique",
-      "htmlBlock": "Bloc HTML",
-      "orderList": "Liste ordonnée",
-      "bulletList": "Liste à puces",
-      "taskList": "Liste de tâches",
-      "looseListItem": "Élément de liste lâche",
-      "paragraph": "Paragraphe",
-      "horizontalLine": "Ligne horizontale",
-      "frontMatter": "Métadonnées",
-      "resetParagraph": "Réinitialiser le paragraphe",
-      "mathBlock": "Bloc mathématique",
-      "horizontalRule": "Ligne horizontale"
-    },
-    "format": {
-      "strong": "Gras",
-      "emphasis": "Italique",
-      "underline": "Souligné",
-      "superscript": "Exposant",
-      "subscript": "Indice",
-      "highlight": "Surlignage",
-      "inlineCode": "Code en ligne",
-      "inlineMath": "Math en ligne",
-      "strike": "Barré",
-      "hyperlink": "Hyperlien",
-      "image": "Image",
-      "clearFormat": "Effacer le format"
+      "resetParagraph": "Réinitialiser le paragraphe"
     },
     "window": {
       "minimize": "Réduire",
@@ -1096,7 +1078,13 @@
       "exportSuccessTitle": "Exportation réussie",
       "exportSuccessMessage": "« {name} » a été exporté avec succès !",
       "fileRemovedOnDisk": "« {name} » a été supprimé du disque.",
-      "fileChangedOnDisk": "« {name} » a été modifié sur le disque. Voulez-vous le recharger ?"
+      "fileChangedOnDisk": "« {name} » a été modifié sur le disque. Voulez-vous le recharger ?",
+      "fileChangedTitle": "Fichier modifié sur le disque",
+      "fileChangedReloadWarn": "« {name} » a été modifié par un autre programme. Le recharger annulera les modifications non enregistrées dans l'éditeur.",
+      "fileChangedReloadNoWarn": "« {name} » a été modifié par un autre programme. Voulez-vous le recharger ?",
+      "reloadFromDisk": "Recharger",
+      "tooManyTabsTitle": "Nombreux onglets ouverts",
+      "tooManyTabsMsg": "Vous avez {count} onglets ouverts. Un grand nombre d'onglets peut ralentir l'éditeur — pensez à fermer ceux dont vous n'avez plus besoin."
     },
     "help": {
       "lineEndingAssertionError": "Erreur d'assertion de fin de ligne"
@@ -1242,30 +1230,49 @@
     },
     "mermaidDiagram": {
       "title": "Diagramme Mermaid"
+    },
+    "inlineFormat": "Format en ligne",
+    "bold": {
+      "title": "Gras",
+      "subtitle": "**Gras**"
+    },
+    "italic": {
+      "title": "Italique",
+      "subtitle": "*Italique*"
+    },
+    "underline": {
+      "title": "Souligné",
+      "subtitle": "u tag"
+    },
+    "strikethrough": {
+      "title": "Barré",
+      "subtitle": "~~Barré~~"
+    },
+    "highlight": {
+      "title": "Surbrillance",
+      "subtitle": "==Surbrillance=="
+    },
+    "inlineCode": {
+      "title": "Code en ligne",
+      "subtitle": "`Code`"
+    },
+    "inlineMath": {
+      "title": "Formule en ligne",
+      "subtitle": "$Formule$"
+    },
+    "inlineLink": {
+      "title": "Lien",
+      "subtitle": "[Lien](url)"
+    },
+    "inlineImage": {
+      "title": "Image",
+      "subtitle": "![Image](url)"
     }
   },
   "frontMenu": {
     "duplicate": "Dupliquer",
-    "turnInto": "Style",
     "newParagraph": "Nouveau paragraphe",
-    "delete": "Supprimer",
-    "paragraph": "Paragraphe",
-    "table": "Tableau",
-    "html": "HTML",
-    "mathblock": "Bloc mathématique",
-    "pre": "Bloc de code",
-    "frontMatter": "Métadonnées",
-    "ulTask": "Liste de tâches",
-    "ulBullet": "Liste à puces",
-    "olOrder": "Liste ordonnée",
-    "blockquote": "Citation",
-    "heading1": "Titre 1",
-    "heading2": "Titre 2",
-    "heading3": "Titre 3",
-    "heading4": "Titre 4",
-    "heading5": "Titre 5",
-    "heading6": "Titre 6",
-    "hr": "Ligne horizontale"
+    "delete": "Supprimer"
   },
   "editor": {
     "image": {
@@ -1386,5 +1393,36 @@
     "copy": "Copier",
     "paste": "Coller",
     "selectAll": "Tout sélectionner"
+  },
+  "statusBar": {
+    "toggleWrap": "Basculer le retour à la ligne",
+    "resetZoom": "Réinitialiser le zoom (Ctrl+0)",
+    "toggleSource": "Basculer Source / Markdown (Ctrl+E)",
+    "nonMarkdown": "Source uniquement : fichier non markdown",
+    "wrapUnavailable": "Retour à la ligne non disponible en mode markdown",
+    "otherCharsets": "Autres jeux de caractères",
+    "encodingGroup": {
+      "arabic": "Arabe",
+      "baltic": "Balte",
+      "cyrillic": "Cyrillique",
+      "centralEuropean": "Europe centrale",
+      "chinese": "Chinois",
+      "easternEuropean": "Europe de l'Est",
+      "greek": "Grec",
+      "hebrew": "Hébreu",
+      "japanese": "Japonais",
+      "korean": "Coréen",
+      "northernEuropean": "Europe du Nord",
+      "turkish": "Turc",
+      "westernEuropean": "Europe occidentale"
+    }
+  },
+  "theme": {
+    "cadmiumLight": "Cadmium clair",
+    "dark": "Sombre",
+    "graphiteLight": "Graphite clair",
+    "materialDark": "Material sombre",
+    "oneDark": "One Dark",
+    "ulyssesLight": "Ulysses clair"
   }
 }

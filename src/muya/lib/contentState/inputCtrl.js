@@ -31,12 +31,29 @@ const BACK_HASH = {
 // TODO: refactor later.
 let renderCodeBlockTimer = null
 
+// `@` a metà paragrafo: cerca `@parola` subito prima del cursore, con `@` preceduta da inizio
+// riga o da uno spazio (evita falsi trigger dentro indirizzi tipo "user@example").
+const MID_LINE_QUICK_INSERT = /(^|\s)@(\S*)$/
+
 const inputCtrl = (ContentState) => {
   // Input @ to quick insert paragraph
-  ContentState.prototype.checkQuickInsert = function (block) {
+  // Posizione-aware: a inizio blocco (l'intero testo del blocco è `@parola`) restituisce il menu
+  // completo (blocchi + inline); a metà paragrafo, se il testo fino al cursore termina con
+  // `@parola`, restituisce solo la modalità inline. `offset` è la posizione del cursore nel testo
+  // del blocco (0 di default per compatibilità con chiamate che non lo passano).
+  ContentState.prototype.checkQuickInsert = function (block, offset = 0) {
     const { type, text, functionType } = block
     if (type !== 'span' || functionType !== 'paragraphContent') return false
-    return /^@\S*$/.test(text)
+    if (/^@\S*$/.test(text)) {
+      return { atLineStart: true, tokenStart: 0, tokenEnd: text.length }
+    }
+    const beforeCursor = text.substring(0, offset)
+    const match = MID_LINE_QUICK_INSERT.exec(beforeCursor)
+    if (match) {
+      const tokenStart = match.index + match[1].length
+      return { atLineStart: false, tokenStart, tokenEnd: offset }
+    }
+    return false
   }
 
   ContentState.prototype.checkCursorInTokenType = function (functionType, text, offset, type) {
@@ -320,7 +337,7 @@ const inputCtrl = (ContentState) => {
 
     // show quick insert
     const rect = paragraph.getBoundingClientRect()
-    const checkQuickInsert = this.checkQuickInsert(block)
+    const checkQuickInsert = this.checkQuickInsert(block, start.offset)
     const reference = this.getPositionReference()
     reference.getBoundingClientRect = function () {
       const { x, y, left, top, height, bottom } = rect
@@ -340,7 +357,19 @@ const inputCtrl = (ContentState) => {
       )
     }
 
-    this.muya.eventCenter.dispatch('muya-quick-insert', reference, block, !!checkQuickInsert)
+    // Quarto argomento `matchInfo` aggiunto in coda (parametro nuovo, non rompe il consumer
+    // esistente che legge solo i primi tre): oggetto `{ atLineStart, tokenStart, tokenEnd }` (o
+    // `null` se il trigger non è scattato). Permette al consumer di sapere se mostrare il menu
+    // completo o solo le voci inline, e dove si trova il token `@parola` da rimuovere alla
+    // selezione, senza dover ricalcolare la regex su un cursore che a quel punto potrebbe essere
+    // già cambiato (`this.cursor` viene aggiornato subito dopo questo dispatch).
+    this.muya.eventCenter.dispatch(
+      'muya-quick-insert',
+      reference,
+      block,
+      !!checkQuickInsert,
+      checkQuickInsert || null
+    )
 
     this.cursor = { start, end }
 

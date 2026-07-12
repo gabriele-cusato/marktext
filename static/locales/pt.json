@@ -55,7 +55,10 @@
       "screenshot": "Captura de Tela",
       "lineEnding": "Terminação de Linha",
       "lineEndingCrlf": "CRLF(Windows)",
-      "lineEndingLf": "LF(Linux/Mac)"
+      "lineEndingLf": "LF(Linux/Mac)",
+      "toUpperCase": "PARA MAIÚSCULAS",
+      "toLowerCase": "para minúsculas",
+      "openInBrowser": "Abrir no navegador"
     },
     "paragraph": {
       "title": "Parágrafo",
@@ -179,7 +182,8 @@
       "graphiteLight": "Grafite Claro",
       "materialDark": "Material Escuro",
       "oneDark": "One Dark",
-      "ulyssesLight": "Ulysses Claro"
+      "ulyssesLight": "Ulysses Claro",
+      "tufte": "Tufte"
     }
   },
   "contextMenu": {
@@ -212,7 +216,11 @@
       "closeAllTabs": "Fechar todas as abas",
       "rename": "Renomear",
       "copyPath": "Copiar caminho",
-      "showInFolder": "Mostrar na pasta"
+      "showInFolder": "Mostrar na pasta",
+      "pin": "Fixar aba",
+      "unpin": "Desafixar aba",
+      "moveToNewWindow": "Mover para nova janela",
+      "reload": "Recarregar"
     }
   },
   "search": {
@@ -225,7 +233,6 @@
     "replaceSingle": "Substituir Um",
     "invalidRegex": "Expressão regular inválida \"{pattern}\"",
     "regexMatchEmpty": "Expressão regular corresponde à string vazia \"{pattern}\"",
-    "searchResultCount": "Resultados da pesquisa",
     "searchResultInfo": "{matchCount} correspondências em {fileCount} arquivos",
     "searchLimited": "Pesquisa limitada aos primeiros {count} resultados"
   },
@@ -496,7 +503,8 @@
           "title": "Ordenar Arquivos Por",
           "creationTime": "Hora de Criação",
           "modificationTime": "Hora de Modificação"
-        }
+        },
+        "watcherUsePolling": "Verificar arquivos em busca de alterações em intervalos em vez de notificações do sistema operacional — ative apenas se alterações externas em caminhos de rede não forem detectadas"
       },
       "misc": {
         "title": "Diversos",
@@ -512,6 +520,14 @@
           "korean": "한국어",
           "portuguese": "Português"
         }
+      },
+      "sessionSnapshot": {
+        "title": "Instantâneo de sessão e backup periódico",
+        "description": "Ativar o instantâneo de sessão e o backup periódico: restaurar todas as abas na próxima inicialização e não perguntar se deseja salvar ao fechar (estilo Notepad++).",
+        "backupIntervalDescription": "Intervalo do backup periódico.",
+        "backupLocation": "Local do backup",
+        "selectFolder": "Selecionar pasta",
+        "defaultBackupLocation": "Padrão: userData/backup"
       }
     },
     "editor": {
@@ -535,7 +551,9 @@
         "title": "Comportamento de Escrita",
         "autoCloseBrackets": "Fechar colchetes automaticamente",
         "autoCompleteMarkdown": "Completar markdown automaticamente",
-        "autoCloseQuotes": "Fechar aspas automaticamente"
+        "autoCloseQuotes": "Fechar aspas automaticamente",
+        "surroundSelection": "Envolver seleção",
+        "surroundSelectionNotes": "Quando um texto está selecionado, digitar aspas ou colchetes envolverá a seleção em vez de substituí-la. Por exemplo, ao selecionar 'hello' e pressionar \" obtém-se \"hello\"."
       },
       "fileRepresentation": {
         "title": "Representação de Arquivo",
@@ -631,7 +649,6 @@
         "npmInstallCommand": "npm install picgo -g",
         "yarnInstallCommand": "yarn global add picgo",
         "pnpmInstallCommand": "pnpm add -g picgo",
-        "brewInstallCommand": "brew install picgo",
         "chooseInstallMethod": "Escolha o méde instalação:",
         "retestPicgo": "Testar novamente",
         "detecting": "Detectando...",
@@ -891,7 +908,7 @@
       "saveAs": "Salvar Como",
       "moveFile": "Mover Arquivo",
       "renameFile": "Renomear Arquivo",
-      "quickOpen": "Abertura Rápida",
+      "quickOpen": "Arquivos Recentes",
       "changeEncoding": "Alterar Codificação",
       "changeLineEnding": "Alterar Terminação de Linha",
       "trailingNewline": "Nova Linha Final",
@@ -920,54 +937,19 @@
       "pasteAsPlaintext": "Colar como Texto Simples",
       "selectAll": "Selecionar Tudo",
       "duplicate": "Duplicar",
-      "createParagraph": "Criar Parágrafo",
-      "deleteParagraph": "Excluir Parágrafo",
       "find": "Localizar",
       "findNext": "Localizar Próximo",
       "findPrevious": "Localizar Anterior",
       "replace": "Substituir",
       "findInFolder": "Localizar na Pasta",
       "screenshot": "Captura de Tela",
-      "mathBlock": "Bloco matemático"
+      "mathBlock": "Bloco matemático",
+      "toUpperCase": "PARA MAIÚSCULAS",
+      "toLowerCase": "para minúsculas",
+      "openInBrowser": "Abrir no navegador"
     },
     "paragraph": {
-      "heading1": "Cabeçalho 1",
-      "heading2": "Cabeçalho 2",
-      "heading3": "Cabeçalho 3",
-      "heading4": "Cabeçalho 4",
-      "heading5": "Cabeçalho 5",
-      "heading6": "Cabeçalho 6",
-      "upgradeHeading": "Promover Cabeçalho",
-      "degradeHeading": "Rebaixar Cabeçalho",
-      "table": "Tabela",
-      "codeFence": "Bloco de Código",
-      "quoteBlock": "Bloco de Citação",
-      "mathFormula": "Fórmula Matemática",
-      "htmlBlock": "Bloco HTML",
-      "orderList": "Lista Ordenada",
-      "bulletList": "Lista com Marcadores",
-      "taskList": "Lista de Tarefas",
-      "looseListItem": "Item de Lista Solta",
-      "paragraph": "Parágrafo",
-      "horizontalLine": "Linha Horizontal",
-      "frontMatter": "Front Matter",
-      "resetParagraph": "Resetar Parágrafo",
-      "mathBlock": "Bloco matemático",
-      "horizontalRule": "Linha horizontal"
-    },
-    "format": {
-      "strong": "Negrito",
-      "emphasis": "Itálico",
-      "underline": "Sublinhado",
-      "superscript": "Sobrescrito",
-      "subscript": "Subscrito",
-      "highlight": "Destacar",
-      "inlineCode": "Código Inline",
-      "inlineMath": "Matemática Inline",
-      "strike": "Riscado",
-      "hyperlink": "Hiperlink",
-      "image": "Imagem",
-      "clearFormat": "Limpar Formato"
+      "resetParagraph": "Resetar Parágrafo"
     },
     "window": {
       "minimize": "Minimizar",
@@ -1096,7 +1078,13 @@
       "exportSuccessTitle": "Exportado com sucesso",
       "exportSuccessMessage": "“{name}” foi exportado com sucesso!",
       "fileRemovedOnDisk": "“{name}” foi removido no disco.",
-      "fileChangedOnDisk": "“{name}” foi alterado no disco. Deseja recarregar?"
+      "fileChangedOnDisk": "“{name}” foi alterado no disco. Deseja recarregar?",
+      "fileChangedTitle": "Arquivo alterado no disco",
+      "fileChangedReloadWarn": "\"{name}\" foi alterado por outro programa. Recarregar descartará as alterações não salvas no editor.",
+      "fileChangedReloadNoWarn": "\"{name}\" foi alterado por outro programa. Deseja recarregá-lo?",
+      "reloadFromDisk": "Recarregar",
+      "tooManyTabsTitle": "Muitas abas abertas",
+      "tooManyTabsMsg": "Você tem {count} abas abertas. Um grande número de abas pode deixar o editor mais lento — considere fechar as que não são mais necessárias."
     },
     "help": {
       "lineEndingAssertionError": "Erro de asserção de terminação de linha"
@@ -1242,30 +1230,49 @@
     },
     "mermaidDiagram": {
       "title": "Diagrama Mermaid"
+    },
+    "inlineFormat": "Formato em linha",
+    "bold": {
+      "title": "Negrito",
+      "subtitle": "**Negrito**"
+    },
+    "italic": {
+      "title": "Itálico",
+      "subtitle": "*Itálico*"
+    },
+    "underline": {
+      "title": "Sublinhado",
+      "subtitle": "u tag"
+    },
+    "strikethrough": {
+      "title": "Tachado",
+      "subtitle": "~~Tachado~~"
+    },
+    "highlight": {
+      "title": "Destaque",
+      "subtitle": "==Destaque=="
+    },
+    "inlineCode": {
+      "title": "Código em linha",
+      "subtitle": "`Código`"
+    },
+    "inlineMath": {
+      "title": "Fórmula em linha",
+      "subtitle": "$Fórmula$"
+    },
+    "inlineLink": {
+      "title": "Link",
+      "subtitle": "[Link](url)"
+    },
+    "inlineImage": {
+      "title": "Imagem",
+      "subtitle": "![Imagem](url)"
     }
   },
   "frontMenu": {
     "duplicate": "Duplicar",
-    "turnInto": "Estilo",
     "newParagraph": "Novo parágrafo",
-    "delete": "Excluir",
-    "paragraph": "Parágrafo",
-    "table": "Tabela",
-    "html": "HTML",
-    "mathblock": "Bloco matemático",
-    "pre": "Bloco de código",
-    "frontMatter": "Front Matter",
-    "ulTask": "Lista de tarefas",
-    "ulBullet": "Lista com marcadores",
-    "olOrder": "Lista ordenada",
-    "blockquote": "Citação",
-    "heading1": "Cabeçalho 1",
-    "heading2": "Cabeçalho 2",
-    "heading3": "Cabeçalho 3",
-    "heading4": "Cabeçalho 4",
-    "heading5": "Cabeçalho 5",
-    "heading6": "Cabeçalho 6",
-    "hr": "Linha horizontal"
+    "delete": "Excluir"
   },
   "editor": {
     "image": {
@@ -1386,5 +1393,36 @@
     "copy": "Copiar",
     "paste": "Colar",
     "selectAll": "Selecionar tudo"
+  },
+  "statusBar": {
+    "toggleWrap": "Alternar quebra de linha",
+    "resetZoom": "Redefinir zoom (Ctrl+0)",
+    "toggleSource": "Alternar Fonte / Markdown (Ctrl+E)",
+    "nonMarkdown": "Somente fonte: arquivo não markdown",
+    "wrapUnavailable": "Quebra de linha não disponível no modo markdown",
+    "otherCharsets": "Outros conjuntos de caracteres",
+    "encodingGroup": {
+      "arabic": "Árabe",
+      "baltic": "Báltico",
+      "cyrillic": "Cirílico",
+      "centralEuropean": "Europeu central",
+      "chinese": "Chinês",
+      "easternEuropean": "Europeu oriental",
+      "greek": "Grego",
+      "hebrew": "Hebraico",
+      "japanese": "Japonês",
+      "korean": "Coreano",
+      "northernEuropean": "Europeu setentrional",
+      "turkish": "Turco",
+      "westernEuropean": "Europeu ocidental"
+    }
+  },
+  "theme": {
+    "cadmiumLight": "Cádmio Claro",
+    "dark": "Escuro",
+    "graphiteLight": "Grafite Claro",
+    "materialDark": "Material Escuro",
+    "oneDark": "One Dark",
+    "ulyssesLight": "Ulysses Claro"
   }
 }

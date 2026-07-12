@@ -19,6 +19,7 @@
       popper-class="font-autocomplete-popper"
       :fetch-suggestions="querySearch"
       :placeholder="t('preferences.selectFont')"
+      :popper-options="popperOptions"
       @select="handleSelect"
     >
       <template #suffix>
@@ -74,6 +75,30 @@ const props = defineProps({
 let defaultValue = props.value
 const fontFamilies = ref([])
 const selectValue = ref(props.value)
+
+// Stesso fix del wrapper CurSelect (vedi common/select/index.vue): dentro `.pref-container`
+// (position: fixed) il flip di popper.js ribalta il dropdown fuori dalla finestra verso l'alto.
+// Disabilitare il flip: il dropdown si apre sempre verso il basso e preventOverflow (vincolato
+// alla viewport, tether disattivato per le liste lunghe) lo tiene dentro la finestra.
+const popperOptions = {
+  placement: 'bottom-start',
+  modifiers: [
+    {
+      name: 'flip',
+      enabled: false
+    },
+    {
+      name: 'preventOverflow',
+      options: {
+        rootBoundary: 'viewport',
+        // vedi common/select/index.vue: senza altAxis il clamp verticale non avviene e il
+        // dropdown sfora il bordo basso della finestra Preferences
+        altAxis: true,
+        tether: false
+      }
+    }
+  ]
+}
 
 watch(
   () => props.value,

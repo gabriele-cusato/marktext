@@ -153,8 +153,7 @@ export const getTranslatedSearchContent = () => {
         'searchMaxFileSize',
         'searchIncludeHidden',
         'searchNoIgnore',
-        'searchFollowSymlinks',
-        'watcherUsePolling'
+        'searchFollowSymlinks'
       ].includes(item.key)
       return filterResult
     })

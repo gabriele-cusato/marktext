@@ -5,9 +5,12 @@ import svgLoader from 'vite-svg-loader'
 import postcssPresetEnv from 'postcss-preset-env'
 import packageJson from './package.json' with { type: 'json' }
 import { fileURLToPath } from 'url'
+import { createRequire } from 'module'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
+// require.resolve serve a risolvere l'alias di 'path' in percorso assoluto (richiesto da Vite)
+const require = createRequire(import.meta.url)
 
 // Plugin locale: rende la CSP di index.html dipendente dall'ambiente.
 // In dev (serve) mantiene 'unsafe-eval' e ws:/wss: richiesti da Vite/HMR;
@@ -95,7 +98,9 @@ export default defineConfig({
         common: resolve(__dirname, 'src/common'),
         muya: resolve(__dirname, 'src/muya'),
         main_renderer: resolve(__dirname, 'src/main'),
-        path: 'path-browserify' // solo renderer: shim browser-JS per fuzzaldrin (usa solo path.sep)
+        // solo renderer: shim browser-JS per fuzzaldrin (usa solo path.sep);
+        // risolto in percorso assoluto per evitare il warning Vite "duplicated modules"
+        path: require.resolve('path-browserify')
       },
       extensions: ['.mjs', '.js', '.json', '.vue']
     },
