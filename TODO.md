@@ -35,6 +35,8 @@
 - [ ] **Finestra — width minima + hamburger** — ridurre la width minima; sotto una soglia mostrare un'icona hamburger che raccoglie le icone command palette, cartella e file recenti.
 - [ ] **Strumenti selezione testo — toggle off** — se un format è già attivo sulla selezione, ripremendolo deve TOGLIERLO, non riapplicarlo (oggi lo riaggiunge).
 - [ ] **Test su macOS e Linux** — dell'overhaul menu/shortcut + fix sopra.
+- [ ] **Folder Search** ricerca in una cartella specificando il percorso (tool con icona da mettere nella tab bar nella sezione a destra, che apre un riquadro in sovraimpressione che richiede le info di ricerca tra cui il percorso, poi si apre una nuova finestra con attiva la sidebar di ricerca aperte le tab con i vari file e le occorrenze evidenziate). Probabilmente la feature ha già una implementazione parziale, va capito cosa è stato gia fatto e come è necessario modificare il codice per ottenere il comportamento atteso.
+- [ ] **Opened Tabs Search** Ricerca tra tutte le tab aperte (in teoria la feature è gia funzionante tramite la sidebar di ricerca aperta con Ctrl shift F, verificare)
 
 ### Rimandati (non in programma, riaprire solo su richiesta)
 
