@@ -45,4 +45,8 @@ leggibili in console; test runtime e diagnosi picker mancanti, richiedono PC pri
 giro di test utente)
 
 ## Test
-(compilare dopo il test)
+Esito utente (2026-07-12/13, PC principale): OK — toggle-off multi-blocco stile Word
+funzionante. Il bug del picker su selezione singolo-blocco NON è stato riprodotto nel
+secondo giro di test → considerato chiuso senza ulteriori modifiche.
+Restano da rimuovere i log `[FMT-TOGGLE-DEBUG]` (formatCtrl.js, formatPicker/index.js —
+elenco punti sopra in questo worklog).

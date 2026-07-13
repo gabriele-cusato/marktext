@@ -242,7 +242,9 @@ const handleDeleteClick = (selectedItem) => {
   color: var(--editorColor);
   height: 30px;
 }
-.pref-spellchecker li.el-select-dropdown__item.hover,
+/* `is-hovering` è la classe di evidenza voce attiva di Element Plus 2.x (vedi
+   common/select/index.vue): senza override resterebbe il default chiaro, illeggibile coi temi scuri */
+.pref-spellchecker li.el-select-dropdown__item.is-hovering,
 li.el-select-dropdown__item:hover {
   background: var(--floatHoverColor);
 }

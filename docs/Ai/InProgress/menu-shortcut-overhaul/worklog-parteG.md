@@ -84,7 +84,6 @@ calcolo preesistente viene comunque reso sicuro prima di `setStart`/`extend`.
   runtime, fuori scope di questo task.
 
 ## Test
-DA TESTARE — verifica statica (node --check) eseguita con esito positivo
-sulla sintassi; nessuna build/runtime eseguita (compito dell'utente/altro
-task). Riproduzione del bug e conferma dell'assenza di crash post-clamp da
-fare a runtime.
+Esito utente (2026-07-12/13, PC principale): OK — crash Source→MD non più riproducibile
+dopo il clamp. Parte G chiusa.
+(Storico: verifica statica `node --check` positiva prima del test runtime.)

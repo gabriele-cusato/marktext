@@ -24,8 +24,5 @@ a runtime (i risultati sono sempre costruiti da `tabs.value`, quindi `openedTab`
 nessuna modifica di comportamento osservabile per Ctrl+Shift+F.
 
 ## Test
-DA TESTARE (verifica runtime manuale post-build: nessuna infrastruttura di test automatico UI per
-la sidebar. Da verificare: 1) Ctrl+Shift+F su tab aperte invariato; 2) apertura finestra
-folder-search con risultati esterni → sidebar visibile e popolata con query precompilata; 3) riga
-"risultati troncati" quando `truncated:true`; 4) click su match di file non aperto → apre con
-cursore sul match; 5) click su match di file cancellato/spostato → riquadro di errore).
+Esito utente (2026-07-12/13, PC principale): OK — verifica end-to-end della feature senza
+anomalie riportate. Chiuso.

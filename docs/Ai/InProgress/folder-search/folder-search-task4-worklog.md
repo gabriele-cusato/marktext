@@ -89,12 +89,8 @@ preferenze, la lettura di `searchExclusions` è demandata al main), `src/muya/**
 `app.vue` (registrazione componente), nuovo `folderSearchOverlay/index.vue`.
 
 ## Test
-Build da fare (electron-vite build) — nessun errore atteso, verificare comunque.
-DA TESTARE runtime: click icona/hamburger → overlay si apre e mostra focus su cartella;
-Esc/click fuori chiudono; Esegui con campi vuoti disabilitato; invoke con cartella
-inesistente → errore nel riquadro; cartella valida senza match → "Nessun risultato.";
-cartella valida con match → overlay si chiude e si apre la nuova finestra risultati
-(integrazione end-to-end con task2/3).
+Esito utente (2026-07-12/13, PC principale): OK — overlay e integrazione end-to-end
+funzionanti, inclusi i due fix post-feedback qui sotto. Chiuso.
 
 ### Feedback utente (test runtime) + fix applicati
 Dopo un primo giro di test runtime, l'utente ha richiesto due modifiche:

@@ -11,4 +11,8 @@ Plan: `folder-search-plan.md`.
 - [ ] (implementazione: checklist da dettagliare nei plan dei task)
 
 ## Test
-(compilare dopo il test)
+Esito utente (2026-07-12/13, PC principale): OK di base sull'intera feature (task1-4:
+handler rg + unit test, finestra risultati, sidebar, overlay con icona). Fix post-test
+inclusi e verificati: bottone "…" per il dialog di selezione cartella, esempi concreti
+nel placeholder esclusioni. Percorsi con spazi sicuri (spawn con array di argomenti).
+Feature chiusa.

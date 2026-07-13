@@ -40,5 +40,5 @@ Stato: DA TESTARE.
 - Non eseguita build (istruzione esplicita dell'orchestratore per questa modifica).
 
 ## Test
-(compilare dopo il test a runtime dall'utente: posizione icona, click apre Recent Files, hover/tema
-chiaro-scuro, comportamento nei primi istanti post-avvio prima della registrazione del comando)
+Esito utente (2026-07-12/13, PC principale): OK — icona visibile e funzionante,
+nessuna anomalia riportata. Chiuso.

@@ -32,7 +32,5 @@ Task DA TESTARE (verifica runtime a carico dell'utente, vedi sezione Test sotto)
 
 ## Test
 
-(compilare dopo il test sul PC principale)
-- Label in front menu / "@" / menu selezione = shortcut reali post-Batch 1 (es. duplicate
-  Ctrl+Shift+P, code fence Ctrl+Alt+C).
-- Voci senza binding: nessun label.
+Esito utente (2026-07-12/13, PC principale): OK — label nei menu derivati dai binding reali,
+nessuna anomalia riportata. Parte E chiusa.

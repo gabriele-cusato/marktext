@@ -37,6 +37,5 @@ Plan di riferimento: `recent-files-plan.md` (completo, tutte le decisioni chiuse
 
 ## Test
 
-(compilare dopo il test sul PC principale)
-- Più file aperti → palette "Recent Files": più recente in cima, no duplicati, cap 10.
-- Riavvio app → lista persistita dal JSON.
+Esito utente (2026-07-12/13, PC principale): OK — palette "Recent Files" funzionante,
+nessuna anomalia riportata. Feature chiusa (vedi anche recent-files-icon).

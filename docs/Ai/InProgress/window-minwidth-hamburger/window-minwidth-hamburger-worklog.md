@@ -74,3 +74,6 @@ nodo viene teleportato nel DOM, quindi lo stile scoped esistente resta valido.
 
 Non toccate: soglia 700px/`isToprightCollapsed`, le 4 voci del popover, nessun altro
 file oltre `tabs.vue`.
+
+Esito finale utente (2026-07-12/13, PC principale): OK — min-width 550px, soglia 700 e
+popover hamburger (post-fix Teleport su body) funzionanti. Feature chiusa.

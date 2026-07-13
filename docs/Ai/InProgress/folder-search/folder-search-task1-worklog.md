@@ -41,3 +41,6 @@ Punti verificati a lettura di codice:
   (dipende da `Store`/Electron `app.getPath`, non disponibile fuori da un processo Electron reale);
   la funzione `searchInFolder` testata riceve `preferences` come oggetto plain, quindi il test la
   bypassa passando direttamente i valori.
+
+Esito utente (2026-07-12/13, PC principale): OK — ricerca end-to-end funzionante; percorsi
+con spazi gestiti correttamente (spawn con array di argomenti). Chiuso.

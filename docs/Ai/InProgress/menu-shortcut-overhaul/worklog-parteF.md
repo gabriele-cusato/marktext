@@ -85,4 +85,8 @@ leggibili/copiabili direttamente dalla console senza doverli espandere.
    così si può confermare la diagnosi prima del fix.
 
 ## Test
-(compilare dopo il test)
+Esito utente (2026-07-12/13, PC principale): OK — Ctrl+Backspace nel code block cancella
+per parola (fix word-delete nel ramo codeContent). Chiuso esplicitamente dall'utente.
+Restano da rimuovere i log `[PARTE-F-DEBUG]` (keyboard.js, backspaceCtrl.js — elenco punti
+sopra in questo worklog; attenzione all'`else` finale in backspaceCtrl.js che esiste solo
+per un log: rimuovere anche l'else vuoto).

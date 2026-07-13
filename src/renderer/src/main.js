@@ -36,7 +36,10 @@ const app = createApp(Main)
 
 // Configure Element Plus with locale
 app.use(ElementPlus, {
-  locale: en
+  locale: en,
+  // base z-index dei popper EP: sopra il backdrop del settings modal (3500),
+  // sotto i layer v2 di context menu e popover (4000), che devono restare vincenti
+  zIndex: 3600
 })
 
 const router = createRouter({

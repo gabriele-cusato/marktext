@@ -40,7 +40,5 @@ seleziona il primo.
 
 ## Test
 Build `electron-vite build` eseguita: OK, nessun errore (main+preload+renderer compilati).
-DA TESTARE runtime (nessuna infrastruttura di test automatico per main process oltre a quella
-già usata nel task1): verifica manuale end-to-end da fare insieme al task3, quando esporrà
-l'apertura della finestra dall'overlay di ricerca (chiamata `mt::open-folder-search-window` e
-ascolto `mt::folder-search-state`).
+Esito utente (2026-07-12/13, PC principale): OK — verifica end-to-end insieme a task3/task4,
+nessuna anomalia riportata. Chiuso.

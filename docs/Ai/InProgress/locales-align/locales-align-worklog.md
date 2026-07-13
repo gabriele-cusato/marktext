@@ -112,10 +112,11 @@ almeno un riferimento (anche solo nel menu app) è stata conservata.
 (build completa main/preload/renderer).
 
 ## Test
-DA TESTARE — PC principale: cambio lingua nelle Preferences per ciascuna delle 9 lingue,
-ispezione menu/palette/dialog (in particolare status bar encoding/wrap/zoom, dialog "file
-cambiato su disco", dialog "troppe tab aperte", sezione Session snapshot in Preferences →
-General), console senza warning i18n.
+Esito utente (2026-07-12/13, PC principale): OK — dopo la rigenerazione dei `.min.json`
+(`npm run minify-locales`: il runtime preferisce i `.min.json` ai `.json`, e `npm run build`
+NON esegue minify-locales) le lingue risultano corrette, console senza warning i18n.
+Feature chiusa. Regola operativa: dopo ogni modifica alle locale eseguire SEMPRE
+`npm run minify-locales`.
 
 ## Follow-up (2026-07-12) — nuova sezione quickInsert "inline format"
 Un task successivo ha aggiunto in `src\muya\lib\ui\quickInsert\config.js` una nuova sezione

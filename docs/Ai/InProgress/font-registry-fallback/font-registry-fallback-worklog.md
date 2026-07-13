@@ -17,6 +17,7 @@ DA TESTARE
 
 ## Test
 
-(compilare dopo il test)
-- Su PC ristretto: Preferences → font → combo popolata.
-- Su PC principale (non ristretto): fallback NON attivo, lista da `getFonts()`.
+Esito utente (2026-07-12/13, PC principale): OK — la combo font si popola correttamente
+(ramo primario `getFonts()`, fallback non attivo come atteso).
+Da verificare in una futura sessione su PC ristretto: attivazione del fallback registry
+(non testabile sul PC principale).

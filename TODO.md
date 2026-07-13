@@ -27,15 +27,16 @@
 
 ### Menu/UI overhaul — follow-up (2026-07-09)
 
-- [ ] **Locales** — aggiustare le stringhe di traduzione (allineare a menu/palette dopo l'overhaul).
-- [ ] **Preferences** — controllo generale e rifinitura delle preferenze.
-- [ ] **Bug combo box in Preferences** — espandendo una combo senza scrollare, le sotto-voci escono dal riquadro dal lato ALTO e restano nascoste (si vedono solo scrollando). Fix overflow/posizionamento dropdown.
+- [x] **Locales** — chiuso 2026-07-13 (feature `locales-align`: 9 lingue a parità 0/0, +chiavi quickInsert inline; ricordare `npm run minify-locales` dopo ogni modifica alle locale).
+- [x] **Preferences** — controllo generale chiuso 2026-07-13 (feature `preferences-refinement` task1: size mini, `watcherUsePolling` esposto+ricercabile, session snapshot i18n). Resta aperto SOLO il bug combo (riga sotto).
+- [x] **Bug combo box in Preferences** — CHIUSO 2026-07-13. Tripla causa: popper EP sotto il backdrop del settings modal (fix `zIndex: 3600` in main.js), dropdown teleportata fuori dal riquadro (fix `:teleported="false"` nei wrapper) e classe hover legacy `.hover` mai matchata in EP 2.x (fix `.is-hovering`/`.highlighted`). Dettagli in `docs/Ai/InProgress/preferences-refinement/preferences-refinement-task2-combo-overflow-worklog.md`.
 - [x] **Tabs — aspetto alternativo** — CHIUSO SENZA IMPLEMENTARE (decisione utente 2026-07-12: non da fare; plan conservato in `docs/Ai/InProgress/tabs-squared/` come riferimento futuro).
-- [ ] **Icona File recenti** — aggiungerla tra l'icona cartella e l'icona command palette (icona nuova a scelta libera). Lega alla feature `recent-files`.
-- [ ] **Finestra — width minima + hamburger** — ridurre la width minima; sotto una soglia mostrare un'icona hamburger che raccoglie le icone command palette, cartella e file recenti.
-- [ ] **Strumenti selezione testo — toggle off** — se un format è già attivo sulla selezione, ripremendolo deve TOGLIERLO, non riapplicarlo (oggi lo riaggiunge).
+- [x] **Icona File recenti** — chiuso 2026-07-13 (feature `recent-files` + `recent-files-icon`, test utente OK).
+- [x] **Finestra — width minima + hamburger** — chiuso 2026-07-13 (feature `window-minwidth-hamburger`: min 550px, soglia 700, popover hamburger con Teleport su body; test utente OK).
+- [x] **Strumenti selezione testo — toggle off** — chiuso 2026-07-13 (feature `format-toggle-off`, multi-blocco stile Word; bug picker singolo-blocco non riprodotto; restano da rimuovere i log `[FMT-TOGGLE-DEBUG]`).
 - [ ] **Test su macOS e Linux** — dell'overhaul menu/shortcut + fix sopra.
-- [ ] **Folder Search** ricerca in una cartella specificando il percorso (tool con icona da mettere nella tab bar nella sezione a destra, che apre un riquadro in sovraimpressione che richiede le info di ricerca tra cui il percorso, poi si apre una nuova finestra con attiva la sidebar di ricerca aperte le tab con i vari file e le occorrenze evidenziate). Probabilmente la feature ha già una implementazione parziale, va capito cosa è stato gia fatto e come è necessario modificare il codice per ottenere il comportamento atteso.
+- [ ] **Drag immagini nel documento** — trascinare un'immagine dentro il documento per inserirla. Plan in `docs/Ai/InProgress/image-drag-in-doc/`. Da fare SOLO dopo commit preventivo dell'utente (richiesta esplicita: modifica pericolosa).
+- [x] **Folder Search** — chiuso 2026-07-13 (feature `folder-search` task1-4: handler rg + unit test, finestra risultati, sidebar, overlay con icona e bottone "…"; test utente OK).
 - [ ] **Opened Tabs Search** Ricerca tra tutte le tab aperte (in teoria la feature è gia funzionante tramite la sidebar di ricerca aperta con Ctrl shift F, verificare)
 
 ### Rimandati (non in programma, riaprire solo su richiesta)

@@ -19,7 +19,7 @@
     <el-select
       v-model="selectValue"
       :disabled="disable"
-      :fallback-placements="fallbackPlacements"
+      :teleported="false"
       :popper-options="popperOptions"
       @change="select"
     >
@@ -76,32 +76,19 @@ const props = defineProps({
 
 const selectValue = ref(props.value)
 
-// Il pannello Preferences vive dentro `.pref-container` (position: fixed): il modifier flip di
-// popper.js in questo contesto calcola male lo spazio disponibile e ribalta il dropdown a
-// `top`/`top-start`, facendolo finire sopra il bordo alto della finestra (verificato a runtime:
-// i popper "buggati" restano con data-popper-placement=top-start). Limitare i fallback o il
-// rootBoundary non basta: qui si DISABILITA il flip — il dropdown si apre sempre verso il basso
-// e preventOverflow (vincolato alla viewport) lo tiene comunque dentro la finestra.
-const fallbackPlacements = ['bottom-start']
+// Il pannello Preferences è il settings modal v2 dentro la finestra principale, con body
+// scrollabile (`.v2-settings-body`, overflow-y: auto). Con `teleported=false` il dropdown
+// viene reso inline accanto al trigger invece che su body: così resta DENTRO il riquadro
+// (clippato dai suoi bordi, segue lo scroll) e, se sborda in basso, allunga la scrollHeight
+// del pannello — le voci in eccesso si raggiungono scrollando, senza coprire il contenuto.
+// Il flip va disabilitato (apertura sempre verso il basso) e preventOverflow NON va usato:
+// un clamp alla viewport contrasterebbe il comportamento "estendi sotto e scrolla".
 const popperOptions = {
   placement: 'bottom-start',
   modifiers: [
     {
       name: 'flip',
       enabled: false
-    },
-    {
-      name: 'preventOverflow',
-      options: {
-        rootBoundary: 'viewport',
-        // altAxis: per un popper piazzato in basso l'asse verticale è quello "alternativo" —
-        // senza questo flag il dropdown può sforare il bordo basso della finestra Preferences
-        // (misurato a runtime: popper 618→692 in una finestra alta 650) e restare tagliato
-        altAxis: true,
-        // consentire lo scorrimento oltre il trigger pur di restare visibile (liste lunghe
-        // con trigger vicino al fondo della finestra)
-        tether: false
-      }
     }
   ]
 }
@@ -171,7 +158,10 @@ li.el-select-dropdown__item {
   color: var(--editorColor);
   height: 30px;
 }
-li.el-select-dropdown__item.hover,
+/* `is-hovering` è la classe con cui Element Plus 2.x evidenzia la voce attiva (torna sulla
+   voce selezionata quando il mouse esce dalla dropdown): senza questo override resterebbe
+   il suo default chiaro --el-fill-color-light, illeggibile con i temi scuri */
+li.el-select-dropdown__item.is-hovering,
 li.el-select-dropdown__item:hover {
   background: var(--floatHoverColor);
 }

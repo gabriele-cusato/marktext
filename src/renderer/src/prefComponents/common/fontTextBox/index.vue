@@ -19,6 +19,7 @@
       popper-class="font-autocomplete-popper"
       :fetch-suggestions="querySearch"
       :placeholder="t('preferences.selectFont')"
+      :teleported="false"
       :popper-options="popperOptions"
       @select="handleSelect"
     >
@@ -76,26 +77,17 @@ let defaultValue = props.value
 const fontFamilies = ref([])
 const selectValue = ref(props.value)
 
-// Stesso fix del wrapper CurSelect (vedi common/select/index.vue): dentro `.pref-container`
-// (position: fixed) il flip di popper.js ribalta il dropdown fuori dalla finestra verso l'alto.
-// Disabilitare il flip: il dropdown si apre sempre verso il basso e preventOverflow (vincolato
-// alla viewport, tether disattivato per le liste lunghe) lo tiene dentro la finestra.
+// Stesso approccio del wrapper CurSelect (vedi common/select/index.vue): con `teleported=false`
+// il dropdown è reso inline nel body scrollabile del settings modal — clippato dal riquadro,
+// segue lo scroll e in caso di lista lunga allunga la scrollHeight del pannello. Flip
+// disabilitato (apertura sempre verso il basso) e nessun preventOverflow (il clamp alla
+// viewport contrasterebbe il comportamento "estendi sotto e scrolla").
 const popperOptions = {
   placement: 'bottom-start',
   modifiers: [
     {
       name: 'flip',
       enabled: false
-    },
-    {
-      name: 'preventOverflow',
-      options: {
-        rootBoundary: 'viewport',
-        // vedi common/select/index.vue: senza altAxis il clamp verticale non avviene e il
-        // dropdown sfora il bordo basso della finestra Preferences
-        altAxis: true,
-        tether: false
-      }
     }
   ]
 }
@@ -160,7 +152,10 @@ onMounted(async () => {
   color: var(--editorColor);
 }
 .el-autocomplete-suggestion li.highlighted,
-.el-autocomplete-suggestion li:hover {
+/* `highlighted` è la classe di Element Plus per la voce attiva (navigazione da tastiera):
+   stesso override del `:hover` per non lasciare il suo default chiaro --el-fill-color-light */
+.el-autocomplete-suggestion li:hover,
+.el-autocomplete-suggestion li.highlighted {
   background: var(--floatHoverColor);
 }
 

@@ -50,7 +50,6 @@ Plan: `preferences-refinement-task1-review-plan.md`.
   pannello General deve comparire anche nei risultati della ricerca.
 
 ## Test
-DA TESTARE — PC principale: passata completa di tutti i pannelli dopo i fix (in particolare
-General: sezione Sidebar con nuovo checkbox `watcherUsePolling`, sezione "Session snapshot" con
-testi ora tradotti/i18n ma testo invariato; Image → Folder setting e Uploader: bottoni con
-dimensione uniforme `small`).
+Esito utente (2026-07-12/13, PC principale): OK — passata dei pannelli senza anomalie
+(size mini, checkbox `watcherUsePolling` esposto e ricercabile, testi Session snapshot i18n).
+Task1 chiuso. La feature preferences-refinement resta aperta per il task2 (bug combo).

@@ -100,4 +100,5 @@ digitata dopo `@`, non l'intero testo del blocco.
   task di follow-up per aggiungere le voci locale (EN come minimo, poi le altre lingue).
 
 ## Test
-(compilare dopo il test runtime obbligatorio sul PC principale)
+Esito utente (2026-07-12/13, PC principale): OK — menu "@" inline funzionante,
+nessuna anomalia riportata. Parte C chiusa.
