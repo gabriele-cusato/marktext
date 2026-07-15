@@ -110,8 +110,6 @@ class FormatPicker extends BaseFloat {
     event.stopPropagation()
     const { contentState } = this.muya
     contentState.render()
-    // eslint-disable-next-line no-console
-    console.log(`[FMT-TOGGLE-DEBUG] formatPicker.selectItem requestedType=${item.type}`)
     contentState.format(item.type)
     if (/link|image/.test(item.type)) {
       this.hide()

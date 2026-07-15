@@ -119,29 +119,18 @@ const backspaceCtrl = (ContentState) => {
   ContentState.prototype.backspaceHandler = function (event) {
     const { start, end } = selection.getCursorRange()
 
-    // [PARTE-F-DEBUG] log temporaneo: ingresso backspaceHandler, stato cursore grezzo.
-    console.log(
-      `[PARTE-F-DEBUG] backspaceCtrl.js backspaceHandler ingresso ctrlKey=${event.ctrlKey} metaKey=${event.metaKey} hasStart=${!!start} hasEnd=${!!end} startOffset=${start && start.offset} endOffset=${end && end.offset}`
-    )
-
     if (!start || !end) {
-      // [PARTE-F-DEBUG] log temporaneo: uscita anticipata, nessun cursore valido.
-      console.log('[PARTE-F-DEBUG] backspaceCtrl.js backspaceHandler ramo: uscita anticipata !start || !end')
       return
     }
 
     // handle delete selected image
     if (this.selectedImage) {
-      // [PARTE-F-DEBUG] log temporaneo: ramo selectedImage.
-      console.log('[PARTE-F-DEBUG] backspaceCtrl.js backspaceHandler ramo: selectedImage')
       event.preventDefault()
       return this.deleteImage(this.selectedImage)
     }
 
     // Handle select all content.
     if (this.isSelectAll()) {
-      // [PARTE-F-DEBUG] log temporaneo: ramo selectAll.
-      console.log('[PARTE-F-DEBUG] backspaceCtrl.js backspaceHandler ramo: isSelectAll')
       event.preventDefault()
       this.blocks = [this.createBlockP()]
       this.init()
@@ -155,10 +144,6 @@ const backspaceCtrl = (ContentState) => {
 
     const startBlock = this.getBlock(start.key)
     const endBlock = this.getBlock(end.key)
-    // [PARTE-F-DEBUG] log temporaneo: contesto blocchi risolti (start/end).
-    console.log(
-      `[PARTE-F-DEBUG] backspaceCtrl.js backspaceHandler contesto blocchi startBlockType=${startBlock && startBlock.type} startBlockFunctionType=${startBlock && startBlock.functionType} endBlockKey=${endBlock && endBlock.key} endBlockFunctionType=${endBlock && endBlock.functionType}`
-    )
     const maybeLastRow = this.getParent(endBlock)
     const startOutmostBlock = this.findOutMostBlock(startBlock)
     const endOutmostBlock = this.findOutMostBlock(endBlock)
@@ -172,8 +157,6 @@ const backspaceCtrl = (ContentState) => {
         (start.offset === 0 && end.offset === startBlock.text.length) ||
         (start.offset === end.offset && start.offset === 1 && startBlock.text === '#')
       ) {
-        // [PARTE-F-DEBUG] log temporaneo: ramo atxLine heading fix.
-        console.log('[PARTE-F-DEBUG] backspaceCtrl.js backspaceHandler ramo: atxLine heading fix')
         event.preventDefault()
         startBlock.text = ''
         this.cursor = {
@@ -212,8 +195,6 @@ const backspaceCtrl = (ContentState) => {
       preToken = token
     }
     if (needRender) {
-      // [PARTE-F-DEBUG] log temporaneo: ramo needRender (inline_math/ruby).
-      console.log('[PARTE-F-DEBUG] backspaceCtrl.js backspaceHandler ramo: needRender inline_math/ruby')
       startBlock.text = generator(tokens)
       event.preventDefault()
       start.offset--
@@ -237,8 +218,6 @@ const backspaceCtrl = (ContentState) => {
           !maybeLastRow.nextSibling) ||
         startOutmostBlock !== endOutmostBlock
       ) {
-        // [PARTE-F-DEBUG] log temporaneo: ramo table th prima cella.
-        console.log('[PARTE-F-DEBUG] backspaceCtrl.js backspaceHandler ramo: table th prima cella')
         event.preventDefault()
         // need remove the figure block.
         const figureBlock = this.getBlock(this.closest(startBlock, 'figure'))
@@ -267,8 +246,6 @@ const backspaceCtrl = (ContentState) => {
       this.cursor.end.offset !== 0 &&
       this.cursor.end.offset === startBlock.text.length
     ) {
-      // [PARTE-F-DEBUG] log temporaneo: ramo cellContent selezione intera.
-      console.log('[PARTE-F-DEBUG] backspaceCtrl.js backspaceHandler ramo: cellContent selezione intera')
       event.preventDefault()
       event.stopPropagation()
       startBlock.text = ''
@@ -287,12 +264,6 @@ const backspaceCtrl = (ContentState) => {
       startBlock.key === endBlock.key &&
       !(this.cursor.start.offset === 0 && this.cursor.end.offset === 0)
     ) {
-      // [PARTE-F-DEBUG] log temporaneo: ramo codeContent, candidato principale per il bug
-      // Ctrl+Backspace — questo ramo non controlla event.ctrlKey e fa sempre preventDefault +
-      // cancellazione manuale di 1 carattere (o tabSize), bloccando la word-delete nativa.
-      console.log(
-        `[PARTE-F-DEBUG] backspaceCtrl.js backspaceHandler ramo: codeContent preso ctrlKey=${event.ctrlKey} metaKey=${event.metaKey} startOffset=${this.cursor.start.offset} endOffset=${this.cursor.end.offset} blockFunctionType=${startBlock.functionType}`
-      )
       event.preventDefault()
       event.stopPropagation()
       const { key } = startBlock
@@ -334,18 +305,11 @@ const backspaceCtrl = (ContentState) => {
         start: { key, offset },
         end: { key, offset }
       }
-      // [PARTE-F-DEBUG] log temporaneo: fine ramo codeContent, riporta anche se il percorso preso
-      // era word-delete (Ctrl/Alt+Backspace) e quanti caratteri sono stati cancellati.
-      console.log(
-        `[PARTE-F-DEBUG] backspaceCtrl.js backspaceHandler ramo: codeContent completato isWordDelete=${isWordDelete} deleteLen=${startOffset - offset} nuovoOffset=${offset}`
-      )
       return this.singleRender(startBlock)
     }
     // If select multiple paragraph or multiple characters in one paragraph, just let
     // inputCtrl to handle this case.
     if (start.key !== end.key || start.offset !== end.offset) {
-      // [PARTE-F-DEBUG] log temporaneo: uscita anticipata, selezione multipla delegata a inputCtrl.
-      console.log('[PARTE-F-DEBUG] backspaceCtrl.js backspaceHandler ramo: uscita anticipata selezione multipla (start!==end)')
       return
     }
 
@@ -361,16 +325,12 @@ const backspaceCtrl = (ContentState) => {
     // Handle backspace when the previous is an inline image.
     if (parentNode && parentNode.classList.contains('ag-inline-image')) {
       if (selection.getCaretOffsets(node).left === 0) {
-        // [PARTE-F-DEBUG] log temporaneo: ramo inline-image cancellazione immagine.
-        console.log('[PARTE-F-DEBUG] backspaceCtrl.js backspaceHandler ramo: inline-image cancellazione immagine')
         event.preventDefault()
         event.stopPropagation()
         const imageInfo = getImageInfo(parentNode)
         return this.deleteImage(imageInfo)
       }
       if (selection.getCaretOffsets(node).left === 1 && right === 0) {
-        // [PARTE-F-DEBUG] log temporaneo: ramo inline-image merge testo adiacente.
-        console.log('[PARTE-F-DEBUG] backspaceCtrl.js backspaceHandler ramo: inline-image merge testo adiacente')
         event.stopPropagation()
         event.preventDefault()
         const key = startBlock.key
@@ -391,8 +351,6 @@ const backspaceCtrl = (ContentState) => {
       const imageWrapper = node.parentNode
       const imageInfo = getImageInfo(imageWrapper)
       if (start.offset === imageInfo.token.range.end) {
-        // [PARTE-F-DEBUG] log temporaneo: ramo cursore fine immagine inline.
-        console.log('[PARTE-F-DEBUG] backspaceCtrl.js backspaceHandler ramo: cursore fine immagine inline')
         event.preventDefault()
         event.stopPropagation()
         return this.selectImage(imageInfo)
@@ -401,8 +359,6 @@ const backspaceCtrl = (ContentState) => {
 
     // Fix issue #1218
     if (startBlock.functionType === 'cellContent' && /<br\/>.{1}$/.test(startBlock.text)) {
-      // [PARTE-F-DEBUG] log temporaneo: ramo cellContent fix <br/>.
-      console.log('[PARTE-F-DEBUG] backspaceCtrl.js backspaceHandler ramo: cellContent fix <br/>')
       event.preventDefault()
       event.stopPropagation()
 
@@ -420,8 +376,6 @@ const backspaceCtrl = (ContentState) => {
 
     // Fix delete the last character in table cell, the default action will delete the cell content if not preventDefault.
     if (startBlock.functionType === 'cellContent' && left === 1 && right === 0) {
-      // [PARTE-F-DEBUG] log temporaneo: ramo cellContent ultimo carattere.
-      console.log('[PARTE-F-DEBUG] backspaceCtrl.js backspaceHandler ramo: cellContent ultimo carattere')
       event.stopPropagation()
       event.preventDefault()
       startBlock.text = ''
@@ -452,8 +406,6 @@ const backspaceCtrl = (ContentState) => {
       preBlock &&
       preBlock.functionType === 'footnoteInput'
     ) {
-      // [PARTE-F-DEBUG] log temporaneo: ramo paragraphContent dopo footnoteInput.
-      console.log('[PARTE-F-DEBUG] backspaceCtrl.js backspaceHandler ramo: paragraphContent dopo footnoteInput')
       event.preventDefault()
       event.stopPropagation()
       if (!parent.nextSibling) {
@@ -476,8 +428,6 @@ const backspaceCtrl = (ContentState) => {
       left === 0 &&
       !block.preSibling
     ) {
-      // [PARTE-F-DEBUG] log temporaneo: ramo codeContent inizio blocco senza preSibling.
-      console.log('[PARTE-F-DEBUG] backspaceCtrl.js backspaceHandler ramo: codeContent inizio blocco senza preSibling')
       event.preventDefault()
       event.stopPropagation()
       if (!block.nextSibling) {
@@ -514,8 +464,6 @@ const backspaceCtrl = (ContentState) => {
         this.partialRender()
       }
     } else if (left === 0 && block.functionType === 'cellContent') {
-      // [PARTE-F-DEBUG] log temporaneo: ramo cellContent inizio cella.
-      console.log('[PARTE-F-DEBUG] backspaceCtrl.js backspaceHandler ramo: cellContent inizio cella')
       event.preventDefault()
       event.stopPropagation()
       const table = this.closest(block, 'table')
@@ -547,10 +495,6 @@ const backspaceCtrl = (ContentState) => {
         this.partialRender()
       }
     } else if (inlineDegrade) {
-      // [PARTE-F-DEBUG] log temporaneo: ramo inlineDegrade.
-      console.log(
-        `[PARTE-F-DEBUG] backspaceCtrl.js backspaceHandler ramo: inlineDegrade tipo=${inlineDegrade.type} info=${inlineDegrade.info}`
-      )
       event.preventDefault()
       if (block.type === 'span') {
         block = this.getParent(block)
@@ -704,8 +648,6 @@ const backspaceCtrl = (ContentState) => {
         this.partialRender()
       }
     } else if (left === 0 && preBlock) {
-      // [PARTE-F-DEBUG] log temporaneo: ramo merge con blocco precedente.
-      console.log('[PARTE-F-DEBUG] backspaceCtrl.js backspaceHandler ramo: merge con blocco precedente')
       event.preventDefault()
       const { text } = block
       const key = preBlock.key
@@ -735,12 +677,6 @@ const backspaceCtrl = (ContentState) => {
       }
 
       needRenderAll ? this.render() : this.partialRender()
-    } else {
-      // [PARTE-F-DEBUG] log temporaneo: nessuna condizione del blocco principale (righe ~436+)
-      // corrisponde, uscita implicita di backspaceHandler.
-      console.log(
-        '[PARTE-F-DEBUG] backspaceCtrl.js backspaceHandler ramo: nessun ramo del blocco principale preso (uscita implicita a fine funzione)'
-      )
     }
   }
 }

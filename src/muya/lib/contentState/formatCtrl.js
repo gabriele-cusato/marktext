@@ -287,13 +287,6 @@ const formatCtrl = (ContentState) => {
           return format.type === type || (format.type === 'html_tag' && format.tag === type)
         })
         .reverse()
-      const activeFormatRange = currentFormats.length
-        ? `${currentFormats[0].range.start}-${currentFormats[0].range.end}`
-        : 'none'
-      // eslint-disable-next-line no-console
-      console.log(
-        `[FMT-TOGGLE-DEBUG] formatCtrl.format single-block type=${type} startOffset=${start.offset} endOffset=${end.offset} currentFormatsLength=${currentFormats.length} currentFormatsTypes=${currentFormats.map((f) => (f.type === 'html_tag' ? f.tag : f.type)).join(',')} activeFormatRange=${activeFormatRange}`
-      )
       const currentNeightbors = neighbors
         .filter((format) => {
           return format.type === type || (format.type === 'html_tag' && format.tag === type)
