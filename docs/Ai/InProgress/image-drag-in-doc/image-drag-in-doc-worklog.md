@@ -12,9 +12,11 @@ selezione immagine), poi plan implementativo dettagliato, poi questa checklist v
 ## Avanzamento
 
 - [x] Decisione utente: procedere — in coda DOPO tutti gli altri task (commit preventivo utente)
-- [ ] (se si procede) Indagine transformer + selezione immagine → plan implementativo dettagliato
-- [ ] (se si procede) Implementazione per sottoproblemi (dragstart condizionato, payload interno,
-  ghost/dropAnchor, ramo drop interno con rimozione+reinserimento blocco)
+- [x] Commit preventivo dell'utente eseguito (confermato 2026-07-17)
+- [x] Indagine transformer + selezione immagine (Agent-Explorer 2026-07-17) → plan implementativo
+  dettagliato in `image-drag-in-doc-move-plan.md`
+- [ ] Implementazione: vedere il worklog del task `image-drag-in-doc-move-worklog.md`
+  (questo file resta solo come registro delle decisioni iniziali)
 
 ## Test
 

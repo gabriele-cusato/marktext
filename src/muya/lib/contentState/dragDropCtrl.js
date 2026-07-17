@@ -70,6 +70,24 @@ const dragDropCtrl = (ContentState) => {
       return
     }
 
+    // SPIKE-IMG-DRAG: drag interno di un'immagine del documento — accettare il
+    // gesto (preventDefault qui è legittimo: gesto che si intende accettare) e
+    // mostrare il ghost. Gate sullo stato locale, non sul dataTransfer (illeggibile
+    // in dragover). Solo osservazione, nessuna mutazione.
+    if (this.internalImageDrag) {
+      event.preventDefault()
+      this.createGhost(event)
+      event.dataTransfer.dropEffect = 'move'
+      const anchorTag = this.dropAnchor
+        ? `${this.dropAnchor.anchor.key}:${this.dropAnchor.position}`
+        : 'nessun-anchor'
+      if (this._spikeLastAnchor !== anchorTag) {
+        this._spikeLastAnchor = anchorTag
+        console.log('[SPIKE-IMG-DRAG] dragover anchor', anchorTag)
+      }
+      return
+    }
+
     if (event.dataTransfer.types.includes('text/uri-list')) {
       const items = Array.from(event.dataTransfer.items)
       const hasUriItem = items.some((i) => i.type === 'text/uri-list')
@@ -102,11 +120,28 @@ const dragDropCtrl = (ContentState) => {
   }
 
   ContentState.prototype.dragleaveHandler = function (event) {
+    // SPIKE-IMG-DRAG: tracciare quando l'anchor viene azzerato durante il drag interno
+    // (uscita dall'editor o passaggio tra paragrafi).
+    if (this.internalImageDrag && this.dropAnchor) {
+      console.log('[SPIKE-IMG-DRAG] dragleave: ghost/anchor azzerati')
+    }
     return this.hideGhost()
   }
 
   ContentState.prototype.dropHandler = async function (event) {
     event.preventDefault()
+    // SPIKE-IMG-DRAG: verificare se il drop interno viene consegnato (electron#42252
+    // dice di no su Windows per i drag stessa-finestra). Nessuna azione sul documento.
+    if (this.internalImageDrag) {
+      this.internalImageDragHandled = true
+      console.log('[SPIKE-IMG-DRAG] drop CONSEGNATO', {
+        dropAnchor: this.dropAnchor
+          ? { key: this.dropAnchor.anchor.key, position: this.dropAnchor.position }
+          : null
+      })
+      this.hideGhost()
+      return
+    }
     const { dropAnchor } = this
     this.hideGhost()
     // handle drag/drop web link image.
