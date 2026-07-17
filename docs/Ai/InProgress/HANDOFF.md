@@ -1,44 +1,35 @@
-# HANDOFF — stato sessione 2026-07-16 e ripresa
+# HANDOFF — stato sessione 2026-07-18 e ripresa
 
-Ultima scrittura: 2026-07-16. Se questa data non è recente, non considerare il file attendibile.
+Ultima scrittura: 2026-07-18. Se questa data non è recente, non considerare il file attendibile.
 
-## Cosa è successo in questa sessione (2026-07-16)
+## Cosa è successo in questa sessione (2026-07-18)
 
-1. **Pulizia log debug: FATTA** (feature `debug-log-cleanup`, Agent-Code). Rimossi tutti i
-   `[PARTE-F-DEBUG]` (keyboard.js -21 righe, backspaceCtrl.js -65 righe incluso l'else vuoto)
-   e `[FMT-TOGGLE-DEBUG]` (formatCtrl.js -6, formatPicker/index.js -2). Solo rimozioni (93
-   righe, zero aggiunte), grep zero occorrenze, build OK. Stato: DA TESTARE dall'utente
-   (smoke: Ctrl+Backspace nei code block, toggle format multi-blocco).
-2. **Archiviazione feature concluse: FATTA** (Agent-Summary + completamento spostamenti da
-   parte dell'orchestratore). 9 feature spostate in `Completed/` con riassunto + index
-   aggiornato: recent-files, menu-shortcut-overhaul, format-toggle-off,
-   font-registry-fallback, locales-align, window-minwidth-hamburger, folder-search,
-   preferences-refinement, residui-hard-task. In `InProgress/` restano solo: HANDOFF.md,
-   `debug-log-cleanup/` (DA TESTARE), `image-drag-in-doc/` (attiva),
-   `tabs-squared/` (riferimento futuro, decisione 2026-07-12).
-3. **Fix combo di ieri**: risultano già committati dall'utente (git status pulito sui file).
-
-## Stato commit
-
-- NON committati: rimozione log debug (4 file in `src/muya/`) + archiviazione doc
-  (Completed/, index.md, cartella debug-log-cleanup, questo HANDOFF).
-- L'utente vuole commit preventivo PRIMA di image-drag (modifica pericolosa).
+1. **image-drag-in-doc: FATTA e TESTATA** (ultima feature grossa). Task "move": spostamento
+   drag&drop di un'immagine già nel documento (solo stessa tab, solo Muya, solo area
+   editabile). Flusso: Agent-Explorer (prompt salvato) → plan implementativo
+   (`image-drag-in-doc-move-plan.md`) → spike runtime task0 (orchestratore) → Agent-Code →
+   fix round 1 (orchestratore, 3 righe): stato `internalImageDrag` stale dopo move via drop
+   (render stacca la sorgente → dragend non risale → drop esterni morti). Round 2 test
+   utente: PASS su tutto. File toccati: `src/muya/lib/eventHandler/dragDrop.js`,
+   `src/muya/lib/contentState/dragDropCtrl.js`. Build OK, unit test 42/42.
+   Scoperta utile: su questo target il drop interno ARRIVA (electron#42252 non morde
+   sull'editor, a differenza della tabbar); fallback dragend tenuto comunque.
+2. Test utente della pulizia log (`debug-log-cleanup`) e commit precedente: già fatti
+   dall'utente prima di questa sessione.
 
 ## Cosa manca (in ordine)
 
-1. **Test utente** della pulizia log (smoke) + **conferma esplicita** per procedere.
-2. **Commit dell'utente** (pulizia log + archiviazione doc).
-3. **image-drag-in-doc** (ultima feature grossa): rilanciare Agent-Explorer col prompt
-   salvato in `image-drag-in-doc/image-drag-in-doc-explorer-prompt.md`, poi plan
-   implementativo + gate, poi Agent-Code. Analisi rischi già in `image-drag-in-doc-plan.md`
-   (transformer/resize, selezione vs drag, regressione drop esterni, vincoli electron#42252).
-   SOLO dopo il commit dell'utente.
+1. **Commit dell'utente** di image-drag-in-doc (annunciato, forse già fatto alla ripresa).
+2. **Agent-Summary per image-drag-in-doc**: esplicitamente RIMANDATO su richiesta utente —
+   avviarlo solo quando l'utente dà l'ok (riassunto in `Completed/` + mv dettagli + index,
+   regola DECISIONS 2026-07-08). Anche `debug-log-cleanup/` (testato) è candidato ad
+   archiviazione con lo stesso giro.
+3. TODO.md residui: test macOS/Linux dell'overhaul, smoke-test sessione su Linux, verifica
+   "Opened Tabs Search" (Ctrl+Shift+F, in teoria già funzionante).
 
 ## Bug/attività aperte non bloccanti
 
 - `normalizeHeaderText` (vedi `docs/Ai/Notes/bug-normalizeHeaderText-id-contaminati.md`, serve repro).
-- TODO.md: test macOS/Linux dell'overhaul, smoke-test sessione su Linux, verifica "Opened
-  Tabs Search" (Ctrl+Shift+F, in teoria già funzionante).
 
 ## Note operative
 

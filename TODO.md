@@ -35,7 +35,7 @@
 - [x] **Finestra — width minima + hamburger** — chiuso 2026-07-13 (feature `window-minwidth-hamburger`: min 550px, soglia 700, popover hamburger con Teleport su body; test utente OK).
 - [x] **Strumenti selezione testo — toggle off** — chiuso 2026-07-13 (feature `format-toggle-off`, multi-blocco stile Word; bug picker singolo-blocco non riprodotto; restano da rimuovere i log `[FMT-TOGGLE-DEBUG]`).
 - [ ] **Test su macOS e Linux** — dell'overhaul menu/shortcut + fix sopra.
-- [ ] **Drag immagini nel documento** — trascinare un'immagine dentro il documento per inserirla. Plan in `docs/Ai/InProgress/image-drag-in-doc/`. Da fare SOLO dopo commit preventivo dell'utente (richiesta esplicita: modifica pericolosa).
+- [x] **Drag immagini nel documento** — chiuso 2026-07-18 (feature `image-drag-in-doc`, task move): spostamento drag&drop di un'immagine già nel documento, solo stessa tab/modalità Muya/area editabile; spike preventivo + fix stato stale post-move (drop esterni). Test utente OK. Commit utente + Agent-Summary pendenti.
 - [x] **Folder Search** — chiuso 2026-07-13 (feature `folder-search` task1-4: handler rg + unit test, finestra risultati, sidebar, overlay con icona e bottone "…"; test utente OK).
 - [ ] **Opened Tabs Search** Ricerca tra tutte le tab aperte (in teoria la feature è gia funzionante tramite la sidebar di ricerca aperta con Ctrl shift F, verificare)
 

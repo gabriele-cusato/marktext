@@ -21,23 +21,49 @@ Plan di riferimento: `image-drag-in-doc-move-plan.md`.
   dragend mantenuto per robustezza), aggiunto `clearData()` al dragstart — il payload nativo
   del drag IMG incollava testo (`Screenshot...jpg`) nelle app esterne (visto in Visual Studio)
 
-### Task move — implementazione
+### Task move — implementazione — TESTATA ✓ (2026-07-18)
 
-- [ ] dragstart condizionato: consentire il drag sulle IMG dentro `.ag-inline-image`
+- [x] dragstart condizionato: consentire il drag sulle IMG dentro `.ag-inline-image`
   (`clearData()` anti-payload nativo + `text/mt-image-move` + `effectAllowed='move'` +
   stato locale in contentState), mantenere `preventDefault` per le altre IMG
-- [ ] rimozione/sostituzione completa del codice spike (`SPIKE-IMG-DRAG`: log e commenti)
-  nei 2 file
-- [ ] dragoverHandler: ramo interno (gate su stato locale) con `preventDefault` + ghost +
+- [x] rimozione/sostituzione completa del codice spike (`SPIKE-IMG-DRAG`: log e commenti)
+  nei 2 file (verificato con grep: nessun residuo `SPIKE-IMG-DRAG`/`console.log`)
+- [x] dragoverHandler: ramo interno (gate su stato locale) con `preventDefault` + ghost +
   `dropEffect='move'`, rami esistenti invariati
-- [ ] dropHandler: ramo interno con chiamata al move + flag anti-doppia-esecuzione
-- [ ] dragend nuovo: fallback decisione (electron#42252) + cleanup ghost/stato sempre
-- [ ] moveImageToDropAnchor: rimozione token dal blocco sorgente (+ rimozione `p` vuoto),
+- [x] dropHandler: ramo interno con chiamata al move + flag anti-doppia-esecuzione
+- [x] dragend nuovo: fallback decisione (electron#42252) + cleanup ghost/stato sempre
+- [x] moveImageToDropAnchor: rimozione token dal blocco sorgente (+ rimozione `p` vuoto),
   reinserimento con `createBlockP` + insertBefore/After, no-op su se stesso, cursore +
   render + stateChange, niente imageAction
-- [ ] verifica: diff rami esterni invariati, `npm run build` OK, `npm run test:unit` a baseline
+- [x] verifica: diff rami esterni invariati (`git diff` confermato, rami uri-list/Files/
+  else passivo intatti), `npm run build` OK, `npm run test:unit` a baseline (42 verdi)
 
 ## Test
+
+### Round 1 (utente, 2026-07-18)
+
+- Move immagine nel documento: FUNZIONA ✓ (anche undo/redo, rilascio su se stessa, rilascio
+  fuori editor, drag verso app esterne senza incollare nulla, taskbar spring, selezione/resize,
+  drag tab: tutti OK)
+- **BUG trovato: drop immagine esterna (da Explorer) morto** — ghost visibile, nessun
+  inserimento, zero errori. Dopo Ctrl+Z "riprendeva a funzionare" (in apparenza).
+- **Causa radice**: move interno riuscito via `drop` → `render()` stacca l'IMG sorgente dal
+  DOM → il `dragend` non risale al container → cleanup mai eseguito → `internalImageDrag`
+  stale dirotta ogni drag successivo nel ramo interno (`getBlock(chiave vecchia)` → return
+  silenzioso). Il Ctrl+Z ripristinava i blocchi con le stesse chiavi → lo stato stale tornava
+  a puntare a un blocco esistente e il ramo interno "funzionava" spostando il blocco
+  ripristinato (non era il vero percorso esterno).
+- **Fix round 1** (orchestratore, diretto, 3 righe + commento): nel ramo interno del
+  `dropHandler` azzerare subito `internalImageDrag`/`internalImageDragHandled` dopo il move,
+  senza affidarsi al dragend. Il dragend resta per i gesti annullati (sorgente ancora nel DOM)
+  e per il fallback move.
+
+### Round 2 (utente, 2026-07-18) — PASS, feature verificata
+
+- Sequenza move interno → drop esterno da Explorer: FUNZIONA ✓ (ripetuta più volte alternando)
+- Undo e taskbar: OK ✓
+- Nessun punto aperto. Feature COMPLETA e testata. Commit a carico dell'utente.
+- Agent-Summary NON ancora avviato (richiesta utente: rimandato).
 
 (compilare dopo il test utente su PC principale — obbligatori:
 - move immagine su/giù nel documento, anche dentro/fuori liste e blockquote

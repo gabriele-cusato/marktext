@@ -70,21 +70,13 @@ const dragDropCtrl = (ContentState) => {
       return
     }
 
-    // SPIKE-IMG-DRAG: drag interno di un'immagine del documento — accettare il
-    // gesto (preventDefault qui è legittimo: gesto che si intende accettare) e
-    // mostrare il ghost. Gate sullo stato locale, non sul dataTransfer (illeggibile
-    // in dragover). Solo osservazione, nessuna mutazione.
+    // Drag interno di un'immagine del documento: gesto da accettare (preventDefault
+    // qui è legittimo, a differenza del rifiuto passivo sotto). Gate sullo stato
+    // locale del contentState, il dataTransfer non è leggibile in dragover.
     if (this.internalImageDrag) {
       event.preventDefault()
       this.createGhost(event)
       event.dataTransfer.dropEffect = 'move'
-      const anchorTag = this.dropAnchor
-        ? `${this.dropAnchor.anchor.key}:${this.dropAnchor.position}`
-        : 'nessun-anchor'
-      if (this._spikeLastAnchor !== anchorTag) {
-        this._spikeLastAnchor = anchorTag
-        console.log('[SPIKE-IMG-DRAG] dragover anchor', anchorTag)
-      }
       return
     }
 
@@ -120,25 +112,77 @@ const dragDropCtrl = (ContentState) => {
   }
 
   ContentState.prototype.dragleaveHandler = function (event) {
-    // SPIKE-IMG-DRAG: tracciare quando l'anchor viene azzerato durante il drag interno
-    // (uscita dall'editor o passaggio tra paragrafi).
-    if (this.internalImageDrag && this.dropAnchor) {
-      console.log('[SPIKE-IMG-DRAG] dragleave: ghost/anchor azzerati')
-    }
     return this.hideGhost()
+  }
+
+  /**
+   * Sposta l'immagine trascinata (this.internalImageDrag) nella posizione indicata da
+   * this.dropAnchor: rimuove il token immagine dal blocco sorgente e lo reinserisce come
+   * nuovo blocco paragrafo accanto all'anchor. Nessuna chiamata a imageAction: l'immagine
+   * esiste già nel documento, non va caricata/copiata di nuovo.
+   */
+  ContentState.prototype.moveImageToDropAnchor = function () {
+    const { internalImageDrag, dropAnchor } = this
+    if (!internalImageDrag || !dropAnchor) {
+      return
+    }
+
+    const { key, token } = internalImageDrag
+    const { anchor, position } = dropAnchor
+    const sourceBlock = this.getBlock(key)
+    if (!sourceBlock) {
+      // il blocco sorgente non esiste più (es. documento modificato nel frattempo)
+      return
+    }
+
+    // no-op: rilascio sull'immagine stessa (l'anchor è il paragrafo che la contiene)
+    const sourceParent = this.getParent(sourceBlock)
+    if (sourceParent && sourceParent.key === anchor.key) {
+      return
+    }
+
+    // rimozione del token immagine dal blocco sorgente (tecnica di deleteImage)
+    const oldText = sourceBlock.text
+    const { start, end } = token.range
+    sourceBlock.text = oldText.substring(0, start) + oldText.substring(end)
+
+    // il paragrafo sorgente resta senza contenuto: non lasciare un <p> orfano
+    if (!sourceBlock.text && sourceParent) {
+      this.removeBlock(sourceParent)
+    }
+
+    // reinserimento dell'immagine come nuovo blocco paragrafo nella posizione di destinazione
+    const imageBlock = this.createBlockP(token.raw)
+    if (position === 'up') {
+      this.insertBefore(imageBlock, anchor)
+    } else {
+      this.insertAfter(imageBlock, anchor)
+    }
+
+    const newKey = imageBlock.children[0].key
+    const offset = 0
+    this.cursor = {
+      start: { key: newKey, offset },
+      end: { key: newKey, offset }
+    }
+    this.render()
+    this.muya.eventCenter.dispatch('stateChange')
   }
 
   ContentState.prototype.dropHandler = async function (event) {
     event.preventDefault()
-    // SPIKE-IMG-DRAG: verificare se il drop interno viene consegnato (electron#42252
-    // dice di no su Windows per i drag stessa-finestra). Nessuna azione sul documento.
+    // Drop interno di un'immagine del documento (move): percorso primario reale su
+    // questa piattaforma (a differenza del drag delle tab, qui il drop arriva). Il
+    // fallback su dragend resta per le piattaforme dove non arrivasse, senza doppia
+    // esecuzione grazie al flag internalImageDragHandled.
     if (this.internalImageDrag) {
-      this.internalImageDragHandled = true
-      console.log('[SPIKE-IMG-DRAG] drop CONSEGNATO', {
-        dropAnchor: this.dropAnchor
-          ? { key: this.dropAnchor.anchor.key, position: this.dropAnchor.position }
-          : null
-      })
+      this.moveImageToDropAnchor()
+      // azzerare lo stato QUI e non nel dragend: dopo il render() del move l'IMG
+      // sorgente è staccata dal DOM e il suo dragend può non risalire più al
+      // container → lo stato resterebbe stale e dirotterebbe nel ramo interno
+      // tutti i drag successivi (bug visto a runtime: drop esterni morti).
+      this.internalImageDrag = null
+      this.internalImageDragHandled = false
       this.hideGhost()
       return
     }
